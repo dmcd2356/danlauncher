@@ -1,0 +1,7 @@
+= danlauncher =
+
+Graphical user interface for instrumenting a jar file with danalyzer. It allows the user to 
+ provide an input value to test, then run the instrumented jar file and collect the cost in
+ terms of instrumented instructions executed. If parameters were marked as symbolic, it then
+ allows the user to run the solver to solve for new paths and provides the bytecode for a
+ selected method to view which paths have been explored and the corresponding cost for each.
