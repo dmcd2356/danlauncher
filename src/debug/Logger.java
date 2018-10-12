@@ -5,9 +5,12 @@
  */
 package debug;
 
+import debug.FontInfo.FontType;
+import debug.FontInfo.TextColor;
 import java.awt.Color;
 import java.awt.Graphics;
 import java.util.HashMap;
+import java.util.Map;
 import javax.swing.JTextPane;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
@@ -30,47 +33,49 @@ public class Logger {
 
   private final static String MAX_PADDING = "                    ";
   
-  private enum FontType {
-    Normal, Bold, Italic, BoldItalic;
-  }
-    
-  private enum TextColor {
-    Black, DkGrey, DkRed, Red, LtRed, Orange, Brown, Gold, Green, Cyan,
-    LtBlue, Blue, Violet, DkVio;
-  }
-    
   // the default point size and font types to use
-  private final static int    DEFAULT_POINT = 14;
-  private final static String DEFAULT_FONT = "Courier";
-  
+  private static final int    DEFAULT_POINT = 14;
+  private static final String DEFAULT_FONT = "Courier";
   private static final String NEWLINE = System.getProperty("line.separator");
 
-  private static JTextPane       debugTextPane = null;
+  private String          pnlname;
+  private JTextPane       textPane = null;
   private static final HashMap<String, FontInfo> messageTypeTbl = new HashMap<>();
 
-  public Logger (String name, JTextPane textpane) {
-    if (textpane == null) {
-      System.out.println("ERROR: Textpane passed to '" + name + "' Logger was null!");
-      System.exit(1);
+  public Logger (String name, HashMap<String, FontInfo> map) {
+    pnlname = name;
+    textPane = new JTextPane();
+
+    // copy the font mapping info over (use deep-copy loop instead of shallow-copy putAll)
+    if (map != null) {
+      for (Map.Entry<String, FontInfo> entry : map.entrySet()) {
+        messageTypeTbl.put(entry.getKey(), entry.getValue());
+      }
     }
-    debugTextPane = textpane;
-    setColors();
+  }
+
+  public final JTextPane getTextPane() {
+    return textPane;
+  }
+
+  public final String getName() {
+    return pnlname;
   }
 
   /**
    * clears the display.
    */
   public final void clear() {
-    debugTextPane.setText("");
+    textPane.setText("");
   }
 
   /**
    * updates the display immediately
    */
   public final void updateDisplay () {
-    Graphics graphics = debugTextPane.getGraphics();
+    Graphics graphics = textPane.getGraphics();
     if (graphics != null) {
-      debugTextPane.update(graphics);
+      textPane.update(graphics);
     }
   }
 
@@ -187,39 +192,42 @@ public class Logger {
     printRaw("METHOD", methodName + NEWLINE + NEWLINE);
   }
   
+  public final void printMaxLength(String type, String message, int maxlen) {
+    // this is because word wrap doesn't work on JTextPane
+    while(!message.isEmpty()) {
+      String line;
+      if (message.length() > maxlen) {
+        line = message.substring(0, maxlen);
+        message = message.substring(maxlen);
+      } else {
+        line = message;
+        message = "";
+      }
+
+      printRaw(type, line + NEWLINE);
+    }
+  }
+  
+  public final void printMaxLength(String message, int maxlen, boolean error) {
+    while(!message.isEmpty()) {
+      String line;
+      if (message.length() > maxlen) {
+        line = message.substring(0, maxlen);
+        message = message.substring(maxlen);
+      } else {
+        line = message;
+        message = "";
+      }
+
+      TextColor color = error ? TextColor.DkRed : TextColor.Black;
+      appendToPane(line + NEWLINE, color, DEFAULT_FONT, DEFAULT_POINT, FontType.Normal);
+    }
+  }
+  
   public final void printUnformatted(String message) {
     printRaw("NOFMT", message + NEWLINE);
   }
   
-  private void setColors () {
-    // these are for public consumption
-    setTypeColor ("NOFMT",   TextColor.DkGrey, FontType.Italic);
-    setTypeColor ("ERROR",   TextColor.Red,    FontType.Bold);
-    setTypeColor ("WARN",    TextColor.Orange, FontType.Bold);
-
-    setTypeColor ("METHOD",  TextColor.Violet, FontType.Italic, 16, DEFAULT_FONT);  // the class/method
-    setTypeColor ("TEXT",    TextColor.Black,  FontType.Italic);  // generic text
-    setTypeColor ("PARAM",   TextColor.Brown,  FontType.Normal);  // opcode parameter values
-    setTypeColor ("COMMENT", TextColor.Green,  FontType.Italic);  // comments in the code
-
-    setTypeColor ("BRANCH",  TextColor.DkVio,  FontType.Bold);    // branch instructions
-    setTypeColor ("INVOKE",  TextColor.Gold,   FontType.Bold);    // invoke calls
-    setTypeColor ("LOAD",    TextColor.Green,  FontType.Normal);  // opcodes that load from local
-    setTypeColor ("STORE",   TextColor.Blue,   FontType.Normal);  // opcodes that store to local
-    setTypeColor ("OTHER",   TextColor.Black,  FontType.Normal);  // all other opcodes
-
-//    setTypeColor ("DUMP",   TextColor.Orange, FontType.Bold);
-//    setTypeColor ("START",  TextColor.Black,  FontType.BoldItalic);
-//    setTypeColor ("AGENT",  TextColor.Violet, FontType.Italic);
-//    setTypeColor ("THREAD", TextColor.DkVio,  FontType.Italic);
-//    setTypeColor ("RETURN", TextColor.Gold,   FontType.Bold);
-//    setTypeColor ("UNINST", TextColor.Gold,   FontType.BoldItalic);
-//    setTypeColor ("STATS",  TextColor.Gold,   FontType.BoldItalic); // obsolete
-//    setTypeColor ("STACKS", TextColor.Blue,   FontType.Italic);
-//    setTypeColor ("STACKI", TextColor.Blue,   FontType.Bold);
-//    setTypeColor ("LOCAL",  TextColor.Green,  FontType.Normal);
-  }
-
   /**
    * A generic function for appending formatted text to a JTextPane.
    * 
@@ -233,62 +241,31 @@ public class Logger {
   private void appendToPane(String msg, TextColor color, String font, int size,
                                    FontType ftype) {
     AttributeSet aset = setTextAttr(color, font, size, ftype);
-    int len = debugTextPane.getDocument().getLength();
+    int len = textPane.getDocument().getLength();
 
     // trim off earlier data to reduce memory usage if we exceed our bounds
     if (len > MAX_TEXT_BUFFER_SIZE) {
       try {
         int oldlen = len;
         int start = REDUCE_BUFFER_SIZE;
-        String text = debugTextPane.getDocument().getText(start, 500);
+        String text = textPane.getDocument().getText(start, 500);
         int offset = text.indexOf(NEWLINE);
         if (offset >= 0) {
           start += offset + 1;
         }
-        debugTextPane.getDocument().remove(0, start);
-        len = debugTextPane.getDocument().getLength();
+        textPane.getDocument().remove(0, start);
+        len = textPane.getDocument().getLength();
         System.out.println("Reduced text from " + oldlen + " to " + len);
       } catch (BadLocationException ex) {
         System.out.println(ex.getMessage());
       }
     }
 
-    debugTextPane.setCaretPosition(len);
-    debugTextPane.setCharacterAttributes(aset, false);
-    debugTextPane.replaceSelection(msg);
+    textPane.setCaretPosition(len);
+    textPane.setCharacterAttributes(aset, false);
+    textPane.replaceSelection(msg);
   }
 
-  /**
-   * sets the association between a type of message and the characteristics
-   * in which to print the message.
-   * 
-   * @param type  - the type to associate with the font characteristics
-   * @param color - the color to assign to the type
-   * @param ftype - the font attributes to associate with the type
-   */
-  private void setTypeColor (String type, TextColor color, FontType ftype) {
-    setTypeColor (type, color, ftype, DEFAULT_POINT, DEFAULT_FONT);
-  }
-    
-  /**
-   * same as above, but lets user select font family and size as well.
-   * 
-   * @param type  - the type to associate with the font characteristics
-   * @param color - the color to assign to the type
-   * @param ftype - the font attributes to associate with the type
-   * @param size  - the size of the font
-   * @param font  - the font family (e.g. Courier, Ariel, etc.)
-   */
-  private void setTypeColor (String type, TextColor color, FontType ftype, int size, String font) {
-    FontInfo fontinfo = new FontInfo(color, ftype, size, font);
-    if (messageTypeTbl.containsKey(type)) {
-      messageTypeTbl.replace(type, fontinfo);
-    }
-    else {
-      messageTypeTbl.put(type, fontinfo);
-    }
-  }
-    
   /**
    * displays a message in the debug window (no termination).
    * 
@@ -298,8 +275,8 @@ public class Logger {
   private void printRaw(String type, String message) {
     if (message != null && !message.isEmpty()) {
       // set default values (if type was not found)
-      TextColor color = TextColor.Black;
-      FontType ftype = FontType.Normal;
+      TextColor color = TextColor.DkGrey; //TextColor.Black;
+      FontType ftype = FontType.Italic; //FontType.Normal;
       int size = DEFAULT_POINT;
       String font = DEFAULT_FONT;
 
@@ -428,17 +405,4 @@ public class Logger {
     return aset;
   }
     
-  public class FontInfo {
-    TextColor  color;      // the font color
-    FontType   fonttype;   // the font attributes (e.g. Italics, Bold,..)
-    String     font;       // the font family (e.g. Courier)
-    int        size;       // the font size
-        
-    FontInfo (TextColor col, FontType type, int fsize, String fontname) {
-      color = col;
-      fonttype = type;
-      font = fontname;
-      size = fsize;
-    }
-  }
 }

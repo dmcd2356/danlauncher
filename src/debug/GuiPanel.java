@@ -5,6 +5,9 @@
  */
 package debug;
 
+import debug.FontInfo.FontType;
+import debug.FontInfo.TextColor;
+import java.awt.BorderLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.BufferedReader;
@@ -42,20 +45,23 @@ public class GuiPanel {
   private enum ElapsedMode { OFF, RUN, RESET }
 
   // tab panel selections
-  private enum PanelTabs { BYTECODE, DEBUG, GRAPH }
+  private enum PanelTabs { BYTECODE, COMMAND, DATABASE, DEBUG, GRAPH }
+  
+  // location of danalyzer program
+  private static final String DSEPATH = "/home/dan/Projects/isstac/dse/";
   
   private static final String CLASSFILE_STORAGE = ""; // application/";
 
   private final static GuiControls  mainFrame = new GuiControls();
   private static PropertiesFile props;
   private static JTabbedPane    tabPanel;
-  private static JTextPane      bcodeTextPane;
-  private static JTextPane      debugTextPane;
   private static JPanel         graphPanel;
   private static JFileChooser   fileSelector;
+  private static JComboBox      mainClassCombo;
   private static JComboBox      classCombo;
   private static JComboBox      methodCombo;
   private static Logger         bytecodeLogger;
+  private static Logger         commandLogger;
   private static Logger         debugLogger;
   private static Timer          pktTimer;
   private static Timer          graphTimer;
@@ -63,12 +69,15 @@ public class GuiPanel {
   private static int            threadCount;
   private static long           elapsedStart;
   private static ElapsedMode    elapsedMode;
-  private static File           projectPath;
+  private static String         projectPathName;
   private static String         projectName;
-  private static JTextPane      statusMessage;
+  private static int            tabIndex = 0;
   private static HashMap<PanelTabs, Integer> tabSelect = new HashMap<>();
   private static HashMap<String, ArrayList<String>> clsMethMap; // maps the list of methods to each class
   private static ArrayList<String>  classList;
+  private static final HashMap<String, FontInfo> bytecodeFontTbl = new HashMap<>();
+  private static final HashMap<String, FontInfo> commandFontTbl = new HashMap<>();
+  private static final HashMap<String, FontInfo> debugFontTbl = new HashMap<>();
   
 /**
  * creates a debug panel to display the Logger messages in.
@@ -97,9 +106,13 @@ public class GuiPanel {
     mainFrame.newFrame("danviewer", 1200, 800, false);
 
     // create the entries in the main frame
-    mainFrame.makePanel (null, "PNL_CONTROL"  , "Controls"           , LEFT, false);
-    mainFrame.makePanel (null, "PNL_MESSAGES" , "Status"             , LEFT, true);
-    tabPanel = mainFrame.makeTabbedPanel(null, "PNL_TABBED", ""      , LEFT, true);
+    panel = null;
+    mainFrame.makePanel (panel, "PNL_CONTAINER", ""              , LEFT, true);
+    tabPanel = mainFrame.makeTabbedPanel(panel, "PNL_TABBED", "" , LEFT, true);
+
+    panel = "PNL_CONTAINER";
+    mainFrame.makePanel (panel, "PNL_CONTROL"  , "Controls"      , LEFT, true);
+    mainFrame.makeTextField(panel, "TXT_MESSAGES", "Status"      , RIGHT, true, "              ", false);
 
 //    panel = "PNL_CONTAINER1";
 //    mainFrame.makePanel (panel, "PNL_STATS"    , "Statistics"        , LEFT, false);
@@ -113,25 +126,30 @@ public class GuiPanel {
 //    mainFrame.makeTextField  (panel, "TXT_2" , "Dummy2" , LEFT,  true , "------", false);
 
     panel = "PNL_CONTROL";
-    mainFrame.makeButton   (panel, "BTN_LOADFILE" , "Select Jar"  , LEFT, false);
+    mainFrame.makeLabel    (panel, "LBL_1"        , "Jar file:"   , LEFT, false);
     mainFrame.makeLabel    (panel, "LBL_JARFILE"  , "           " , LEFT, true);
+    mainFrame.makeCombobox (panel, "COMBO_MAINCLS", "Main Class"  , LEFT, true);
+    mainFrame.makeLabel    (panel, "LBL_2"        , " "           , LEFT, true); // dummy separator
     mainFrame.makeCombobox (panel, "COMBO_CLASS"  , "Class"       , LEFT, true);
     mainFrame.makeCombobox (panel, "COMBO_METHOD" , "Method"      , LEFT, true);
-    mainFrame.makeButton   (panel, "BTN_BYTECODE" , "Get Bytecode", LEFT, true);
-
-    panel = "PNL_MESSAGES";
-//    mainFrame.makeLabel  (panel, "LBL_MESSAGES"  , "                    "   , LEFT, true);
-    statusMessage = mainFrame.makeScrollText(panel, "TXT_MESSAGES", "");
-    printStatus(null);
+    mainFrame.makeTextField(panel, "TXT_INPUT"    , "Input"       , LEFT, true, "", true);
+    mainFrame.makeButton   (panel, "BTN_LOADFILE" , "Select Jar"  , LEFT, false);
+    mainFrame.makeButton   (panel, "BTN_BYTECODE" , "Get Bytecode", LEFT, false);
+    mainFrame.makeButton   (panel, "BTN_RUNTEST"  , "Run code"    , LEFT, true);
 
     // initially disable the class/method select and generating bytecode
+    mainClassCombo = mainFrame.getCombobox ("COMBO_MAINCLS");
     classCombo  = mainFrame.getCombobox ("COMBO_CLASS");
     methodCombo = mainFrame.getCombobox ("COMBO_METHOD");
+    mainClassCombo.setEnabled(false);
     classCombo.setEnabled(false);
     methodCombo.setEnabled(false);
+    mainFrame.getLabel("COMBO_MAINCLS").setEnabled(false);
     mainFrame.getLabel("COMBO_CLASS").setEnabled(false);
     mainFrame.getLabel("COMBO_METHOD").setEnabled(false);
     mainFrame.getButton("BTN_BYTECODE").setEnabled(false);
+    mainFrame.getButton("BTN_RUNTEST").setEnabled(false);
+    mainFrame.getTextField("TXT_INPUT").setEnabled(false);
     
     // we need a filechooser for the Save buttons
     GuiPanel.fileSelector = new JFileChooser();
@@ -147,9 +165,9 @@ public class GuiPanel {
       @Override
       public void stateChanged(ChangeEvent e) {
         // if we switched to the graph display tab, update the graph
-        if (isTabSelection(PanelTabs.GRAPH)) {
-          GuiPanel.mainFrame.repack();
-        }
+//        if (isTabSelection(PanelTabs.GRAPH)) {
+//          GuiPanel.mainFrame.repack();
+//        }
       }
     });
     classCombo.addActionListener(new ActionListener() {
@@ -168,17 +186,27 @@ public class GuiPanel {
         loadFileButtonActionPerformed(evt);
         
         // enable the class and method selections
+        mainClassCombo.setEnabled(false);
         classCombo.setEnabled(true);
         methodCombo.setEnabled(true);
+        mainFrame.getLabel("COMBO_MAINCLS").setEnabled(true);
         mainFrame.getLabel("COMBO_CLASS").setEnabled(true);
         mainFrame.getLabel("COMBO_METHOD").setEnabled(true);
         mainFrame.getButton("BTN_BYTECODE").setEnabled(true);
+        mainFrame.getButton("BTN_RUNTEST").setEnabled(true);
+        mainFrame.getTextField("TXT_INPUT").setEnabled(true);
       }
     });
     (GuiPanel.mainFrame.getButton("BTN_BYTECODE")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
-        runDebug(evt);
+        runBytecode(evt);
+      }
+    });
+    (GuiPanel.mainFrame.getButton("BTN_RUNTEST")).addActionListener(new ActionListener() {
+      @Override
+      public void actionPerformed(java.awt.event.ActionEvent evt) {
+        runTest(evt);
       }
     });
     // setMethodSelections(String clsname)
@@ -186,25 +214,36 @@ public class GuiPanel {
     // display the frame
     GuiPanel.mainFrame.display();
 
-    // setup the tab panels
-    Integer tabIndex = 0;
-
-    // add the tabbed message panel for bytecode output
-    GuiPanel.bcodeTextPane = new JTextPane();
-    JScrollPane bcodeScrollPanel = new JScrollPane(GuiPanel.bcodeTextPane);
-    bcodeScrollPanel.setBorder(BorderFactory.createTitledBorder(""));
-    tabPanel.addTab("Bytecode", bcodeScrollPanel);
-    tabSelect.put(PanelTabs.BYTECODE, tabIndex++);
-    bytecodeLogger = new Logger("Bytecode", GuiPanel.bcodeTextPane);
-
-    // add the tabbed message panel for debug output
-//    GuiPanel.debugTextPane = new JTextPane();
-//    JScrollPane debugScrollPanel = new JScrollPane(GuiPanel.debugTextPane);
-//    debugScrollPanel.setBorder(BorderFactory.createTitledBorder(""));
-//    tabPanel.addTab("Debug", debugScrollPanel);
-//    tabSelect.put(PanelTabs.DEBUG, tabIndex++);
-//    debugLogger = new Logger("Debug", GuiPanel.debugTextPane);
+    // setup the font selections for the bytecode display
+    String fonttype = "Courier";
+    HashMap<String, FontInfo> map = bytecodeFontTbl;
+    // generic types
+    setTypeColor (map, "ERROR",   FontInfo.TextColor.Red,    FontInfo.FontType.Bold  , 14, fonttype);
+    setTypeColor (map, "WARN",    FontInfo.TextColor.Orange, FontInfo.FontType.Bold  , 14, fonttype);
+    // the method name banner
+    setTypeColor (map, "METHOD",  FontInfo.TextColor.Violet, FontInfo.FontType.Italic, 16, fonttype);
+    // parts of the bytecode info
+    setTypeColor (map, "TEXT",    FontInfo.TextColor.Black,  FontInfo.FontType.Italic, 14, fonttype);
+    setTypeColor (map, "PARAM",   FontInfo.TextColor.Brown,  FontInfo.FontType.Normal, 14, fonttype);
+    setTypeColor (map, "COMMENT", FontInfo.TextColor.Green,  FontInfo.FontType.Italic, 14, fonttype);
+    // the bytecode opcode formats
+    setTypeColor (map, "BRANCH",  FontInfo.TextColor.DkVio,  FontInfo.FontType.Bold  , 14, fonttype);
+    setTypeColor (map, "INVOKE",  FontInfo.TextColor.Gold,   FontInfo.FontType.Bold  , 14, fonttype);
+    setTypeColor (map, "LOAD",    FontInfo.TextColor.Green,  FontInfo.FontType.Normal, 14, fonttype);
+    setTypeColor (map, "STORE",   FontInfo.TextColor.Blue,   FontInfo.FontType.Normal, 14, fonttype);
+    setTypeColor (map, "OTHER",   FontInfo.TextColor.Black,  FontInfo.FontType.Normal, 14, fonttype);
     
+    // setup the font selections for the command display
+    map = commandFontTbl;
+    setTypeColor (map, "ERROR",   FontInfo.TextColor.Red,    FontInfo.FontType.Bold  , 14, fonttype);
+    setTypeColor (map, "NORMAL",  FontInfo.TextColor.DkGrey, FontInfo.FontType.Normal, 14, fonttype);
+    setTypeColor (map, "COMMAND", FontInfo.TextColor.Black,  FontInfo.FontType.Bold  , 14, fonttype);
+
+    // add the tabbed message panels for bytecode output, command output, and debug output
+    bytecodeLogger = addTextPanelToTab(PanelTabs.BYTECODE, bytecodeFontTbl);
+    commandLogger  = addTextPanelToTab(PanelTabs.COMMAND, commandFontTbl);
+    debugLogger    = addTextPanelToTab(PanelTabs.DEBUG, null); // TODO: setup fontmap
+
     // add the tabbed CallGraph panel
 //    GuiPanel.graphPanel = new JPanel();
 //    JScrollPane graphScrollPanel = new JScrollPane(GuiPanel.graphPanel);
@@ -249,25 +288,66 @@ public class GuiPanel {
 //    GuiPanel.elapsedMode = ElapsedMode.RESET;
   }
 
+  private Logger addTextPanelToTab(PanelTabs tabname, HashMap<String, FontInfo> fontmap) {
+    // create the Logger
+    Logger logger = new Logger(tabname.toString(), fontmap);
+    
+    // add the textPane to a scrollPane
+    JTextPane textPane = logger.getTextPane();
+
+    // this was supposed to enable word wrap on JTextPane, but doesn't work
+//    JPanel noWrapPanel = new JPanel(new BorderLayout());
+//    noWrapPanel.add( textPane );
+//    JScrollPane scrollPanel = new JScrollPane(noWrapPanel);
+//    scrollPanel.setViewportView(textPane);
+    
+    JScrollPane scrollPanel = new JScrollPane(textPane);
+    scrollPanel.setBorder(BorderFactory.createTitledBorder(""));
+    
+    // now add the scroll pane to the tabbed pane
+    tabPanel.addTab(tabname.toString(), scrollPanel);
+    tabSelect.put(tabname, tabIndex++);
+    return logger;
+  }
+  
+  /**
+   * sets the association between a type of message and the characteristics
+   * in which to print the message.
+   * 
+   * @param map   - the hasmap to assign the entry to
+   * @param type  - the type to associate with the font characteristics
+   * @param color - the color to assign to the type
+   * @param ftype - the font attributes to associate with the type
+   * @param size  - the size of the font
+   * @param font  - the font family (e.g. Courier, Ariel, etc.)
+   */
+  private void setTypeColor (HashMap<String, FontInfo> map, String type,
+      TextColor color, FontType ftype, int size, String font) {
+    FontInfo fontinfo = new FontInfo(color, ftype, size, font);
+    if (map.containsKey(type)) {
+      map.replace(type, fontinfo);
+    }
+    else {
+      map.put(type, fontinfo);
+    }
+  }
+
   private static boolean isTabSelection(PanelTabs select) {
     if (GuiPanel.tabPanel == null || tabSelect.isEmpty()) {
+      return false;
+    }
+    int curTab = GuiPanel.tabPanel.getSelectedIndex();
+    if (!tabSelect.containsKey(select)) {
+      System.err.println("Tab selection '" + select + "' not found!");
       return false;
     }
     return GuiPanel.tabPanel.getSelectedIndex() == tabSelect.get(select);
   }
 
-  private static void printStatus(String message) {
-    if (message == null) {
-      message = "                                                                                            ";
-    }
-    statusMessage.setText(message);
-//    mainFrame.getLabel("LBL_MESSAGES").setText(message);
-  }
-  
   /**
    * finds the classes in a jar file & sets the Class ComboBox to these values.
    */
-  private static void setupClassList (File path) {
+  private static void setupClassList (String pathname) {
     // init the class list
     GuiPanel.clsMethMap = new HashMap<>();
     GuiPanel.classList = new ArrayList<>();
@@ -275,7 +355,7 @@ public class GuiPanel {
 
     // read the list of methods from the "methodlist.txt" file created by Instrumentor
     try {
-      File file = new File(path.getAbsoluteFile() + "/methodlist.txt");
+      File file = new File(pathname + "methodlist.txt");
       FileReader fileReader = new FileReader(file);
       BufferedReader bufferedReader = new BufferedReader(fileReader);
       String line;
@@ -330,8 +410,16 @@ public class GuiPanel {
 
   private static void setClassSelections() {
     classCombo.removeAllItems();
+    mainClassCombo.removeAllItems();
     for (int ix = 0; ix < GuiPanel.classList.size(); ix++) {
-      classCombo.addItem(GuiPanel.classList.get(ix));
+      String cls = GuiPanel.classList.get(ix);
+      classCombo.addItem(cls);
+
+      // now get the methods for the class and check if it has a "main"
+      ArrayList<String> methodSelection = GuiPanel.clsMethMap.get(cls);
+      if (methodSelection != null && methodSelection.contains("main([Ljava/lang/String;)V")) {
+        mainClassCombo.addItem(cls);
+      }
     }
 
     // init class selection to 1st item
@@ -433,12 +521,30 @@ public class GuiPanel {
     @Override
     public void actionPerformed(ActionEvent e) {
       // if Call Graph tab selected, update graph
-      if (isTabSelection(PanelTabs.GRAPH)) {
-        GuiPanel.mainFrame.repack();
-      }
+//      if (isTabSelection(PanelTabs.GRAPH)) {
+//        GuiPanel.mainFrame.repack();
+//      }
     }
   }
 
+  private static void printStatus(String message) {
+    if (message == null) {
+      mainFrame.getTextField("TXT_MESSAGES").setText("                   ");
+    } else {
+      mainFrame.getTextField("TXT_MESSAGES").setText(message);
+      commandLogger.printMaxLength("ERROR", message, 120);
+    }
+  }
+  
+  private static boolean fileCheck(String fname) {
+    if (new File(fname).isFile()) {
+      return true;
+    }
+
+    printStatus("Missing file: " + fname);
+    return false;
+  }
+  
   private static void loadFileButtonActionPerformed(java.awt.event.ActionEvent evt) {
     printStatus(null);
     FileNameExtensionFilter filter = new FileNameExtensionFilter("Jar Files", "jar");
@@ -451,18 +557,25 @@ public class GuiPanel {
       // read the file
       File file = GuiPanel.fileSelector.getSelectedFile();
       projectName = file.getName();
-      projectPath = file.getParentFile();
+      projectPathName = file.getParentFile().getAbsolutePath() + "/";
       
+      // verify all the required files exist
+      if (!fileCheck(projectPathName + projectName) ||
+          !fileCheck(DSEPATH + "danalyzer/dist/danalyzer.jar") ||
+          !fileCheck(DSEPATH + "danalyzer/lib/commons-io-2.5.jar") ||
+          !fileCheck(DSEPATH + "danalyzer/lib/asm-all-5.2.jar")) {
+        return;
+      }
+    
       String mainclass = "danalyzer.instrumenter.Instrumenter";
-      String danpath = "/home/dan/Projects/isstac/dse/danalyzer/";
-      String classpath = danpath + "dist/danalyzer.jar";
-      classpath += ":" + danpath + "lib/commons-io-2.5.jar";
-      classpath += ":" + danpath + "lib/asm-all-5.2.jar";
+      String classpath = DSEPATH + "danalyzer/dist/danalyzer.jar";
+      classpath += ":" + DSEPATH + "danalyzer/lib/commons-io-2.5.jar";
+      classpath += ":" + DSEPATH + "danalyzer/lib/asm-all-5.2.jar";
 //      classpath += ":" + danpath + "lib/com.microsoft.z3.jar";
       classpath += ":/*:/lib/*";
 
       // remove any existing class files in the "application" folder in the location of the jar file
-      File applPath = new File(projectPath.getPath() + "/" + CLASSFILE_STORAGE);
+      File applPath = new File(projectPathName + CLASSFILE_STORAGE);
       if (applPath.isDirectory()) {
         for(String fname: applPath.list()){
           if (fname.endsWith(".class")) {
@@ -474,27 +587,28 @@ public class GuiPanel {
       
       // instrument the jar file
       String[] command = { "java", "-cp", classpath, mainclass, projectName };
-      CommandLauncher commandLauncher = new CommandLauncher();
-      int retcode = commandLauncher.start(command, projectPath.getAbsolutePath());
+      CommandLauncher commandLauncher = new CommandLauncher(commandLogger);
+      int retcode = commandLauncher.start(command, projectPathName);
       if (retcode == 0) {
-        mainFrame.getLabel("LBL_JARFILE").setText(file.getAbsolutePath());
-        printStatus(commandLauncher.getResponse());
+        mainFrame.getLabel("LBL_JARFILE").setText(projectPathName + projectName);
+        printStatus("Instrumentation successful");
+        commandLogger.printMaxLength("NORMAL", commandLauncher.getResponse(), 120);
       
         // update the class and method selections
-        setupClassList(projectPath);
+        setupClassList(projectPathName);
       } else {
         printStatus("ERROR: instrumenting file: " + projectName);
       }
     }
   }
   
-  private static void runDebug(java.awt.event.ActionEvent evt) {
+  private static void runBytecode(java.awt.event.ActionEvent evt) {
     String classSelect  = (String) classCombo.getSelectedItem();
     String methodSelect = (String) methodCombo.getSelectedItem();
     printStatus(null);
 
     // first we have to pull off the class files from the jar file
-    File jarfile = new File(projectPath.getAbsolutePath() + "/" + projectName);
+    File jarfile = new File(projectPathName + projectName);
     if (!jarfile.isFile()) {
       printStatus("ERROR: Jar file not found: " + jarfile);
       return;
@@ -512,14 +626,62 @@ public class GuiPanel {
       
     // decompile the selected class file
     String[] command = { "javap", "-p", "-c", "-s", "-l", classSelect + ".class" };
-    CommandLauncher commandLauncher = new CommandLauncher();
-    int retcode = commandLauncher.start(command, projectPath.getAbsolutePath());
+    CommandLauncher commandLauncher = new CommandLauncher(commandLogger);
+    int retcode = commandLauncher.start(command, projectPathName);
     if (retcode == 0) {
       String content = commandLauncher.getResponse();
       parseJavap(classSelect, methodSelect, content);
-      printStatus("----------- OK -------------");
+      printStatus("Successfully generated bytecode");
     } else {
       printStatus("ERROR: running javap on file: " + classSelect + ".class");
+    }
+  }
+
+  private static void runTest(java.awt.event.ActionEvent evt) {
+    // clear the output display
+    commandLogger.clear();
+
+    String instrJarFile = projectPathName + projectName.substring(0, projectName.indexOf(".")) + "-dan-ed.jar";
+    
+    // verify all the required files exist
+    if (!fileCheck(instrJarFile) ||
+        !fileCheck(DSEPATH + "danalyzer/dist/danalyzer.jar") ||
+        !fileCheck(DSEPATH + "danalyzer/lib/com.microsoft.z3.jar") ||
+        !fileCheck(DSEPATH + "danalyzer/lib/commons-io-2.5.jar") ||
+        !fileCheck(DSEPATH + "danalyzer/lib/asm-all-5.2.jar") ||
+        !fileCheck(DSEPATH + "danhelper/libdanhelper.so")) {
+      return;
+    }
+    
+    // get the user-supplied main class and input value
+    String mainclass = (String) mainClassCombo.getSelectedItem();
+    if (mainclass == null) {
+      printStatus("ERROR: no main class found!");
+      return;
+    }
+    String arglist = mainFrame.getTextField("TXT_INPUT").getText();
+
+    String JAVA_HOME = "/usr/lib/jvm/java-8-openjdk-amd64";
+    String options = "-Xverify:none -Dsun.boot.library.path=" + JAVA_HOME + "/bin:/usr/lib";
+    String bootcpath ="-Xbootclasspath/a:"
+                      + DSEPATH + "danalyzer/dist/danalyzer.jar:"
+                      + DSEPATH + "danalyzer/lib/com.microsoft.z3.jar";
+    String agentpath ="-agentpath:" + DSEPATH + "danhelper/libdanhelper.so";
+    String classpath = instrJarFile;
+    classpath += ":" + DSEPATH + "danalyzer/lib/commons-io-2.5.jar";
+    classpath += ":" + DSEPATH + "danalyzer/lib/asm-all-5.2.jar";
+    classpath += ":/*:/lib/*:/libs/*";
+
+    // run the instrumented jar file
+    String[] command = { "java", options, bootcpath, agentpath, "-cp", classpath, mainclass, arglist };
+    CommandLauncher commandLauncher = new CommandLauncher(commandLogger);
+    int retcode = commandLauncher.start(command, projectPathName);
+    if (retcode == 0) {
+      mainFrame.getLabel("LBL_JARFILE").setText("Running: " + projectName);
+      
+      // TODO: start timer to wait for response to show cost and elapsed time
+    } else {
+      printStatus("ERROR: running instrumented jar file: " + projectName);
     }
   }
   
@@ -628,7 +790,7 @@ public class GuiPanel {
   }
 
   private static void parseJavap(String classSelect, String methodSelect, String content) {
-System.out.println("searching for: " + classSelect + "." + methodSelect);
+commandLogger.printMaxLength("NORMAL", "searching for: " + classSelect + "." + methodSelect, 120);
 
     // javap uses the dot format for the class name, so convert it
     classSelect = classSelect.replace("/", ".");
@@ -656,10 +818,10 @@ System.out.println("searching for: " + classSelect + "." + methodSelect);
           int line = Integer.parseUnsignedInt(entry.substring(0, offset));
           entry = entry.substring(offset+1).trim();
           bytecode = true;
-System.out.println("entry is bytecode: " + entry);
+commandLogger.printMaxLength("NORMAL", "entry is bytecode: " + entry, 120);
           if (found) {
             if (line < lastline) {
-  System.out.println("line count indicates new method: " + line);
+commandLogger.printMaxLength("NORMAL", "line count indicates new method: " + line, 120);
               return;
             }
             lastline = line;
@@ -671,7 +833,7 @@ System.out.println("entry is bytecode: " + entry);
         
       // check for start of selected method (method must contain the parameter list)
       if (!bytecode && entry.contains("(") && entry.contains(")")) {
-System.out.println("method found in: " + entry);
+commandLogger.printMaxLength("NORMAL", "method found in: " + entry, 120);
         // extract the word that contains the param list
         String methName = "";
         String array[] = entry.split("\\s+");
@@ -697,11 +859,11 @@ System.out.println("method found in: " + entry);
         if (methName.isEmpty()) { // if no name - it must be the <init> contructor method
           methName = "<init>";
         }
-System.out.println("method: " + methName);
+commandLogger.printMaxLength("NORMAL", "method: " + methName, 120);
         // method entry found, let's see if it's the one we want
         if (methodSelect.startsWith(methName)) {
           found = true;
-System.out.println("method: FOUND!");
+commandLogger.printMaxLength("NORMAL", "method: FOUND!", 120);
           bytecodeLogger.printMethod(classSelect + "." + methodSelect);
         } else if (found) {
           // athe next method has been found in the file - stop parsing

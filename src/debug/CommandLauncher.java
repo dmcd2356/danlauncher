@@ -18,13 +18,27 @@ import javax.swing.JTextArea;
  */
 public class CommandLauncher {
     private JTextArea response;
+    private Logger logger;
     
-    public CommandLauncher () {
+    public CommandLauncher (Logger log) {
         this.response = null;
+        this.logger = log;
     }
     
     public String getResponse () {
         return response.getText();
+    }
+    
+    private void logMessage(String type, String message) {
+      if (logger == null) {
+        if (type.equals("ERROR")) {
+          System.err.println(message);
+        } else {
+          System.out.println(message);
+        }
+      } else {
+        logger.printMaxLength(type, message, 120);
+      }
     }
     
     /**
@@ -38,12 +52,13 @@ public class CommandLauncher {
     public int start(String[] command, String workdir) {
         int retcode = 0;
 
-        System.out.println("CommandLauncher command: " + String.join(" ", command));
+        logMessage("NORMAL", "--------------------------------------------------------------------------------");
         if (workdir == null) {
-          System.out.println("From current directory");
+          logMessage("NORMAL", "CommandLauncher running from current directory");
         } else {
-          System.out.println("From path: " + workdir);
+          logMessage("NORMAL", "CommandLauncher running from path: " + workdir);
         }
+        logMessage("COMMAND", String.join(" ", command));
         
         // create an output area for stderr and stdout
         this.response = new JTextArea();
@@ -71,7 +86,7 @@ public class CommandLauncher {
         try {
             p = builder.start();
         } catch (IOException ex) {
-            System.err.println("builder failure: " + ex);
+            logMessage("ERROR", "builder failure: " + ex);
             return -1;
         }
 
@@ -83,7 +98,7 @@ public class CommandLauncher {
                     System.out.println(status);
                 }
             } catch (IOException ex) {
-                System.err.println("BufferedReader failure: " + ex);
+                logMessage("ERROR", "BufferedReader failure: " + ex);
                 retcode = -1;
                 break;
             }
