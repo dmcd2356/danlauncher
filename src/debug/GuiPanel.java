@@ -9,6 +9,7 @@ import dansolver.Dansolver;
 import debug.FontInfo.FontType;
 import debug.FontInfo.TextColor;
 import java.awt.Component;
+import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.BufferedReader;
@@ -161,35 +162,31 @@ public final class GuiPanel {
 
     // create the entries in the main frame
     panel = null;
-    mainFrame.makePanel (panel, "PNL_CONTAINER", ""              , LEFT, true);
+    mainFrame.makeTextField(panel, "TXT_MESSAGES" , "Status"     , LEFT, true, "              ", false);
+    mainFrame.makePanel    (panel, "PNL_CONTAINER", ""           , LEFT, true);
     tabPanel = mainFrame.makeTabbedPanel(panel, "PNL_TABBED", "" , LEFT, true);
 
     panel = "PNL_CONTAINER";
-    mainFrame.makePanel (panel, "PNL_CONTROL"  , "Controls"      , LEFT, true);
-    mainFrame.makeTextField(panel, "TXT_MESSAGES", "Status"      , RIGHT, true, "              ", false);
+    mainFrame.makePanel (panel, "PNL_CONTROL"  , "Controls"      , LEFT, false);
+    mainFrame.makePanel (panel, "PNL_BYTECODE" , "Bytecode"      , LEFT, false);
+    mainFrame.makePanel (panel, "PNL_STATS"    , "Solutions"     , LEFT, true);
 
-//    panel = "PNL_CONTAINER1";
-//    mainFrame.makePanel (panel, "PNL_STATS"    , "Statistics"        , LEFT, false);
-//    mainFrame.makePanel (panel, "PNL_CONTROL"  , "Controls"          , LEFT, true);
-//    mainFrame.makePanel (panel, "PNL_MESSAGES" , "Status"            , LEFT, true);
-    
-//    panel = "PNL_STATS";
-//    mainFrame.makeLabel      (panel, "LBL_1" , " "      , RIGHT, true);
-//    mainFrame.makeLabel      (panel, "LBL_2" , " "      , LEFT,  true); // dummy seperator
-//    mainFrame.makeTextField  (panel, "TXT_1" , "Dummy1" , LEFT,  false, "------", false);
-//    mainFrame.makeTextField  (panel, "TXT_2" , "Dummy2" , LEFT,  true , "------", false);
+    panel = "PNL_STATS";
+    mainFrame.makeLabel      (panel, "LBL_1" , " "      , RIGHT, false);
+    mainFrame.makeTextField  (panel, "TXT_1" , "Dummy1" , LEFT,  true, "------", false);
+
+    panel = "PNL_BYTECODE";
+    mainFrame.makeCombobox (panel, "COMBO_CLASS"  , "Class"       , LEFT, true);
+    mainFrame.makeCombobox (panel, "COMBO_METHOD" , "Method"      , LEFT, true);
+    mainFrame.makeButton   (panel, "BTN_BYTECODE" , "Get Bytecode", LEFT, true);
 
     panel = "PNL_CONTROL";
-    mainFrame.makeLabel    (panel, "LBL_1"        , "Jar file:"   , LEFT, false);
+    mainFrame.makeButton   (panel, "BTN_LOADFILE" , "Select Jar"  , LEFT, false);
     mainFrame.makeLabel    (panel, "LBL_JARFILE"  , "           " , LEFT, true);
     mainFrame.makeCombobox (panel, "COMBO_MAINCLS", "Main Class"  , LEFT, true);
     mainFrame.makeLabel    (panel, "LBL_2"        , " "           , LEFT, true); // dummy separator
-    mainFrame.makeCombobox (panel, "COMBO_CLASS"  , "Class"       , LEFT, true);
-    mainFrame.makeCombobox (panel, "COMBO_METHOD" , "Method"      , LEFT, true);
-    mainFrame.makeTextField(panel, "TXT_INPUT"    , "Input"       , LEFT, true, "", true);
-    mainFrame.makeButton   (panel, "BTN_LOADFILE" , "Select Jar"  , LEFT, false);
-    mainFrame.makeButton   (panel, "BTN_BYTECODE" , "Get Bytecode", LEFT, false);
-    mainFrame.makeButton   (panel, "BTN_RUNTEST"  , "Run code"    , LEFT, true);
+    mainFrame.makeButton   (panel, "BTN_RUNTEST"  , "Run code"    , LEFT, false);
+    mainFrame.makeTextField(panel, "TXT_INPUT"    , ""            , LEFT, true, "", true);
     mainFrame.makeButton   (panel, "BTN_SOL_STRT" , "Start Solver", LEFT, true);
 
     // initially disable the class/method select and generating bytecode
@@ -204,6 +201,7 @@ public final class GuiPanel {
     mainFrame.getLabel("COMBO_METHOD").setEnabled(false);
     mainFrame.getButton("BTN_BYTECODE").setEnabled(false);
     mainFrame.getButton("BTN_RUNTEST").setEnabled(false);
+    mainFrame.getButton("BTN_SOL_STRT").setEnabled(false);
     mainFrame.getTextField("TXT_INPUT").setEnabled(false);
     
     // we need a filechooser for the Save buttons
@@ -252,13 +250,16 @@ public final class GuiPanel {
         mainFrame.getLabel("COMBO_METHOD").setEnabled(true);
         mainFrame.getButton("BTN_BYTECODE").setEnabled(true);
         mainFrame.getButton("BTN_RUNTEST").setEnabled(true);
+        mainFrame.getButton("BTN_SOL_STRT").setEnabled(true);
         mainFrame.getTextField("TXT_INPUT").setEnabled(true);
       }
     });
     (GuiPanel.mainFrame.getButton("BTN_BYTECODE")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
-        runBytecode();
+        String classSelect  = (String) classCombo.getSelectedItem();
+        String methodSelect = (String) methodCombo.getSelectedItem();
+        runBytecode(classSelect, methodSelect, -1);
       }
     });
     (GuiPanel.mainFrame.getButton("BTN_RUNTEST")).addActionListener(new ActionListener() {
@@ -339,6 +340,16 @@ public final class GuiPanel {
       System.exit(1);
     }
     return tabbedPanels.get(tabname);
+  }
+  
+  private static void setTabSelect(PanelTabs tabname) {
+    Integer index = tabSelect.get(tabname);
+    if (index == null) {
+      System.err.println("ERROR: '" + tabname + "' panel not found in tabs");
+      System.exit(1);
+    }
+
+    tabPanel.setSelectedIndex(index);
   }
   
   private void addPanelToTab(PanelTabs tabname, Component panel) {
@@ -663,9 +674,7 @@ public final class GuiPanel {
     }
   }
   
-  private static void runBytecode() {
-    String classSelect  = (String) classCombo.getSelectedItem();
-    String methodSelect = (String) methodCombo.getSelectedItem();
+  public static void runBytecode(String classSelect, String methodSelect, int markLine) {
     printStatus(null);
 
     // first we have to pull off the class files from the jar file
@@ -691,8 +700,11 @@ public final class GuiPanel {
     int retcode = commandLauncher.start(command, projectPathName);
     if (retcode == 0) {
       String content = commandLauncher.getResponse();
-      parseJavap(classSelect, methodSelect, content);
+      parseJavap(classSelect, methodSelect, content, markLine);
       printStatus("Successfully generated bytecode");
+      
+      // swich tab to show bytecode
+      setTabSelect(PanelTabs.BYTECODE);
     } else {
       printStatus("ERROR: running javap on file: " + classSelect + ".class");
     }
@@ -846,8 +858,8 @@ public final class GuiPanel {
     }
   }
 
-  private static void parseJavap(String classSelect, String methodSelect, String content) {
-commandLogger.printUnformatted("searching for: " + classSelect + "." + methodSelect);
+  private static void parseJavap(String classSelect, String methodSelect, String content, int markLine) {
+    commandLogger.printUnformatted("searching for: " + classSelect + "." + methodSelect);
 
     // javap uses the dot format for the class name, so convert it
     classSelect = classSelect.replace("/", ".");
@@ -875,10 +887,10 @@ commandLogger.printUnformatted("searching for: " + classSelect + "." + methodSel
           int line = Integer.parseUnsignedInt(entry.substring(0, offset));
           entry = entry.substring(offset+1).trim();
           bytecode = true;
-commandLogger.printUnformatted("entry is bytecode: " + entry);
+//commandLogger.printUnformatted("entry is bytecode: " + entry);
           if (found) {
             if (line < lastline) {
-commandLogger.printUnformatted("line count indicates new method: " + line);
+//commandLogger.printUnformatted("line count indicates new method: " + line);
               return;
             }
             lastline = line;
@@ -890,7 +902,7 @@ commandLogger.printUnformatted("line count indicates new method: " + line);
         
       // check for start of selected method (method must contain the parameter list)
       if (!bytecode && entry.contains("(") && entry.contains(")")) {
-commandLogger.printUnformatted("method found in: " + entry);
+//commandLogger.printUnformatted("method found in: " + entry);
         // extract the word that contains the param list
         String methName = "";
         String array[] = entry.split("\\s+");
@@ -916,11 +928,11 @@ commandLogger.printUnformatted("method found in: " + entry);
         if (methName.isEmpty()) { // if no name - it must be the <init> contructor method
           methName = "<init>";
         }
-commandLogger.printUnformatted("method: " + methName);
         // method entry found, let's see if it's the one we want
+        commandLogger.printUnformatted("method: " + methName);
         if (methodSelect.startsWith(methName)) {
           found = true;
-commandLogger.printUnformatted("method: FOUND!");
+          commandLogger.printUnformatted("method: FOUND!");
           bytecodePrintMethod(classSelect + "." + methodSelect);
         } else if (found) {
           // athe next method has been found in the file - stop parsing

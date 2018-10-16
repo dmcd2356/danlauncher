@@ -9,6 +9,7 @@ import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
+import java.awt.GridLayout;
 import java.awt.Insets;
 import java.util.HashMap;
 import javax.swing.BorderFactory;
@@ -25,6 +26,7 @@ import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
 import javax.swing.JTabbedPane;
+import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.JTextPane;
 import javax.swing.SpinnerNumberModel;
@@ -979,4 +981,38 @@ public class GuiControls {
     this.gList.put(name, scrollList);
     return spanel;
   }
+
+  public static JFrame makeFrameWithText(String title, String text) {
+    // define size of panel
+    Dimension dim = new Dimension(500,300);
+
+    // create a text panel component and place the text message in it
+    JTextArea tpanel = new JTextArea();
+    tpanel.setText(text);
+
+    // create the scroll panel and apply constraints
+    JScrollPane spanel = new JScrollPane(tpanel);
+    spanel.setBorder(BorderFactory.createEmptyBorder()); // .createTitledBorder(title));
+
+    GridBagLayout gridbag = new GridBagLayout();
+    GridBagConstraints c = new GridBagConstraints();
+    c.insets = new Insets(GAPSIZE, GAPSIZE, GAPSIZE, GAPSIZE);
+    c.fill = GridBagConstraints.BOTH;
+    c.gridwidth  = GridBagConstraints.REMAINDER;
+    // since only 1 component, these both have to be non-zero for grid bag to work
+    c.weightx = 1.0;
+    c.weighty = 1.0;
+    gridbag.setConstraints(spanel, c);
+
+    // create frame and put scroll panel in it
+    JFrame frame = new JFrame();
+    frame.setTitle(title);
+    frame.setContentPane(spanel);
+    frame.setSize(dim);
+    frame.setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
+    frame.setLocationRelativeTo(null);
+    frame.setVisible(true);
+    return frame;
+  }
+
 }

@@ -24,6 +24,7 @@ import java.util.Comparator;
 //import java.util.HashMap;
 import javax.swing.AbstractAction;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JTable;
 import javax.swing.KeyStroke;
 import javax.swing.SwingConstants;
@@ -206,16 +207,49 @@ public class DatabaseTable {
     }
   }
   
+  private static int getColumnIndex(String colname) {
+    for (int col = 0; col < dbTable.getColumnCount(); col++) {
+      String entry = dbTable.getColumnName(col);
+      if(entry != null && entry.equals(colname)) {
+        return col;
+      }
+    }
+    return 0;
+  }
+  
   private void dbTableMouseClicked(java.awt.event.MouseEvent evt) {                                            
 //    bPauseCloudUpdate = true;
     int row = dbTable.rowAtPoint(evt.getPoint());
     int col = dbTable.columnAtPoint(evt.getPoint());
-    String entry = (String)dbTable.getValueAt(row, col);
     String colname = dbTable.getColumnName(col);
 
-    // this allows the user to select the test results to download
-//    selectFileToDownload (row);
-//    bPauseCloudUpdate = false;
+    switch(colname) {
+      case "Method":
+      case "Offset":
+        String meth = (String)dbTable.getValueAt(row, getColumnIndex("Method"));
+        String line = (String)dbTable.getValueAt(row, getColumnIndex("Offset"));
+        int offset = meth.lastIndexOf("/");
+        String cls = meth.substring(0, offset);
+        meth = meth.substring(offset + 1);
+        GuiPanel.runBytecode(cls, meth, Integer.parseInt(line));
+        break;
+      case "Solution":
+        String solution = (String)dbTable.getValueAt(row, col);
+        // copy the solution value to the input field
+        break;
+      case "Constraint":
+        String constraint = (String)dbTable.getValueAt(row, col);
+        // pop up a panel that contains the full context string
+//        JOptionPane.showMessageDialog (null, constraint, "Constraint value", JOptionPane.INFORMATION_MESSAGE);
+        GuiControls.makeFrameWithText("Constraint value", constraint);
+        break;
+
+      case "ID":
+      case "Param":
+      case "Solvable":
+      default:
+        break;
+    }
   }                                           
 
   private void dbTableKeyPressed(java.awt.event.KeyEvent evt) {                                          
