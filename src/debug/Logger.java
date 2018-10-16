@@ -8,9 +8,11 @@ package debug;
 import debug.FontInfo.FontType;
 import debug.FontInfo.TextColor;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Graphics;
 import java.util.HashMap;
 import java.util.Map;
+import javax.swing.JTextArea;
 import javax.swing.JTextPane;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
@@ -38,13 +40,23 @@ public class Logger {
   private static final String DEFAULT_FONT = "Courier";
   private static final String NEWLINE = System.getProperty("line.separator");
 
-  private String          pnlname;
+  private static String   pnlname;
   private JTextPane       textPane = null;
+  private JTextArea       textArea = null;
   private static final HashMap<String, FontInfo> messageTypeTbl = new HashMap<>();
 
-  public Logger (String name, HashMap<String, FontInfo> map) {
+  public Logger (Component pane, String name, HashMap<String, FontInfo> map) {
     pnlname = name;
-    textPane = new JTextPane();
+    if (pane instanceof JTextPane) {
+      textPane = (JTextPane) pane;
+    } else if (pane instanceof JTextArea) {
+      textArea = (JTextArea) pane;
+      textArea.setWrapStyleWord(true);
+      textArea.setAutoscrolls(true);
+    } else {
+      System.err.println("ERROR: Invalid component type for Logger!");
+      System.exit(1);
+    }
 
     // copy the font mapping info over (use deep-copy loop instead of shallow-copy putAll)
     if (map != null) {
@@ -52,10 +64,6 @@ public class Logger {
         messageTypeTbl.put(entry.getKey(), entry.getValue());
       }
     }
-  }
-
-  public final JTextPane getTextPane() {
-    return textPane;
   }
 
   public final String getName() {
@@ -66,16 +74,22 @@ public class Logger {
    * clears the display.
    */
   public final void clear() {
-    textPane.setText("");
+    if (textPane != null) {
+      textPane.setText("");
+    } else {
+      textArea.setText("");
+    }
   }
 
   /**
    * updates the display immediately
    */
   public final void updateDisplay () {
-    Graphics graphics = textPane.getGraphics();
-    if (graphics != null) {
-      textPane.update(graphics);
+    if (textPane != null) {
+      Graphics graphics = textPane.getGraphics();
+      if (graphics != null) {
+        textPane.update(graphics);
+      }
     }
   }
 
@@ -138,141 +152,29 @@ public class Logger {
     return (MAX_PADDING + content).substring(MAX_PADDING.length() + content.length() - length);
   }
   
-  private String opcodeColor(String opcode) {
-//    if (opcode.startsWith("iload") ||
-//        opcode.startsWith("lload") ||
-//        opcode.startsWith("fload") ||
-//        opcode.startsWith("dload") ||
-//        opcode.startsWith("aload")) {
-//      return "LOAD";
-//    }
-//    if (opcode.startsWith("istore") ||
-//        opcode.startsWith("lstore") ||
-//        opcode.startsWith("fstore") ||
-//        opcode.startsWith("dstore") ||
-//        opcode.startsWith("astore")) {
-//      return "STORE";
-//    }
-    if (opcode.startsWith("invoke")) {
-      return "INVOKE";
-    }
-    if (opcode.startsWith("if_") ||
-        opcode.startsWith("ifeq") ||
-        opcode.startsWith("ifne") ||
-        opcode.startsWith("ifgt") ||
-        opcode.startsWith("ifge") ||
-        opcode.startsWith("iflt") ||
-        opcode.startsWith("ifle")) {
-      return "BRANCH";
-    }
-    
-    return "OTHER";
-  }
-  
-  /**
-   * outputs the bytecode message to the status display.
-   * 
-   * @param line
-   * @param opcode
-   * @param param
-   * @param comment
-   */
-  public final void printBytecode(int line, String opcode, String param, String comment) {
-    String color = opcodeColor(opcode);
-    String linenum = "" + line;
-
-    printRaw("TEXT", padToLeft(linenum, 5) + "  ");
-    printRaw(color, padToRight(opcode, 16));
-    printRaw("PARAM", padToRight(param, 10));
-    printRaw("COMMENT", comment + NEWLINE);
-  }
-  
-  public final void printMethod(String methodName) {
-    printRaw("TEXT", "Method: ");
-    printRaw("METHOD", methodName + NEWLINE + NEWLINE);
-  }
-  
-  public final void printMaxLength(String type, String message, int maxlen) {
-    // this is because word wrap doesn't work on JTextPane
-    while(!message.isEmpty()) {
-      String line;
-      if (message.length() > maxlen) {
-        line = message.substring(0, maxlen);
-        message = message.substring(maxlen);
-      } else {
-        line = message;
-        message = "";
-      }
-
-      printRaw(type, line + NEWLINE);
-    }
-  }
-  
-  public final void printMaxLength(String message, int maxlen, boolean error) {
-    while(!message.isEmpty()) {
-      String line;
-      if (message.length() > maxlen) {
-        line = message.substring(0, maxlen);
-        message = message.substring(maxlen);
-      } else {
-        line = message;
-        message = "";
-      }
-
-      TextColor color = error ? TextColor.DkRed : TextColor.Black;
-      appendToPane(line + NEWLINE, color, DEFAULT_FONT, DEFAULT_POINT, FontType.Normal);
-    }
+  public final void printFormatted(String type, String message) {
+    printRaw(type, message + NEWLINE);
   }
   
   public final void printUnformatted(String message) {
     printRaw("NOFMT", message + NEWLINE);
   }
   
-  /**
-   * A generic function for appending formatted text to a JTextPane.
-   * 
-   * @param tp    - the TextPane to append to
-   * @param msg   - message contents to write
-   * @param color - color of text
-   * @param font  - the font selection
-   * @param size  - the font point size
-   * @param ftype - type of font style
-   */
-  private void appendToPane(String msg, TextColor color, String font, int size,
-                                   FontType ftype) {
-    AttributeSet aset = setTextAttr(color, font, size, ftype);
-    int len = textPane.getDocument().getLength();
-
-    // trim off earlier data to reduce memory usage if we exceed our bounds
-    if (len > MAX_TEXT_BUFFER_SIZE) {
-      try {
-        int oldlen = len;
-        int start = REDUCE_BUFFER_SIZE;
-        String text = textPane.getDocument().getText(start, 500);
-        int offset = text.indexOf(NEWLINE);
-        if (offset >= 0) {
-          start += offset + 1;
-        }
-        textPane.getDocument().remove(0, start);
-        len = textPane.getDocument().getLength();
-        System.out.println("Reduced text from " + oldlen + " to " + len);
-      } catch (BadLocationException ex) {
-        System.out.println(ex.getMessage());
-      }
-    }
-
-    textPane.setCaretPosition(len);
-    textPane.setCharacterAttributes(aset, false);
-    textPane.replaceSelection(msg);
+  public final void printRawAlignLeft(String type, String message, int fieldlen) {
+    printRaw(type, padToRight(message, fieldlen));
   }
-
+  
+  public final void printRawAlignRight(String type, String message, int fieldlen) {
+    printRaw(type, padToLeft(message, fieldlen));
+  }
+  
   /**
    * displays a message in the debug window (no termination).
    * 
    * @param type  - the type of message to display
    * @param message - message contents to display
    */
-  private void printRaw(String type, String message) {
+  public final void printRaw(String type, String message) {
     if (message != null && !message.isEmpty()) {
       // set default values (if type was not found)
       TextColor color = TextColor.DkGrey; //TextColor.Black;
@@ -290,6 +192,49 @@ public class Logger {
       }
 
       appendToPane(message, color, font, size, ftype);
+    }
+  }
+
+  /**
+   * A generic function for appending formatted text to a JTextPane.
+   * 
+   * @param tp    - the TextPane to append to
+   * @param msg   - message contents to write
+   * @param color - color of text
+   * @param font  - the font selection
+   * @param size  - the font point size
+   * @param ftype - type of font style
+   */
+  private void appendToPane(String msg, TextColor color, String font, int size,
+                                   FontType ftype) {
+    AttributeSet aset = setTextAttr(color, font, size, ftype);
+    if (textPane != null) {
+      int len = textPane.getDocument().getLength();
+
+      // trim off earlier data to reduce memory usage if we exceed our bounds
+      if (len > MAX_TEXT_BUFFER_SIZE) {
+        try {
+          int oldlen = len;
+          int start = REDUCE_BUFFER_SIZE;
+          String text = textPane.getDocument().getText(start, 500);
+          int offset = text.indexOf(NEWLINE);
+          if (offset >= 0) {
+            start += offset + 1;
+          }
+          textPane.getDocument().remove(0, start);
+          len = textPane.getDocument().getLength();
+          System.out.println("Reduced text from " + oldlen + " to " + len);
+        } catch (BadLocationException ex) {
+          System.out.println(ex.getMessage());
+        }
+      }
+
+      textPane.setCaretPosition(len);
+      textPane.setCharacterAttributes(aset, false);
+      textPane.replaceSelection(msg);
+    } else {
+      String current = textArea.getText();
+      textArea.setText(current + NEWLINE + msg);
     }
   }
 

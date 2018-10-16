@@ -5,9 +5,10 @@
  */
 package debug;
 
+import dansolver.Dansolver;
 import debug.FontInfo.FontType;
 import debug.FontInfo.TextColor;
-import java.awt.BorderLayout;
+import java.awt.Component;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.BufferedReader;
@@ -16,6 +17,7 @@ import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
@@ -28,6 +30,8 @@ import javax.swing.JFileChooser;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTabbedPane;
+import javax.swing.JTable;
+import javax.swing.JTextArea;
 import javax.swing.JTextPane;
 import javax.swing.Timer;
 import javax.swing.event.ChangeEvent;
@@ -38,21 +42,30 @@ import javax.swing.filechooser.FileNameExtensionFilter;
  *
  * @author dmcd2356
  */
-public class GuiPanel {
+public final class GuiPanel {
+
+  private static final String NEWLINE = System.getProperty("line.separator");
 
   public enum GraphHighlight { NONE, STATUS, TIME, INSTRUCTION, ITERATION, THREAD }
 
   private enum ElapsedMode { OFF, RUN, RESET }
 
+  // types of debug messages
+  public enum DebugType { TSTAMP, NORMAL, INFO, WARN, ERROR, DUMP, START, ENTRY, AGENT, THREAD,
+        CALL, RETURN, UNINST, STATS, STACK, STACKS, STACKI, LOCAL,  LOCALS, SOLVE }
+
+  // types of bytecode messages
+  public enum BytecodeType { ERROR,METHOD, TEXT, PARAM, COMMENT, BRANCH, INVOKE, LOAD, STORE, OTHER }
+  
   // tab panel selections
-  private enum PanelTabs { BYTECODE, COMMAND, DATABASE, DEBUG, GRAPH }
+  public enum PanelTabs { BYTECODE, COMMAND, DATABASE, DEBUG, GRAPH }
   
   // location of danalyzer program
   private static final String DSEPATH = "/home/dan/Projects/isstac/dse/";
   
   private static final String CLASSFILE_STORAGE = ""; // application/";
 
-  private final static GuiControls  mainFrame = new GuiControls();
+  private static GuiControls    mainFrame = new GuiControls();
   private static PropertiesFile props;
   private static JTabbedPane    tabPanel;
   private static JPanel         graphPanel;
@@ -65,26 +78,67 @@ public class GuiPanel {
   private static Logger         debugLogger;
   private static Timer          pktTimer;
   private static Timer          graphTimer;
-  private static Timer          statsTimer;
   private static int            threadCount;
   private static long           elapsedStart;
   private static ElapsedMode    elapsedMode;
   private static String         projectPathName;
   private static String         projectName;
   private static int            tabIndex = 0;
+  private static ThreadLauncher threadLauncher;
+  private static PrintStream    standardOut = System.out;
+  private static PrintStream    standardErr = System.err;         
+  private static DatabaseTable  dbtable;
+  
   private static HashMap<PanelTabs, Integer> tabSelect = new HashMap<>();
   private static HashMap<String, ArrayList<String>> clsMethMap; // maps the list of methods to each class
   private static ArrayList<String>  classList;
   private static final HashMap<String, FontInfo> bytecodeFontTbl = new HashMap<>();
-  private static final HashMap<String, FontInfo> commandFontTbl = new HashMap<>();
+  private static final HashMap<String, FontInfo> commandFontTbl = null;
   private static final HashMap<String, FontInfo> debugFontTbl = new HashMap<>();
+  private static HashMap<PanelTabs, Component> tabbedPanels = new HashMap<>();
   
-/**
- * creates a debug panel to display the Logger messages in.
-   * @param port  - the port to use for reading messages
-   * @param tcp     - true if use TCP, false to use UDP
- */  
-  public void createDebugPanel(int port, boolean tcp) {
+
+  public GuiPanel(int port, boolean tcp) {
+    // create the main panel and controls
+    createDebugPanel();
+
+    // this creates a command launcher on a separate thread
+    threadLauncher = new ThreadLauncher((JTextArea) getTabPanel(PanelTabs.COMMAND));
+
+    // check for a properties file
+    props = new PropertiesFile();
+    String logfileName = props.getPropertiesItem("LogFile", "");
+    if (logfileName.isEmpty()) {
+      logfileName = System.getProperty("user.dir") + "/debug.log";
+    }
+    GuiPanel.fileSelector.setCurrentDirectory(new File(logfileName));
+
+    // start the TCP or UDP listener thread
+//    try {
+//      GuiPanel.udpThread = new ServerThread(port, tcp, logfileName, makeConnection);
+//      GuiPanel.udpThread.start();
+//      GuiPanel.listener = GuiPanel.udpThread;
+//      GuiPanel.udpThread.setBufferFile(logfileName);
+//      GuiPanel.mainFrame.getLabel("LBL_MESSAGES").setText("Logfile: " + udpThread.getOutputFile());
+//    } catch (IOException ex) {
+//      System.out.println(ex.getMessage());
+//      System.exit(1);
+//    }
+
+//    // create a timer for reading and displaying the messages received (from either network or file)
+//    GuiPanel.inputListener = new MsgListener();
+//    pktTimer = new Timer(1, GuiPanel.inputListener);
+//    pktTimer.start();
+//
+//    // create a slow timer for updating the call graph
+//    graphTimer = new Timer(1000, new GraphUpdateListener());
+//    graphTimer.start();
+
+    // start timer when 1st line is received from port
+//    GuiPanel.elapsedMode = ElapsedMode.RESET;
+}
+  
+  public void createDebugPanel() {
     // if a panel already exists, close the old one
     if (GuiPanel.mainFrame.isValidFrame()) {
       GuiPanel.mainFrame.close();
@@ -136,6 +190,7 @@ public class GuiPanel {
     mainFrame.makeButton   (panel, "BTN_LOADFILE" , "Select Jar"  , LEFT, false);
     mainFrame.makeButton   (panel, "BTN_BYTECODE" , "Get Bytecode", LEFT, false);
     mainFrame.makeButton   (panel, "BTN_RUNTEST"  , "Run code"    , LEFT, true);
+    mainFrame.makeButton   (panel, "BTN_SOL_STRT" , "Start Solver", LEFT, true);
 
     // initially disable the class/method select and generating bytecode
     mainClassCombo = mainFrame.getCombobox ("COMBO_MAINCLS");
@@ -158,7 +213,10 @@ public class GuiPanel {
     GuiPanel.mainFrame.getFrame().addWindowListener(new java.awt.event.WindowAdapter() {
       @Override
       public void windowClosing(java.awt.event.WindowEvent evt) {
-        formWindowClosing(evt);
+        enableUpdateTimers(false);
+        dbtable.exit();
+        mainFrame.close();
+        System.exit(0);
       }
     });
     GuiPanel.tabPanel.addChangeListener(new ChangeListener() {
@@ -183,7 +241,7 @@ public class GuiPanel {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         // load the selected file
-        loadFileButtonActionPerformed(evt);
+        loadFileButtonActionPerformed();
         
         // enable the class and method selections
         mainClassCombo.setEnabled(false);
@@ -200,114 +258,111 @@ public class GuiPanel {
     (GuiPanel.mainFrame.getButton("BTN_BYTECODE")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
-        runBytecode(evt);
+        runBytecode();
       }
     });
     (GuiPanel.mainFrame.getButton("BTN_RUNTEST")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
-        runTest(evt);
+        runTest();
       }
     });
-    // setMethodSelections(String clsname)
-
+    (GuiPanel.mainFrame.getButton("BTN_SOL_STRT")).addActionListener(new ActionListener() {
+      @Override
+      public void actionPerformed(java.awt.event.ActionEvent evt) {
+        dansolver.Dansolver.main(null);
+      }
+    });
+    
     // display the frame
     GuiPanel.mainFrame.display();
 
     // setup the font selections for the bytecode display
     String fonttype = "Courier";
-    HashMap<String, FontInfo> map = bytecodeFontTbl;
-    // generic types
-    setTypeColor (map, "ERROR",   FontInfo.TextColor.Red,    FontInfo.FontType.Bold  , 14, fonttype);
-    setTypeColor (map, "WARN",    FontInfo.TextColor.Orange, FontInfo.FontType.Bold  , 14, fonttype);
-    // the method name banner
-    setTypeColor (map, "METHOD",  FontInfo.TextColor.Violet, FontInfo.FontType.Italic, 16, fonttype);
-    // parts of the bytecode info
-    setTypeColor (map, "TEXT",    FontInfo.TextColor.Black,  FontInfo.FontType.Italic, 14, fonttype);
-    setTypeColor (map, "PARAM",   FontInfo.TextColor.Brown,  FontInfo.FontType.Normal, 14, fonttype);
-    setTypeColor (map, "COMMENT", FontInfo.TextColor.Green,  FontInfo.FontType.Italic, 14, fonttype);
-    // the bytecode opcode formats
-    setTypeColor (map, "BRANCH",  FontInfo.TextColor.DkVio,  FontInfo.FontType.Bold  , 14, fonttype);
-    setTypeColor (map, "INVOKE",  FontInfo.TextColor.Gold,   FontInfo.FontType.Bold  , 14, fonttype);
-    setTypeColor (map, "LOAD",    FontInfo.TextColor.Green,  FontInfo.FontType.Normal, 14, fonttype);
-    setTypeColor (map, "STORE",   FontInfo.TextColor.Blue,   FontInfo.FontType.Normal, 14, fonttype);
-    setTypeColor (map, "OTHER",   FontInfo.TextColor.Black,  FontInfo.FontType.Normal, 14, fonttype);
+    HashMap<String, FontInfo> map = debugFontTbl;
+    setTypeColor (map, DebugType.TSTAMP.toString(), TextColor.Black,  FontType.Normal, 14, fonttype);
+    setTypeColor (map, DebugType.ERROR.toString(),  TextColor.Red,    FontType.Bold,   14, fonttype);
+    setTypeColor (map, DebugType.WARN.toString(),   TextColor.Orange, FontType.Bold,   14, fonttype);
+    setTypeColor (map, DebugType.INFO.toString(),   TextColor.Black,  FontType.Italic, 14, fonttype);
+    setTypeColor (map, DebugType.NORMAL.toString(), TextColor.Black,  FontType.Normal, 14, fonttype);
+    setTypeColor (map, DebugType.DUMP.toString(),   TextColor.Orange, FontType.Bold,   14, fonttype);
+    setTypeColor (map, DebugType.START.toString(),  TextColor.Black,  FontType.BoldItalic, 14, fonttype);
+    setTypeColor (map, DebugType.ENTRY.toString(),  TextColor.Brown,  FontType.Normal, 14, fonttype);
+    setTypeColor (map, DebugType.AGENT.toString(),  TextColor.Violet, FontType.Italic, 14, fonttype);
+    setTypeColor (map, DebugType.THREAD.toString(), TextColor.DkVio,  FontType.Italic, 14, fonttype);
+    setTypeColor (map, DebugType.CALL.toString(),   TextColor.Gold,   FontType.Bold,   14, fonttype);
+    setTypeColor (map, DebugType.RETURN.toString(), TextColor.Gold,   FontType.Bold,   14, fonttype);
+    setTypeColor (map, DebugType.UNINST.toString(), TextColor.Gold,   FontType.BoldItalic, 14, fonttype);
+    setTypeColor (map, DebugType.STATS.toString(),  TextColor.Gold,   FontType.BoldItalic, 14, fonttype);
+    setTypeColor (map, DebugType.STACK.toString(),  TextColor.Blue,   FontType.Normal, 14, fonttype);
+    setTypeColor (map, DebugType.STACKS.toString(), TextColor.Blue,   FontType.Italic, 14, fonttype);
+    setTypeColor (map, DebugType.STACKI.toString(), TextColor.Blue,   FontType.Bold,   14, fonttype);
+    setTypeColor (map, DebugType.LOCAL.toString(),  TextColor.Green,  FontType.Normal, 14, fonttype);
+    setTypeColor (map, DebugType.LOCALS.toString(), TextColor.Green,  FontType.Italic, 14, fonttype);
+    setTypeColor (map, DebugType.SOLVE.toString(),  TextColor.DkVio,  FontType.Bold,   14, fonttype);
+
+    // setup the font selections for the bytecode display
+    map = bytecodeFontTbl;
+    setTypeColor (map, BytecodeType.ERROR.toString(),   TextColor.Red,    FontType.Bold  , 14, fonttype);
+    setTypeColor (map, BytecodeType.METHOD.toString(),  TextColor.Violet, FontType.Italic, 16, fonttype);
+    setTypeColor (map, BytecodeType.TEXT.toString(),    TextColor.Black,  FontType.Italic, 14, fonttype);
+    setTypeColor (map, BytecodeType.PARAM.toString(),   TextColor.Brown,  FontType.Normal, 14, fonttype);
+    setTypeColor (map, BytecodeType.COMMENT.toString(), TextColor.Green,  FontType.Italic, 14, fonttype);
+    setTypeColor (map, BytecodeType.BRANCH.toString(),  TextColor.DkVio,  FontType.Bold  , 14, fonttype);
+    setTypeColor (map, BytecodeType.INVOKE.toString(),  TextColor.Gold,   FontType.Bold  , 14, fonttype);
+    setTypeColor (map, BytecodeType.LOAD.toString(),    TextColor.Green,  FontType.Normal, 14, fonttype);
+    setTypeColor (map, BytecodeType.STORE.toString(),   TextColor.Blue,   FontType.Normal, 14, fonttype);
+    setTypeColor (map, BytecodeType.OTHER.toString(),   TextColor.Black,  FontType.Normal, 14, fonttype);
     
-    // setup the font selections for the command display
-    map = commandFontTbl;
-    setTypeColor (map, "ERROR",   FontInfo.TextColor.Red,    FontInfo.FontType.Bold  , 14, fonttype);
-    setTypeColor (map, "NORMAL",  FontInfo.TextColor.DkGrey, FontInfo.FontType.Normal, 14, fonttype);
-    setTypeColor (map, "COMMAND", FontInfo.TextColor.Black,  FontInfo.FontType.Bold  , 14, fonttype);
-
     // add the tabbed message panels for bytecode output, command output, and debug output
-    bytecodeLogger = addTextPanelToTab(PanelTabs.BYTECODE, bytecodeFontTbl);
-    commandLogger  = addTextPanelToTab(PanelTabs.COMMAND, commandFontTbl);
-    debugLogger    = addTextPanelToTab(PanelTabs.DEBUG, null); // TODO: setup fontmap
+    addPanelToTab(PanelTabs.COMMAND , new JTextArea());
+    addPanelToTab(PanelTabs.BYTECODE, new JTextPane());
+    addPanelToTab(PanelTabs.DATABASE, new JTable());
+    addPanelToTab(PanelTabs.DEBUG   , new JTextPane());
+    addPanelToTab(PanelTabs.GRAPH   , new JPanel());
 
-    // add the tabbed CallGraph panel
-//    GuiPanel.graphPanel = new JPanel();
-//    JScrollPane graphScrollPanel = new JScrollPane(GuiPanel.graphPanel);
-//    tabPanel.addTab("Call Graph", graphScrollPanel);
-//    tabSelect.put(PanelTabs.GRAPH, tabIndex++);
-//    CallGraph.initCallGraph(GuiPanel.graphPanel);
+    // create the message logging for the text panels
+    commandLogger  = createTextLogger(PanelTabs.COMMAND , commandFontTbl);
+    bytecodeLogger = createTextLogger(PanelTabs.BYTECODE, bytecodeFontTbl);
+    debugLogger    = createTextLogger(PanelTabs.DEBUG   , debugFontTbl);
 
-    // check for a properties file
-    props = new PropertiesFile();
-    String logfileName = props.getPropertiesItem("LogFile", "");
-    if (logfileName.isEmpty()) {
-      logfileName = System.getProperty("user.dir") + "/debug.log";
-    }
-    GuiPanel.fileSelector.setCurrentDirectory(new File(logfileName));
+    // init the CallGraph panel
+//    CallGraph.initCallGraph((JPanel) getTabPanel(PanelTabs.GRAPH));
 
-    // start the TCP or UDP listener thread
-//    try {
-//      GuiPanel.udpThread = new ServerThread(port, tcp, logfileName, makeConnection);
-//      GuiPanel.udpThread.start();
-//      GuiPanel.listener = GuiPanel.udpThread;
-//      GuiPanel.udpThread.setBufferFile(logfileName);
-//      GuiPanel.mainFrame.getLabel("LBL_MESSAGES").setText("Logfile: " + udpThread.getOutputFile());
-//    } catch (IOException ex) {
-//      System.out.println(ex.getMessage());
-//      System.exit(1);
-//    }
-
-//    // create a timer for reading and displaying the messages received (from either network or file)
-//    GuiPanel.inputListener = new MsgListener();
-//    pktTimer = new Timer(1, GuiPanel.inputListener);
-//    pktTimer.start();
-//
-//    // create a slow timer for updating the call graph
-//    graphTimer = new Timer(1000, new GraphUpdateListener());
-//    graphTimer.start();
-//
-//    // create a timer for updating the statistics
-//    statsTimer = new Timer(100, new StatsUpdateListener());
-//    statsTimer.start();
-
-    // start timer when 1st line is received from port
-//    GuiPanel.elapsedMode = ElapsedMode.RESET;
+    // init the database table panel
+    dbtable = new DatabaseTable((JTable) getTabPanel(GuiPanel.PanelTabs.DATABASE));
   }
 
-  private Logger addTextPanelToTab(PanelTabs tabname, HashMap<String, FontInfo> fontmap) {
-    // create the Logger
-    Logger logger = new Logger(tabname.toString(), fontmap);
+  private Component getTabPanel(PanelTabs tabname) {
+    if (!tabbedPanels.containsKey(tabname)) {
+      System.err.println("ERROR: '" + tabname + "' panel not found in tabs");
+      System.exit(1);
+    }
+    return tabbedPanels.get(tabname);
+  }
+  
+  private void addPanelToTab(PanelTabs tabname, Component panel) {
+    // make sure we don't already have the entry
+    if (tabbedPanels.containsKey(tabname)) {
+      System.err.println("ERROR: '" + tabname + "' panel already defined in tabs");
+      System.exit(1);
+    }
     
     // add the textPane to a scrollPane
-    JTextPane textPane = logger.getTextPane();
-
-    // this was supposed to enable word wrap on JTextPane, but doesn't work
-//    JPanel noWrapPanel = new JPanel(new BorderLayout());
-//    noWrapPanel.add( textPane );
-//    JScrollPane scrollPanel = new JScrollPane(noWrapPanel);
-//    scrollPanel.setViewportView(textPane);
-    
-    JScrollPane scrollPanel = new JScrollPane(textPane);
+    JScrollPane scrollPanel;
+    scrollPanel = new JScrollPane(panel);
     scrollPanel.setBorder(BorderFactory.createTitledBorder(""));
     
     // now add the scroll pane to the tabbed pane
     tabPanel.addTab(tabname.toString(), scrollPanel);
     tabSelect.put(tabname, tabIndex++);
-    return logger;
+    
+    // save access to panel by name
+    tabbedPanels.put(tabname, panel);
+  }
+  
+  private Logger createTextLogger(PanelTabs tabname, HashMap<String, FontInfo> fontmap) {
+    return new Logger(getTabPanel(tabname), tabname.toString(), fontmap);
   }
   
   /**
@@ -332,7 +387,7 @@ public class GuiPanel {
     }
   }
 
-  private static boolean isTabSelection(PanelTabs select) {
+  public static boolean isTabSelection(PanelTabs select) {
     if (GuiPanel.tabPanel == null || tabSelect.isEmpty()) {
       return false;
     }
@@ -503,37 +558,40 @@ public class GuiPanel {
     }
   }
   
-  private class StatsUpdateListener implements ActionListener {
-    @Override
-    public void actionPerformed(ActionEvent e) {
-      // update statistics
-      int methods = CallGraph.getMethodCount();
-      
-      (GuiPanel.mainFrame.getTextField("TXT_1")).setText("stuff");
-      (GuiPanel.mainFrame.getTextField("TXT_2")).setText("more stuff");
-          
-      // update elapsed time if enabled
-      GuiPanel.updateElapsedTime();
-    }
-  }
-
-  private class GraphUpdateListener implements ActionListener {
-    @Override
-    public void actionPerformed(ActionEvent e) {
-      // if Call Graph tab selected, update graph
-//      if (isTabSelection(PanelTabs.GRAPH)) {
-//        GuiPanel.mainFrame.repack();
-//      }
-    }
-  }
-
   private static void printStatus(String message) {
     if (message == null) {
       mainFrame.getTextField("TXT_MESSAGES").setText("                   ");
     } else {
       mainFrame.getTextField("TXT_MESSAGES").setText(message);
-      commandLogger.printMaxLength("ERROR", message, 120);
+      
+      // echo status to command output window
+      commandLogger.printUnformatted(message);
     }
+  }
+  
+  private static void bytecodePrintMethod(String methodName) {
+    bytecodeLogger.printRaw("TEXT", "Method: ");
+    bytecodeLogger.printRaw("METHOD", methodName + NEWLINE + NEWLINE);
+  }
+  
+  private static void bytecodePrintOpcode(int line, String opcode, String param, String comment) {
+    String type = "OTHER";
+    if (opcode.startsWith("invoke")) {
+      type = "INVOKE";
+    } else if (opcode.startsWith("if_") ||
+        opcode.startsWith("ifeq") ||
+        opcode.startsWith("ifne") ||
+        opcode.startsWith("ifgt") ||
+        opcode.startsWith("ifge") ||
+        opcode.startsWith("iflt") ||
+        opcode.startsWith("ifle")) {
+      type = "BRANCH";
+    }
+
+    bytecodeLogger.printRawAlignRight("TEXT", "" + line, 5);
+    bytecodeLogger.printRawAlignLeft(type, "  " + opcode, 16);
+    bytecodeLogger.printRawAlignLeft("PARAM", param, 10);
+    bytecodeLogger.printRaw("COMMENT", comment + NEWLINE);
   }
   
   private static boolean fileCheck(String fname) {
@@ -545,7 +603,7 @@ public class GuiPanel {
     return false;
   }
   
-  private static void loadFileButtonActionPerformed(java.awt.event.ActionEvent evt) {
+  private static void loadFileButtonActionPerformed() {
     printStatus(null);
     FileNameExtensionFilter filter = new FileNameExtensionFilter("Jar Files", "jar");
     GuiPanel.fileSelector.setFileFilter(filter);
@@ -567,6 +625,9 @@ public class GuiPanel {
         return;
       }
     
+      // read the symbolic parameter definitions
+      readSymbolicList();
+  
       String mainclass = "danalyzer.instrumenter.Instrumenter";
       String classpath = DSEPATH + "danalyzer/dist/danalyzer.jar";
       classpath += ":" + DSEPATH + "danalyzer/lib/commons-io-2.5.jar";
@@ -592,7 +653,7 @@ public class GuiPanel {
       if (retcode == 0) {
         mainFrame.getLabel("LBL_JARFILE").setText(projectPathName + projectName);
         printStatus("Instrumentation successful");
-        commandLogger.printMaxLength("NORMAL", commandLauncher.getResponse(), 120);
+        commandLogger.printUnformatted(commandLauncher.getResponse());
       
         // update the class and method selections
         setupClassList(projectPathName);
@@ -602,7 +663,7 @@ public class GuiPanel {
     }
   }
   
-  private static void runBytecode(java.awt.event.ActionEvent evt) {
+  private static void runBytecode() {
     String classSelect  = (String) classCombo.getSelectedItem();
     String methodSelect = (String) methodCombo.getSelectedItem();
     printStatus(null);
@@ -637,7 +698,7 @@ public class GuiPanel {
     }
   }
 
-  private static void runTest(java.awt.event.ActionEvent evt) {
+  private void runTest() {
     // clear the output display
     commandLogger.clear();
 
@@ -661,44 +722,40 @@ public class GuiPanel {
     }
     String arglist = mainFrame.getTextField("TXT_INPUT").getText();
 
+    // TODO: let user pick his java home
     String JAVA_HOME = "/usr/lib/jvm/java-8-openjdk-amd64";
-    String options = "-Xverify:none -Dsun.boot.library.path=" + JAVA_HOME + "/bin:/usr/lib";
-    String bootcpath ="-Xbootclasspath/a:"
-                      + DSEPATH + "danalyzer/dist/danalyzer.jar:"
-                      + DSEPATH + "danalyzer/lib/com.microsoft.z3.jar";
+    
+    // build up the command to run
+    String localpath = "/*";
+    if (new File("lib").isDirectory()) {
+      localpath += ":/lib/*";
+    }
+    if (new File("libs").isDirectory()) {
+      localpath += ":/libs/*";
+    }
+    String mongolib = DSEPATH + "danalyzer/lib/mongodb-driver-core-3.8.2.jar"
+              + ":" + DSEPATH + "danalyzer/lib/mongodb-driver-sync-3.8.2.jar"
+              + ":" + DSEPATH + "danalyzer/lib/bson-3.8.2.jar";
+    String options = "-Xverify:none";
+    String bootlpath = "-Dsun.boot.library.path=" + JAVA_HOME + "/bin:/usr/lib";
+    String bootcpath ="-Xbootclasspath/a"
+              + ":" + DSEPATH + "danalyzer/dist/danalyzer.jar"
+              + ":" + DSEPATH + "danalyzer/lib/com.microsoft.z3.jar"
+              + ":" + mongolib;
     String agentpath ="-agentpath:" + DSEPATH + "danhelper/libdanhelper.so";
-    String classpath = instrJarFile;
-    classpath += ":" + DSEPATH + "danalyzer/lib/commons-io-2.5.jar";
-    classpath += ":" + DSEPATH + "danalyzer/lib/asm-all-5.2.jar";
-    classpath += ":/*:/lib/*:/libs/*";
+    String classpath = instrJarFile
+              + ":" + DSEPATH + "danalyzer/lib/commons-io-2.5.jar"
+              + ":" + DSEPATH + "danalyzer/lib/asm-all-5.2.jar"
+              + ":" + mongolib
+              + ":" + localpath;
 
     // run the instrumented jar file
-    String[] command = { "java", options, bootcpath, agentpath, "-cp", classpath, mainclass, arglist };
-    CommandLauncher commandLauncher = new CommandLauncher(commandLogger);
-    int retcode = commandLauncher.start(command, projectPathName);
-    if (retcode == 0) {
-      mainFrame.getLabel("LBL_JARFILE").setText("Running: " + projectName);
-      
-      // TODO: start timer to wait for response to show cost and elapsed time
-    } else {
-      printStatus("ERROR: running instrumented jar file: " + projectName);
-    }
+    String[] command = { "java", options, bootlpath, bootcpath, agentpath, "-cp", classpath, mainclass, arglist };
+
+    threadLauncher.init(new ThreadTermination());
+    threadLauncher.launch(command, projectPathName, "run_" + projectName, null);
   }
   
-  private static void formWindowClosing(java.awt.event.WindowEvent evt) {
-    if (graphTimer != null) {
-      graphTimer.stop();
-    }
-    if (pktTimer != null) {
-      pktTimer.stop();
-    }
-    if (statsTimer != null) {
-      statsTimer.stop();
-    }
-    mainFrame.close();
-    System.exit(0);
-  }
-
   private static void extractClassFile(File jarfile, String className) throws IOException {
     // get the path relative to the application directory
     int offset;
@@ -785,12 +842,12 @@ public class GuiPanel {
         }
       }
 
-      bytecodeLogger.printBytecode(line, opcode, param, comment);
+      bytecodePrintOpcode(line, opcode, param, comment);
     }
   }
 
   private static void parseJavap(String classSelect, String methodSelect, String content) {
-commandLogger.printMaxLength("NORMAL", "searching for: " + classSelect + "." + methodSelect, 120);
+commandLogger.printUnformatted("searching for: " + classSelect + "." + methodSelect);
 
     // javap uses the dot format for the class name, so convert it
     classSelect = classSelect.replace("/", ".");
@@ -818,10 +875,10 @@ commandLogger.printMaxLength("NORMAL", "searching for: " + classSelect + "." + m
           int line = Integer.parseUnsignedInt(entry.substring(0, offset));
           entry = entry.substring(offset+1).trim();
           bytecode = true;
-commandLogger.printMaxLength("NORMAL", "entry is bytecode: " + entry, 120);
+commandLogger.printUnformatted("entry is bytecode: " + entry);
           if (found) {
             if (line < lastline) {
-commandLogger.printMaxLength("NORMAL", "line count indicates new method: " + line, 120);
+commandLogger.printUnformatted("line count indicates new method: " + line);
               return;
             }
             lastline = line;
@@ -833,7 +890,7 @@ commandLogger.printMaxLength("NORMAL", "line count indicates new method: " + lin
         
       // check for start of selected method (method must contain the parameter list)
       if (!bytecode && entry.contains("(") && entry.contains(")")) {
-commandLogger.printMaxLength("NORMAL", "method found in: " + entry, 120);
+commandLogger.printUnformatted("method found in: " + entry);
         // extract the word that contains the param list
         String methName = "";
         String array[] = entry.split("\\s+");
@@ -859,12 +916,12 @@ commandLogger.printMaxLength("NORMAL", "method found in: " + entry, 120);
         if (methName.isEmpty()) { // if no name - it must be the <init> contructor method
           methName = "<init>";
         }
-commandLogger.printMaxLength("NORMAL", "method: " + methName, 120);
+commandLogger.printUnformatted("method: " + methName);
         // method entry found, let's see if it's the one we want
         if (methodSelect.startsWith(methName)) {
           found = true;
-commandLogger.printMaxLength("NORMAL", "method: FOUND!", 120);
-          bytecodeLogger.printMethod(classSelect + "." + methodSelect);
+commandLogger.printUnformatted("method: FOUND!");
+          bytecodePrintMethod(classSelect + "." + methodSelect);
         } else if (found) {
           // athe next method has been found in the file - stop parsing
           break;
@@ -873,4 +930,90 @@ commandLogger.printMaxLength("NORMAL", "method: FOUND!", 120);
     }
   }
   
+  public static void readSymbolicList() {
+    File file = new File(projectPathName + "danfig");
+    if (!file.isFile()) {
+      commandLogger.printUnformatted("danfig file not found at path: " + projectPathName);
+      commandLogger.printUnformatted("No symbolic parameters known.");
+      return;
+    }
+    try {
+      FileReader fileReader = new FileReader(file);
+      BufferedReader bufferedReader = new BufferedReader(fileReader);
+      String line;
+      commandLogger.printUnformatted("Symbolic parameters:");
+      while ((line = bufferedReader.readLine()) != null) {
+        if (line.startsWith("Symbolic:")) {
+          line = line.substring("Symbolic:".length()).trim();
+          String word[] = line.split(",");
+          if (word.length < 2) {
+            commandLogger.printUnformatted("ERROR: invalid symbolic definition - " + line);
+            return;
+          }
+          String symname = word[1].trim() + "_" + word[0].trim().replace(".","/");
+          commandLogger.printUnformatted(" - " + symname);
+
+          // add entry to list 
+          dbtable.addSymbolic(symname);
+        }
+      }
+      fileReader.close();
+    } catch (IOException ex) {
+      commandLogger.printUnformatted("ERROR: " + ex);
+    }
+  }
+  
+  /**
+   * This performs the actions to take upon completion of the thread command.
+   */
+  private class ThreadTermination implements ThreadLauncher.ThreadAction {
+
+    @Override
+    public void allcompleted(ThreadLauncher.ThreadInfo threadInfo) {
+      // restore the stdout and stderr
+      System.out.flush();
+      System.err.flush();
+      System.setOut(standardOut);
+      System.setErr(standardErr);
+    }
+
+    @Override
+    public void jobprestart(ThreadLauncher.ThreadInfo threadInfo) {
+//      commandLogger.printUnformatted("jobprestart - job " + threadInfo.jobid + ": " + threadInfo.jobname);
+    }
+
+    @Override
+    public void jobstarted(ThreadLauncher.ThreadInfo threadInfo) {
+      commandLogger.printUnformatted("jobstart - job " + threadInfo.jobid + ": " + threadInfo.jobname);
+    }
+        
+    @Override
+    public void jobfinished(ThreadLauncher.ThreadInfo threadInfo) {
+      commandLogger.printUnformatted("jobfinished - job " + threadInfo.jobid + ": status = " + threadInfo.exitcode);
+      switch (threadInfo.exitcode) {
+        case 0:
+          break;
+        case 137:
+          commandLogger.printUnformatted("User SIGKILL complete.");
+          break;
+        case 143:
+          commandLogger.printUnformatted("User SIGTERM complete.");
+          break;
+        default:
+          commandLogger.printUnformatted("Failure executing command.");
+          break;
+      }
+    }
+  }
+        
+  private class GraphUpdateListener implements ActionListener {
+    @Override
+    public void actionPerformed(ActionEvent e) {
+      // if Call Graph tab selected, update graph
+//      if (isTabSelection(PanelTabs.GRAPH)) {
+//        GuiPanel.mainFrame.repack();
+//      }
+    }
+  }
+
 }

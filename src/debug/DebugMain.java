@@ -15,7 +15,7 @@ public class DebugMain {
 
   // init these to defaults
   public static int SERVER_PORT = 5000;
-  
+
   /**
    * @param args the command line arguments
    * @throws java.io.IOException
@@ -49,10 +49,9 @@ public class DebugMain {
           break;
       }
     }
-    
+
     // start the debug message panel
-    GuiPanel gui = new GuiPanel();
-    gui.createDebugPanel(port, bTcp);
+    GuiPanel gui = new GuiPanel(port, bTcp);
   }
   
 }

@@ -37,7 +37,7 @@ public class CommandLauncher {
           System.out.println(message);
         }
       } else {
-        logger.printMaxLength(type, message, 120);
+        logger.printUnformatted(message);
       }
     }
     
