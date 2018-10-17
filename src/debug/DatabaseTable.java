@@ -144,21 +144,21 @@ public class DatabaseTable {
   
   private static class DatabaseInfo {
     String  id;
-    String  param;
     String  method;
     String  offset;
     String  constraint;
     String  solvable;
+    String  param;
     String  solution;
     boolean updated;
     
     public DatabaseInfo(String idn, String parm, String meth, String off, String con, String solve, String sol) {
       id         = idn   == null ? "" : idn;
-      param      = parm  == null ? "" : parm;
       method     = meth  == null ? "" : meth;
       offset     = off   == null ? "" : off;
       constraint = con   == null ? "" : con;
       solvable   = solve == null ? "" : solve;
+      param      = parm  == null ? "" : parm;
       solution   = sol   == null ? "" : sol;
       updated = false;
     }
@@ -182,19 +182,11 @@ public class DatabaseTable {
       // get the id value for the entry
       String id = doc.getObjectId("_id").toHexString(); // .getString("_id");
       
-      // search for solution for any of the symbolic parameters
-      String solution = "";
-      String pname = "";
-      for (String paramname : SYMBOLIC_PARAMS) {
-        solution = doc.getString(paramname);
-        if (solution != null && !solution.isEmpty()) {
-          pname = paramname;
-          break;
-        }
-      }
       Integer offset = doc.getInteger("offset");
       Boolean solvable = doc.getBoolean("solvable");
-      DatabaseInfo entry = new DatabaseInfo(id, pname,
+      Document solutions = (Document) doc.get("solution"); //doc.getString("solution");
+      String solution = "unknown solution";
+      DatabaseInfo entry = new DatabaseInfo(id, "unknown",
                                             doc.getString("method"),
                                             (offset == null ? null : offset.toString()),
                                             doc.getString("constraint"),

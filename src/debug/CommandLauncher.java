@@ -37,7 +37,7 @@ public class CommandLauncher {
           System.out.println(message);
         }
       } else {
-        logger.printUnformatted(message);
+        logger.printLine(type, message);
       }
     }
     

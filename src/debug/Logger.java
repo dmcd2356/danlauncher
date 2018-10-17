@@ -94,47 +94,6 @@ public class Logger {
   }
 
   /**
-   * outputs the various types of messages to the status display.
-   * all messages will guarantee the previous line was terminated with a newline,
-   * and will preceed the message with a timestamp value and terminate with a newline.
-   * 
-   * @param linenum  - the line number
-   * @param elapsed  - the elapsed time
-   * @param threadid - the thread id
-   * @param typestr  - the type of message to display (all caps)
-   * @param content  - the message content
-   */
-  public final void print(int linenum, String elapsed, String threadid, String typestr, String content) {
-    if (linenum >= 0 && elapsed != null && typestr != null && content != null && !content.isEmpty()) {
-      // make sure the linenum is 8-digits in length and the type is 6-chars in length
-      String linestr = "00000000" + linenum;
-      linestr = linestr.substring(linestr.length() - 8);
-      typestr = (typestr + "      ").substring(0, 6);
-      if (!threadid.isEmpty()) {
-        threadid = "<" + threadid + ">";
-      }
-      
-      // print message (seperate into multiple lines if ASCII newlines are contained in it)
-      if (!content.contains(NEWLINE)) {
-        printRaw("INFO", linestr + "  ");
-        printRaw("INFO", elapsed + " ");
-        printRaw("INFO", threadid + " ");
-        printRaw(typestr, typestr + ": " + content + NEWLINE);
-      }
-      else {
-        // seperate into lines and print each independantly
-        String[] msgarray = content.split(NEWLINE);
-        for (String msg : msgarray) {
-          printRaw("INFO", linestr + "  ");
-          printRaw("INFO", elapsed + " ");
-          printRaw("INFO", threadid + " ");
-          printRaw(typestr, typestr + ": " + msg + NEWLINE);
-        }
-      }
-    }
-  }
-
-  /**
    * adds ASCII space padding to right of string up to the specified length
    * 
    * @param content  - the message content
@@ -152,20 +111,20 @@ public class Logger {
     return (MAX_PADDING + content).substring(MAX_PADDING.length() + content.length() - length);
   }
   
-  public final void printFormatted(String type, String message) {
-    printRaw(type, message + NEWLINE);
+  public final void printLine(String type, String message) {
+    printField(type, message + NEWLINE);
   }
   
-  public final void printUnformatted(String message) {
-    printRaw("NOFMT", message + NEWLINE);
+  public final void printLine(String message) {
+    printField("NOFMT", message + NEWLINE);
   }
   
-  public final void printRawAlignLeft(String type, String message, int fieldlen) {
-    printRaw(type, padToRight(message, fieldlen));
+  public final void printFieldAlignLeft(String type, String message, int fieldlen) {
+    printField(type, padToRight(message, fieldlen));
   }
   
-  public final void printRawAlignRight(String type, String message, int fieldlen) {
-    printRaw(type, padToLeft(message, fieldlen));
+  public final void printFieldAlignRight(String type, String message, int fieldlen) {
+    printField(type, padToLeft(message, fieldlen));
   }
   
   /**
@@ -174,7 +133,7 @@ public class Logger {
    * @param type  - the type of message to display
    * @param message - message contents to display
    */
-  public final void printRaw(String type, String message) {
+  public final void printField(String type, String message) {
     if (message != null && !message.isEmpty()) {
       // set default values (if type was not found)
       TextColor color = TextColor.DkGrey; //TextColor.Black;

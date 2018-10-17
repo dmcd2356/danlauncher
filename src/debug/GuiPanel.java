@@ -13,18 +13,24 @@ import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.BufferedReader;
+import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.PrintStream;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
+import java.util.logging.Level;
 import javax.swing.BorderFactory;
 import javax.swing.JComboBox;
 import javax.swing.JFileChooser;
@@ -162,18 +168,17 @@ public final class GuiPanel {
 
     // create the entries in the main frame
     panel = null;
-    mainFrame.makeTextField(panel, "TXT_MESSAGES" , "Status"     , LEFT, true, "              ", false);
-    mainFrame.makePanel    (panel, "PNL_CONTAINER", ""           , LEFT, true);
-    tabPanel = mainFrame.makeTabbedPanel(panel, "PNL_TABBED", "" , LEFT, true);
+    mainFrame.makeTextField(panel, "TXT_MESSAGES" , "Status"      , LEFT, true, "         ", false);
+    mainFrame.makePanel    (panel, "PNL_CONTAINER", ""            , LEFT, true);
+    tabPanel = mainFrame.makeTabbedPanel(panel, "PNL_TABBED", ""  , LEFT, true);
 
     panel = "PNL_CONTAINER";
-    mainFrame.makePanel (panel, "PNL_CONTROL"  , "Controls"      , LEFT, false);
-    mainFrame.makePanel (panel, "PNL_BYTECODE" , "Bytecode"      , LEFT, false);
-    mainFrame.makePanel (panel, "PNL_STATS"    , "Solutions"     , LEFT, true);
+    mainFrame.makePanel    (panel, "PNL_CONTROL"  , "Controls"    , LEFT, false);
+    mainFrame.makePanel    (panel, "PNL_BYTECODE" , "Bytecode"    , LEFT, false);
+    mainFrame.makePanel    (panel, "PNL_STATS"    , "Solutions"   , LEFT, true);
 
     panel = "PNL_STATS";
-    mainFrame.makeLabel      (panel, "LBL_1" , " "      , RIGHT, false);
-    mainFrame.makeTextField  (panel, "TXT_1" , "Dummy1" , LEFT,  true, "------", false);
+    mainFrame.makeTextField(panel, "TXT_1"        , "Dummy1"      , LEFT,  true, "------", false);
 
     panel = "PNL_BYTECODE";
     mainFrame.makeCombobox (panel, "COMBO_CLASS"  , "Class"       , LEFT, true);
@@ -184,8 +189,10 @@ public final class GuiPanel {
     mainFrame.makeButton   (panel, "BTN_LOADFILE" , "Select Jar"  , LEFT, false);
     mainFrame.makeLabel    (panel, "LBL_JARFILE"  , "           " , LEFT, true);
     mainFrame.makeCombobox (panel, "COMBO_MAINCLS", "Main Class"  , LEFT, true);
-    mainFrame.makeLabel    (panel, "LBL_2"        , " "           , LEFT, true); // dummy separator
+    mainFrame.makeGap      (panel);
     mainFrame.makeButton   (panel, "BTN_RUNTEST"  , "Run code"    , LEFT, false);
+    mainFrame.makeTextField(panel, "TXT_ARGLIST"  , ""            , LEFT, true, "", true);
+    mainFrame.makeButton   (panel, "BTN_SEND"     , "Post Data"   , LEFT, false);
     mainFrame.makeTextField(panel, "TXT_INPUT"    , ""            , LEFT, true, "", true);
     mainFrame.makeButton   (panel, "BTN_SOL_STRT" , "Start Solver", LEFT, true);
 
@@ -201,7 +208,9 @@ public final class GuiPanel {
     mainFrame.getLabel("COMBO_METHOD").setEnabled(false);
     mainFrame.getButton("BTN_BYTECODE").setEnabled(false);
     mainFrame.getButton("BTN_RUNTEST").setEnabled(false);
+    mainFrame.getButton("BTN_SEND").setEnabled(false);
     mainFrame.getButton("BTN_SOL_STRT").setEnabled(false);
+    mainFrame.getTextField("TXT_ARGLIST").setEnabled(false);
     mainFrame.getTextField("TXT_INPUT").setEnabled(false);
     
     // we need a filechooser for the Save buttons
@@ -250,7 +259,9 @@ public final class GuiPanel {
         mainFrame.getLabel("COMBO_METHOD").setEnabled(true);
         mainFrame.getButton("BTN_BYTECODE").setEnabled(true);
         mainFrame.getButton("BTN_RUNTEST").setEnabled(true);
+        mainFrame.getButton("BTN_SEND").setEnabled(true);
         mainFrame.getButton("BTN_SOL_STRT").setEnabled(true);
+        mainFrame.getTextField("TXT_ARGLIST").setEnabled(true);
         mainFrame.getTextField("TXT_INPUT").setEnabled(true);
       }
     });
@@ -265,7 +276,15 @@ public final class GuiPanel {
     (GuiPanel.mainFrame.getButton("BTN_RUNTEST")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
-        runTest();
+        String arglist = mainFrame.getTextField("TXT_ARGLIST").getText();
+        runTest(arglist);
+      }
+    });
+    (GuiPanel.mainFrame.getButton("BTN_SEND")).addActionListener(new ActionListener() {
+      @Override
+      public void actionPerformed(java.awt.event.ActionEvent evt) {
+        String input = mainFrame.getTextField("TXT_INPUT").getText();
+        executePost(input);
       }
     });
     (GuiPanel.mainFrame.getButton("BTN_SOL_STRT")).addActionListener(new ActionListener() {
@@ -576,16 +595,24 @@ public final class GuiPanel {
       mainFrame.getTextField("TXT_MESSAGES").setText(message);
       
       // echo status to command output window
-      commandLogger.printUnformatted(message);
+      printCommandError(message);
     }
   }
   
-  private static void bytecodePrintMethod(String methodName) {
-    bytecodeLogger.printRaw("TEXT", "Method: ");
-    bytecodeLogger.printRaw("METHOD", methodName + NEWLINE + NEWLINE);
+  private static void printCommandMessage(String message) {
+    commandLogger.printLine(message);
   }
   
-  private static void bytecodePrintOpcode(int line, String opcode, String param, String comment) {
+  private static void printCommandError(String message) {
+    commandLogger.printLine(message);
+  }
+  
+  private static void printBytecodeMethod(String methodName) {
+    bytecodeLogger.printField("TEXT", "Method: ");
+    bytecodeLogger.printField("METHOD", methodName + NEWLINE + NEWLINE);
+  }
+  
+  private static void printBytecodeOpcode(int line, String opcode, String param, String comment) {
     String type = "OTHER";
     if (opcode.startsWith("invoke")) {
       type = "INVOKE";
@@ -599,12 +626,53 @@ public final class GuiPanel {
       type = "BRANCH";
     }
 
-    bytecodeLogger.printRawAlignRight("TEXT", "" + line, 5);
-    bytecodeLogger.printRawAlignLeft(type, "  " + opcode, 16);
-    bytecodeLogger.printRawAlignLeft("PARAM", param, 10);
-    bytecodeLogger.printRaw("COMMENT", comment + NEWLINE);
+    bytecodeLogger.printFieldAlignRight("TEXT", "" + line, 5);
+    bytecodeLogger.printFieldAlignLeft(type, "  " + opcode, 16);
+    bytecodeLogger.printFieldAlignLeft("PARAM", param, 10);
+    bytecodeLogger.printField("COMMENT", comment + NEWLINE);
   }
   
+  /**
+   * outputs the various types of messages to the status display.
+   * all messages will guarantee the previous line was terminated with a newline,
+   * and will preceed the message with a timestamp value and terminate with a newline.
+   * 
+   * @param linenum  - the line number
+   * @param elapsed  - the elapsed time
+   * @param threadid - the thread id
+   * @param typestr  - the type of message to display (all caps)
+   * @param content  - the message content
+   */
+  private void printDebug(int linenum, String elapsed, String threadid, String typestr, String content) {
+    if (linenum >= 0 && elapsed != null && typestr != null && content != null && !content.isEmpty()) {
+      // make sure the linenum is 8-digits in length and the type is 6-chars in length
+      String linestr = "00000000" + linenum;
+      linestr = linestr.substring(linestr.length() - 8);
+      typestr = (typestr + "      ").substring(0, 6);
+      if (!threadid.isEmpty()) {
+        threadid = "<" + threadid + ">";
+      }
+      
+      // print message (seperate into multiple lines if ASCII newlines are contained in it)
+      if (!content.contains(NEWLINE)) {
+        debugLogger.printField("INFO", linestr + "  ");
+        debugLogger.printField("INFO", elapsed + " ");
+        debugLogger.printField("INFO", threadid + " ");
+        debugLogger.printField(typestr, typestr + ": " + content + NEWLINE);
+      }
+      else {
+        // seperate into lines and print each independantly
+        String[] msgarray = content.split(NEWLINE);
+        for (String msg : msgarray) {
+          debugLogger.printField("INFO", linestr + "  ");
+          debugLogger.printField("INFO", elapsed + " ");
+          debugLogger.printField("INFO", threadid + " ");
+          debugLogger.printField(typestr, typestr + ": " + msg + NEWLINE);
+        }
+      }
+    }
+  }
+
   private static boolean fileCheck(String fname) {
     if (new File(fname).isFile()) {
       return true;
@@ -664,7 +732,7 @@ public final class GuiPanel {
       if (retcode == 0) {
         mainFrame.getLabel("LBL_JARFILE").setText(projectPathName + projectName);
         printStatus("Instrumentation successful");
-        commandLogger.printUnformatted(commandLauncher.getResponse());
+        printCommandMessage(commandLauncher.getResponse());
       
         // update the class and method selections
         setupClassList(projectPathName);
@@ -710,14 +778,11 @@ public final class GuiPanel {
     }
   }
 
-  private void runTest() {
-    // clear the output display
-    commandLogger.clear();
-
-    String instrJarFile = projectPathName + projectName.substring(0, projectName.indexOf(".")) + "-dan-ed.jar";
+  private void runTest(String arglist) {
+    String instrJarFile = projectName.substring(0, projectName.indexOf(".")) + "-dan-ed.jar";
     
     // verify all the required files exist
-    if (!fileCheck(instrJarFile) ||
+    if (!fileCheck(projectPathName + instrJarFile) ||
         !fileCheck(DSEPATH + "danalyzer/dist/danalyzer.jar") ||
         !fileCheck(DSEPATH + "danalyzer/lib/com.microsoft.z3.jar") ||
         !fileCheck(DSEPATH + "danalyzer/lib/commons-io-2.5.jar") ||
@@ -732,18 +797,17 @@ public final class GuiPanel {
       printStatus("ERROR: no main class found!");
       return;
     }
-    String arglist = mainFrame.getTextField("TXT_INPUT").getText();
 
     // TODO: let user pick his java home
     String JAVA_HOME = "/usr/lib/jvm/java-8-openjdk-amd64";
     
     // build up the command to run
-    String localpath = "/*";
+    String localpath = "*";
     if (new File("lib").isDirectory()) {
-      localpath += ":/lib/*";
+      localpath += ":lib/*";
     }
     if (new File("libs").isDirectory()) {
-      localpath += ":/libs/*";
+      localpath += ":libs/*";
     }
     String mongolib = DSEPATH + "danalyzer/lib/mongodb-driver-core-3.8.2.jar"
               + ":" + DSEPATH + "danalyzer/lib/mongodb-driver-sync-3.8.2.jar"
@@ -766,6 +830,48 @@ public final class GuiPanel {
 
     threadLauncher.init(new ThreadTermination());
     threadLauncher.launch(command, projectPathName, "run_" + projectName, null);
+  }
+
+  private static void executePost(String urlParameters) {
+    HttpURLConnection connection = null;
+    String targetURL = "http://localhost:8080"; // TODO: need to allow user to specify this
+
+    try {
+      // Create connection
+      URL url = new URL(targetURL);
+      connection = (HttpURLConnection) url.openConnection();
+      connection.setRequestMethod("POST");
+      connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+      connection.setRequestProperty("Content-Length", Integer.toString(urlParameters.getBytes().length));
+      connection.setRequestProperty("Content-Language", "en-US");  
+      connection.setUseCaches(false);
+      connection.setDoOutput(true);
+
+      // Send request
+      DataOutputStream wr = new DataOutputStream (connection.getOutputStream());
+      wr.writeBytes(urlParameters);
+      wr.close();
+
+      // Get Response  
+      InputStream is = connection.getInputStream();
+      BufferedReader rd = new BufferedReader(new InputStreamReader(is));
+      StringBuilder response = new StringBuilder(); // or StringBuffer if Java version 5+
+      String line;
+      while ((line = rd.readLine()) != null) {
+        response.append(line);
+        response.append('\r');
+      }
+      rd.close();
+      // display response.toString()
+      printCommandMessage("RESPONSE: " + response.toString());
+    } catch (IOException ex) {
+      // display error
+      printCommandError(ex.getMessage());
+    } finally {
+      if (connection != null) {
+        connection.disconnect();
+      }
+    }
   }
   
   private static void extractClassFile(File jarfile, String className) throws IOException {
@@ -854,12 +960,12 @@ public final class GuiPanel {
         }
       }
 
-      bytecodePrintOpcode(line, opcode, param, comment);
+      printBytecodeOpcode(line, opcode, param, comment);
     }
   }
 
   private static void parseJavap(String classSelect, String methodSelect, String content, int markLine) {
-    commandLogger.printUnformatted("searching for: " + classSelect + "." + methodSelect);
+    printCommandMessage("searching for: " + classSelect + "." + methodSelect);
 
     // javap uses the dot format for the class name, so convert it
     classSelect = classSelect.replace("/", ".");
@@ -887,10 +993,10 @@ public final class GuiPanel {
           int line = Integer.parseUnsignedInt(entry.substring(0, offset));
           entry = entry.substring(offset+1).trim();
           bytecode = true;
-//commandLogger.printUnformatted("entry is bytecode: " + entry);
+//printCommandMessage("entry is bytecode: " + entry);
           if (found) {
             if (line < lastline) {
-//commandLogger.printUnformatted("line count indicates new method: " + line);
+//printCommandMessage("line count indicates new method: " + line);
               return;
             }
             lastline = line;
@@ -902,7 +1008,7 @@ public final class GuiPanel {
         
       // check for start of selected method (method must contain the parameter list)
       if (!bytecode && entry.contains("(") && entry.contains(")")) {
-//commandLogger.printUnformatted("method found in: " + entry);
+//printCommandMessage("method found in: " + entry);
         // extract the word that contains the param list
         String methName = "";
         String array[] = entry.split("\\s+");
@@ -929,11 +1035,11 @@ public final class GuiPanel {
           methName = "<init>";
         }
         // method entry found, let's see if it's the one we want
-        commandLogger.printUnformatted("method: " + methName);
+        printCommandMessage("method: " + methName);
         if (methodSelect.startsWith(methName)) {
           found = true;
-          commandLogger.printUnformatted("method: FOUND!");
-          bytecodePrintMethod(classSelect + "." + methodSelect);
+          printCommandMessage("method: FOUND!");
+          printBytecodeMethod(classSelect + "." + methodSelect);
         } else if (found) {
           // athe next method has been found in the file - stop parsing
           break;
@@ -945,25 +1051,25 @@ public final class GuiPanel {
   public static void readSymbolicList() {
     File file = new File(projectPathName + "danfig");
     if (!file.isFile()) {
-      commandLogger.printUnformatted("danfig file not found at path: " + projectPathName);
-      commandLogger.printUnformatted("No symbolic parameters known.");
+      printCommandError("danfig file not found at path: " + projectPathName);
+      printCommandMessage("No symbolic parameters known.");
       return;
     }
     try {
       FileReader fileReader = new FileReader(file);
       BufferedReader bufferedReader = new BufferedReader(fileReader);
       String line;
-      commandLogger.printUnformatted("Symbolic parameters:");
+      printCommandMessage("Symbolic parameters:");
       while ((line = bufferedReader.readLine()) != null) {
         if (line.startsWith("Symbolic:")) {
           line = line.substring("Symbolic:".length()).trim();
           String word[] = line.split(",");
           if (word.length < 2) {
-            commandLogger.printUnformatted("ERROR: invalid symbolic definition - " + line);
+            printCommandError("ERROR: invalid symbolic definition - " + line);
             return;
           }
           String symname = word[1].trim() + "_" + word[0].trim().replace(".","/");
-          commandLogger.printUnformatted(" - " + symname);
+          printCommandMessage(" - " + symname);
 
           // add entry to list 
           dbtable.addSymbolic(symname);
@@ -971,7 +1077,7 @@ public final class GuiPanel {
       }
       fileReader.close();
     } catch (IOException ex) {
-      commandLogger.printUnformatted("ERROR: " + ex);
+      printCommandError(ex.getMessage());
     }
   }
   
@@ -991,28 +1097,28 @@ public final class GuiPanel {
 
     @Override
     public void jobprestart(ThreadLauncher.ThreadInfo threadInfo) {
-//      commandLogger.printUnformatted("jobprestart - job " + threadInfo.jobid + ": " + threadInfo.jobname);
+//      printCommandMessage("jobprestart - job " + threadInfo.jobid + ": " + threadInfo.jobname);
     }
 
     @Override
     public void jobstarted(ThreadLauncher.ThreadInfo threadInfo) {
-      commandLogger.printUnformatted("jobstart - job " + threadInfo.jobid + ": " + threadInfo.jobname);
+      printCommandMessage("jobstart - job " + threadInfo.jobid + ": " + threadInfo.jobname);
     }
         
     @Override
     public void jobfinished(ThreadLauncher.ThreadInfo threadInfo) {
-      commandLogger.printUnformatted("jobfinished - job " + threadInfo.jobid + ": status = " + threadInfo.exitcode);
+      printCommandMessage("jobfinished - job " + threadInfo.jobid + ": status = " + threadInfo.exitcode);
       switch (threadInfo.exitcode) {
         case 0:
           break;
         case 137:
-          commandLogger.printUnformatted("User SIGKILL complete.");
+          printCommandMessage("User SIGKILL complete.");
           break;
         case 143:
-          commandLogger.printUnformatted("User SIGTERM complete.");
+          printCommandMessage("User SIGTERM complete.");
           break;
         default:
-          commandLogger.printUnformatted("Failure executing command.");
+          printCommandMessage("Failure executing command.");
           break;
       }
     }

@@ -380,6 +380,31 @@ public class GuiControls {
   }
 
   /**
+   * This creates an empty JLabel and places it in the container to add a gap.
+   * 
+   * @param panelname - the name of the jPanel container to place the component in (null if use main frame)
+   */
+  public void makeGap(String panelname) {
+    if (mainFrame == null || mainLayout == null) {
+      return;
+    }
+
+    JLabel label = new JLabel("");
+
+    GridBagLayout gridbag;
+    if (panelname != null) {
+      JPanel panel = getSelectedPanel(panelname);
+      gridbag = (GridBagLayout) panel.getLayout();
+      gridbag.setConstraints(label, setGbagConstraints(Orient.LEFT, true));
+      panel.add(label);
+    } else {
+      gridbag = this.mainLayout;
+      gridbag.setConstraints(label, setGbagConstraints(Orient.LEFT, true));
+      this.mainFrame.add(label);
+    }
+  }
+  
+  /**
    * This creates a JLabel and places it in the container.
    * 
    * @param panelname - the name of the jPanel container to place the component in (null if use main frame)
@@ -990,10 +1015,11 @@ public class GuiControls {
     JTextArea tpanel = new JTextArea();
     tpanel.setText(text);
 
-    // create the scroll panel and apply constraints
+    // create the scroll panel and place text panel in it
     JScrollPane spanel = new JScrollPane(tpanel);
-    spanel.setBorder(BorderFactory.createEmptyBorder()); // .createTitledBorder(title));
+    spanel.setBorder(BorderFactory.createEmptyBorder());
 
+    // apply constraints
     GridBagLayout gridbag = new GridBagLayout();
     GridBagConstraints c = new GridBagConstraints();
     c.insets = new Insets(GAPSIZE, GAPSIZE, GAPSIZE, GAPSIZE);
@@ -1009,7 +1035,7 @@ public class GuiControls {
     frame.setTitle(title);
     frame.setContentPane(spanel);
     frame.setSize(dim);
-    frame.setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
+    frame.setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
     frame.setLocationRelativeTo(null);
     frame.setVisible(true);
     return frame;
