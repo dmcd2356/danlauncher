@@ -7,10 +7,11 @@ package debug;
 
 import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.Frame;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
-import java.awt.GridLayout;
 import java.awt.Insets;
+import java.awt.Toolkit;
 import java.util.HashMap;
 import javax.swing.BorderFactory;
 import javax.swing.DefaultListModel;
@@ -40,7 +41,11 @@ public class GuiControls {
   
   final static private int GAPSIZE = 4; // gap size to place on each side of each widget
   
+  private final Dimension SCREEN_SIZE = Toolkit.getDefaultToolkit().getScreenSize();
+    
   public enum Orient { NONE, LEFT, RIGHT, CENTER }
+  
+  public enum FrameSize { NOLIMIT, FIXEDSIZE, FULLSCREEN }
 
   private JFrame         mainFrame;
   private GridBagLayout  mainLayout;
@@ -75,7 +80,31 @@ public class GuiControls {
     this.mainFrame.setLayout(this.mainLayout);
   }
   
-  public void newFrame(String title, int height, int width, boolean fixed) {
+  public void newFrame(String title, double portion) {
+    if (mainFrame != null) {
+      return;
+    }
+    if (portion < 0.2) {
+      portion = 0.2;
+    }
+    if (portion > 1.0) {
+      portion = 1.0;
+    }
+    framesize = new Dimension((int)((double)SCREEN_SIZE.width * portion),
+                              (int)((double)SCREEN_SIZE.height * portion));
+    this.mainFrame = new JFrame(title);
+    this.mainFrame.setSize(framesize);
+    this.mainFrame.setMinimumSize(framesize);
+    this.mainFrame.setMaximumSize(framesize);
+    this.mainFrame.setResizable(false);
+
+    // setup the layout for the frame
+    this.mainLayout = new GridBagLayout();
+    this.mainFrame.setFont(new Font("SansSerif", Font.PLAIN, 14));
+    this.mainFrame.setLayout(this.mainLayout);
+  }
+
+  public void newFrame(String title, int height, int width, FrameSize size) {
     if (mainFrame != null) {
       return;
     }
@@ -83,8 +112,14 @@ public class GuiControls {
     this.mainFrame = new JFrame(title);
     this.mainFrame.setSize(framesize);
     this.mainFrame.setMinimumSize(framesize);
-    if (fixed) {
-      this.mainFrame.setMaximumSize(framesize);
+    switch (size) {
+      case FIXEDSIZE:
+        this.mainFrame.setMaximumSize(framesize);
+        this.mainFrame.setResizable(false);
+        break;
+      case FULLSCREEN:
+        this.mainFrame.setState(Frame.MAXIMIZED_BOTH);
+        break;
     }
 
     // setup the layout for the frame

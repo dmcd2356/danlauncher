@@ -223,7 +223,7 @@ public class DatabaseTable {
         int offset = meth.lastIndexOf("/");
         String cls = meth.substring(0, offset);
         meth = meth.substring(offset + 1);
-        GuiPanel.runBytecode(cls, meth, Integer.parseInt(line));
+        GuiPanel.generateBytecode(cls, meth, Integer.parseInt(line));
         break;
       case "Solution":
         String solution = (String)dbTable.getValueAt(row, col);

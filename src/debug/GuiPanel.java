@@ -5,11 +5,9 @@
  */
 package debug;
 
-import dansolver.Dansolver;
 import debug.FontInfo.FontType;
 import debug.FontInfo.TextColor;
 import java.awt.Component;
-import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.BufferedReader;
@@ -22,7 +20,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -30,11 +27,12 @@ import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
-import java.util.logging.Level;
 import javax.swing.BorderFactory;
 import javax.swing.JComboBox;
 import javax.swing.JFileChooser;
+import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTable;
@@ -85,7 +83,10 @@ public final class GuiPanel {
   private static Logger         debugLogger;
   private static Timer          pktTimer;
   private static Timer          graphTimer;
+  private static int            linesRead;
   private static int            threadCount;
+  private static int            errorCount;
+  private static ArrayList<Integer> threadList = new ArrayList<>();
   private static long           elapsedStart;
   private static ElapsedMode    elapsedMode;
   private static String         projectPathName;
@@ -96,6 +97,13 @@ public final class GuiPanel {
   private static PrintStream    standardErr = System.err;         
   private static DatabaseTable  dbtable;
   
+  private static Visitor        makeConnection;
+  private static String         serverPort = "";
+  private static String         clientPort = "";
+  private static ServerThread   udpThread;
+  private static MyListener     listener;
+  private static MsgListener    inputListener;
+  
   private static HashMap<PanelTabs, Integer> tabSelect = new HashMap<>();
   private static HashMap<String, ArrayList<String>> clsMethMap; // maps the list of methods to each class
   private static ArrayList<String>  classList;
@@ -105,7 +113,26 @@ public final class GuiPanel {
   private static HashMap<PanelTabs, Component> tabbedPanels = new HashMap<>();
   
 
+  // allow ServerThread to indicate on panel when a connection has been made for TCP
+  public interface Visitor {
+    void showConnection(String connection);
+    void resetConnection();
+  }
+
   public GuiPanel(int port, boolean tcp) {
+    makeConnection = new Visitor() {
+      @Override
+      public void showConnection(String connection) {
+        clientPort = connection;
+        printCommandMessage("connected to  " + GuiPanel.clientPort);
+      }
+
+      @Override
+      public void resetConnection() {
+        printCommandMessage("connected to  " + GuiPanel.clientPort + "  (CONNECTION CLOSED)");
+      }
+    };
+
     // create the main panel and controls
     createDebugPanel();
 
@@ -121,28 +148,28 @@ public final class GuiPanel {
     GuiPanel.fileSelector.setCurrentDirectory(new File(logfileName));
 
     // start the TCP or UDP listener thread
-//    try {
-//      GuiPanel.udpThread = new ServerThread(port, tcp, logfileName, makeConnection);
-//      GuiPanel.udpThread.start();
-//      GuiPanel.listener = GuiPanel.udpThread;
-//      GuiPanel.udpThread.setBufferFile(logfileName);
-//      GuiPanel.mainFrame.getLabel("LBL_MESSAGES").setText("Logfile: " + udpThread.getOutputFile());
-//    } catch (IOException ex) {
-//      System.out.println(ex.getMessage());
-//      System.exit(1);
-//    }
+    try {
+      GuiPanel.udpThread = new ServerThread(port, tcp, logfileName, makeConnection);
+      GuiPanel.udpThread.start();
+      GuiPanel.listener = GuiPanel.udpThread;
+      GuiPanel.udpThread.setBufferFile(logfileName);
+      GuiPanel.mainFrame.getLabel("LBL_MESSAGES").setText("Logfile: " + udpThread.getOutputFile());
+    } catch (IOException ex) {
+      System.out.println(ex.getMessage());
+      System.exit(1);
+    }
 
-//    // create a timer for reading and displaying the messages received (from either network or file)
-//    GuiPanel.inputListener = new MsgListener();
-//    pktTimer = new Timer(1, GuiPanel.inputListener);
-//    pktTimer.start();
-//
-//    // create a slow timer for updating the call graph
-//    graphTimer = new Timer(1000, new GraphUpdateListener());
-//    graphTimer.start();
+    // create a timer for reading and displaying the messages received (from either network or file)
+    GuiPanel.inputListener = new MsgListener();
+    pktTimer = new Timer(1, GuiPanel.inputListener);
+    pktTimer.start();
+
+    // create a slow timer for updating the call graph
+    graphTimer = new Timer(1000, new GraphUpdateListener());
+    graphTimer.start();
 
     // start timer when 1st line is received from port
-//    GuiPanel.elapsedMode = ElapsedMode.RESET;
+    GuiPanel.elapsedMode = ElapsedMode.RESET;
 }
   
   public void createDebugPanel() {
@@ -164,7 +191,8 @@ public final class GuiPanel {
     GuiControls.Orient RIGHT = GuiControls.Orient.RIGHT;
     
     // create the frame
-    mainFrame.newFrame("danviewer", 1200, 800, false);
+//    mainFrame.newFrame("danlauncher", 1200, 800, FrameSize.FULLSCREEN);
+    mainFrame.newFrame("danlauncher", 0.8);
 
     // create the entries in the main frame
     panel = null;
@@ -241,14 +269,14 @@ public final class GuiPanel {
         JComboBox cbSelect = (JComboBox) evt.getSource();
         String classSelect = (String) cbSelect.getSelectedItem();
         setMethodSelections(classSelect);
-        mainFrame.getFrame().pack(); // need to update frame in case width requirements change
+//        mainFrame.getFrame().pack(); // need to update frame in case width requirements change
       }
     });
     (GuiPanel.mainFrame.getButton("BTN_LOADFILE")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         // load the selected file
-        loadFileButtonActionPerformed();
+        loadJarFile();
         
         // enable the class and method selections
         mainClassCombo.setEnabled(false);
@@ -270,7 +298,7 @@ public final class GuiPanel {
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         String classSelect  = (String) classCombo.getSelectedItem();
         String methodSelect = (String) methodCombo.getSelectedItem();
-        runBytecode(classSelect, methodSelect, -1);
+        generateBytecode(classSelect, methodSelect, -1);
       }
     });
     (GuiPanel.mainFrame.getButton("BTN_RUNTEST")).addActionListener(new ActionListener() {
@@ -417,6 +445,21 @@ public final class GuiPanel {
     }
   }
 
+  private static void setThreadEnabled(boolean enabled) {
+//    JRadioButton button = mainFrame.getRadiobutton("RB_THREAD");
+//    button.setEnabled(enabled);
+//    if (enabled) {
+//      enabled = button.isSelected();
+//    }
+//
+//    JLabel label = mainFrame.getLabel ("TXT_TH_SEL");
+//    label.setText("0");
+//
+//    label.setEnabled(enabled);
+//    mainFrame.getButton("BTN_TH_UP").setEnabled(enabled);
+//    mainFrame.getButton("BTN_TH_DN").setEnabled(enabled);
+  }
+  
   public static boolean isTabSelection(PanelTabs select) {
     if (GuiPanel.tabPanel == null || tabSelect.isEmpty()) {
       return false;
@@ -512,6 +555,9 @@ public final class GuiPanel {
     
     // now update the method selections
     setMethodSelections((String) classCombo.getSelectedItem());
+
+    // in case selections require expansion, adjust frame packing
+//    mainFrame.getFrame().pack();
   }
 
   private static void setMethodSelections(String clsname) {
@@ -588,15 +634,19 @@ public final class GuiPanel {
     }
   }
   
-  private static void printStatus(String message) {
-    if (message == null) {
-      mainFrame.getTextField("TXT_MESSAGES").setText("                   ");
-    } else {
-      mainFrame.getTextField("TXT_MESSAGES").setText(message);
+  private static void printStatusClear() {
+    mainFrame.getTextField("TXT_MESSAGES").setText("                   ");
+  }
+  
+  private static void printStatusMessage(String message) {
+    mainFrame.getTextField("TXT_MESSAGES").setText(message);
+  }
+  
+  private static void printStatusError(String message) {
+    mainFrame.getTextField("TXT_MESSAGES").setText(message);
       
-      // echo status to command output window
-      printCommandError(message);
-    }
+    // echo status to command output window
+    printCommandError(message);
   }
   
   private static void printCommandMessage(String message) {
@@ -643,7 +693,7 @@ public final class GuiPanel {
    * @param typestr  - the type of message to display (all caps)
    * @param content  - the message content
    */
-  private void printDebug(int linenum, String elapsed, String threadid, String typestr, String content) {
+  private static void printDebug(int linenum, String elapsed, String threadid, String typestr, String content) {
     if (linenum >= 0 && elapsed != null && typestr != null && content != null && !content.isEmpty()) {
       // make sure the linenum is 8-digits in length and the type is 6-chars in length
       String linestr = "00000000" + linenum;
@@ -673,17 +723,21 @@ public final class GuiPanel {
     }
   }
 
+  private static void printDebug(String content) {
+    debugLogger.printLine(content);
+  }
+  
   private static boolean fileCheck(String fname) {
     if (new File(fname).isFile()) {
       return true;
     }
 
-    printStatus("Missing file: " + fname);
+    printStatusError("Missing file: " + fname);
     return false;
   }
   
-  private static void loadFileButtonActionPerformed() {
-    printStatus(null);
+  private static void loadJarFile() {
+    printStatusClear();
     FileNameExtensionFilter filter = new FileNameExtensionFilter("Jar Files", "jar");
     GuiPanel.fileSelector.setFileFilter(filter);
     //GuiPanel.fileSelector.setSelectedFile(new File("TestMain.jar"));
@@ -711,7 +765,7 @@ public final class GuiPanel {
       String classpath = DSEPATH + "danalyzer/dist/danalyzer.jar";
       classpath += ":" + DSEPATH + "danalyzer/lib/commons-io-2.5.jar";
       classpath += ":" + DSEPATH + "danalyzer/lib/asm-all-5.2.jar";
-//      classpath += ":" + danpath + "lib/com.microsoft.z3.jar";
+      classpath += ":" + DSEPATH + "danalyzer/lib/com.microsoft.z3.jar";
       classpath += ":/*:/lib/*";
 
       // remove any existing class files in the "application" folder in the location of the jar file
@@ -731,31 +785,31 @@ public final class GuiPanel {
       int retcode = commandLauncher.start(command, projectPathName);
       if (retcode == 0) {
         mainFrame.getLabel("LBL_JARFILE").setText(projectPathName + projectName);
-        printStatus("Instrumentation successful");
+        printStatusMessage("Instrumentation successful");
         printCommandMessage(commandLauncher.getResponse());
       
         // update the class and method selections
         setupClassList(projectPathName);
       } else {
-        printStatus("ERROR: instrumenting file: " + projectName);
+        printStatusError("ERROR: instrumenting file: " + projectName);
       }
     }
   }
   
-  public static void runBytecode(String classSelect, String methodSelect, int markLine) {
-    printStatus(null);
+  public static void generateBytecode(String classSelect, String methodSelect, int markLine) {
+    printStatusClear();
 
     // first we have to pull off the class files from the jar file
     File jarfile = new File(projectPathName + projectName);
     if (!jarfile.isFile()) {
-      printStatus("ERROR: Jar file not found: " + jarfile);
+      printStatusError("ERROR: Jar file not found: " + jarfile);
       return;
     }
     try {
       // extract the selected class file
       extractClassFile(jarfile, classSelect);
     } catch (IOException ex) {
-      printStatus("ERROR: " + ex);
+      printStatusError("ERROR: " + ex);
       return;
     }
 
@@ -769,12 +823,12 @@ public final class GuiPanel {
     if (retcode == 0) {
       String content = commandLauncher.getResponse();
       parseJavap(classSelect, methodSelect, content, markLine);
-      printStatus("Successfully generated bytecode");
+      printStatusMessage("Successfully generated bytecode");
       
       // swich tab to show bytecode
       setTabSelect(PanelTabs.BYTECODE);
     } else {
-      printStatus("ERROR: running javap on file: " + classSelect + ".class");
+      printStatusError("ERROR: running javap on file: " + classSelect + ".class");
     }
   }
 
@@ -794,7 +848,7 @@ public final class GuiPanel {
     // get the user-supplied main class and input value
     String mainclass = (String) mainClassCombo.getSelectedItem();
     if (mainclass == null) {
-      printStatus("ERROR: no main class found!");
+      printStatusError("ERROR: no main class found!");
       return;
     }
 
@@ -822,6 +876,7 @@ public final class GuiPanel {
     String classpath = instrJarFile
               + ":" + DSEPATH + "danalyzer/lib/commons-io-2.5.jar"
               + ":" + DSEPATH + "danalyzer/lib/asm-all-5.2.jar"
+              + ":" + DSEPATH + "danalyzer/lib/com.microsoft.z3.jar"
               + ":" + mongolib
               + ":" + localpath;
 
@@ -931,7 +986,7 @@ public final class GuiPanel {
       }
     }
     
-    printStatus("ERROR: '" + className + "' not found in " + jarfile.getAbsoluteFile());
+    printStatusError("ERROR: '" + className + "' not found in " + jarfile.getAbsoluteFile());
   }
   
   /**
@@ -1132,6 +1187,171 @@ public final class GuiPanel {
 //        GuiPanel.mainFrame.repack();
 //      }
     }
+  }
+
+  private class MsgListener implements ActionListener {
+    @Override
+    public void actionPerformed(ActionEvent e) {
+      // read & process next message
+      String message = GuiPanel.udpThread.getNextMessage();
+      if (message != null) {
+        processMessage(message);
+      }
+    }
+  }
+
+  private static void resetCapturedInput() {
+    // clear the packet buffer and statistics
+    udpThread.clear();
+
+    // clear the text panel
+    debugLogger.clear();
+    
+    // clear the graphics panel
+    CallGraph.clearGraphAndMethodList();
+    if (isTabSelection(PanelTabs.GRAPH)) {
+      CallGraph.updateCallGraph(GuiPanel.GraphHighlight.NONE, false);
+    }
+    
+    // clear the stats
+//    GuiPanel.linesRead = 0;
+//    (GuiPanel.mainFrame.getTextField("TXT_ERROR")).setText("------");
+//    (GuiPanel.mainFrame.getTextField("TXT_PKTSREAD")).setText("------");
+//    (GuiPanel.mainFrame.getTextField("TXT_PKTSLOST")).setText("------");
+//    (GuiPanel.mainFrame.getTextField("TXT_PROCESSED")).setText("------");
+//    (GuiPanel.mainFrame.getTextField("TXT_METHODS")).setText("------");
+//    (GuiPanel.mainFrame.getTextField("TXT_THREADS")).setText("------");
+
+    // reset the Pause/Resume button to indicate we are no longer paused
+//    JButton pauseButton = GuiPanel.mainFrame.getButton("BTN_PAUSE");
+//    pauseButton.setText("Pause");
+          
+    // reset the elapsed time
+//    GuiPanel.resetElapsedTime();
+  }
+
+  private static boolean processMessage(String message) {
+    // seperate message into the message type and the message content
+    if (message == null) {
+      return false;
+    }
+    if (message.length() < 30) {
+      printDebug(message);
+      return false;
+    }
+
+    // read the specific entries from the message
+    String[] array = message.split("\\s+", 3);
+    if (array.length < 3) {
+      printDebug(message);
+      return false;
+    }
+    String linenum = array[0];
+    String timestr = array[1];
+    message = array[2];
+    int tid = -1; // this is an indication that no thread info was found in the message
+    String threadid = "";
+    if (message.startsWith("<") && message.contains(">")) {
+      array = message.split("\\s+", 2);
+      message = array[1];
+      threadid = array[0];
+      threadid = threadid.substring(1, threadid.indexOf(">"));
+      tid = Integer.parseInt(threadid);
+      if (!GuiPanel.threadList.contains(tid)) {
+        GuiPanel.threadList.add(tid);
+        GuiPanel.threadCount = GuiPanel.threadList.size();
+      }
+      // enable the thread highlighting controls if we have more than 1 thread
+      if (GuiPanel.threadCount > 1) {
+        setThreadEnabled(true);
+      }
+    }
+    String typestr = message.substring(0, 6).toUpperCase(); // 6-char message type (may contain space)
+    String content = message.substring(8);     // message content to display
+
+    // make sure we have a valid time stamp & the message length is valid
+    // timestamp = [00:00.000] (followed by a space)
+    if (timestr.charAt(0) != '[' || timestr.charAt(10) != ']') {
+      printDebug(message);
+      return false;
+    }
+    String timeMin = timestr.substring(1, 3);
+    String timeSec = timestr.substring(4, 6);
+    String timeMs  = timestr.substring(7, 10);
+    int  linecount = 0;
+    long tstamp = 0;
+    try {
+      linecount = Integer.parseInt(linenum);
+      tstamp = ((Integer.parseInt(timeMin) * 60) + Integer.parseInt(timeSec)) * 1000;
+      tstamp += Integer.parseInt(timeMs);
+    } catch (NumberFormatException ex) {
+      // invalid syntax - skip
+      printDebug(message);
+      return false;
+    }
+
+    // if we are set to reset when a new session starts and one just started, do a reset (duh!)
+    if (typestr.trim().equals("START")) {
+      System.out.println("START DETECTED...");
+    }
+    if (typestr.trim().equals("START") && GuiPanel.mainFrame.getCheckbox("BTN_AUTORESET").isSelected()) {
+      System.out.println("RESET PERFORMED...");
+      udpThread.resetInput();         // this adds log entry to file for demarcation
+      GuiPanel.resetCapturedInput();  // this clears the displayed data and stats
+      GuiPanel.startElapsedTime();    // this resets and starts the timer
+    }
+    else if (GuiPanel.elapsedMode == ElapsedMode.RESET && linecount == 0) {
+      // else if we detect the start of a new debug session, restart our elapsed timer
+      udpThread.resetInput();         // this adds log entry to file for demarcation
+      GuiPanel.startElapsedTime();    // this resets and starts the timer
+    }
+
+    // send message to the debug display
+    printDebug(linecount, timestr, threadid, typestr, content);
+          
+    GuiPanel.linesRead++;
+    (GuiPanel.mainFrame.getTextField("TXT_PROCESSED")).setText("" + GuiPanel.linesRead);
+
+    // get the current method that is being executed
+    MethodInfo mthNode = CallGraph.getLastMethod(tid);
+    
+    // extract call processing info and send to CallGraph
+    content = content.trim();
+    switch (typestr.trim()) {
+      case "CALL":
+        String[] splited = content.split(" ");
+        if (splited.length < 2) {
+          printDebug("invalid syntax for CALL command");
+          System.out.println("ERROR: invalid CALL message on line " + linecount);
+          return false; // invalid syntax - ignore
+        }
+
+        String icount = splited[0].trim();
+        String method = splited[1].trim();
+        CallGraph.methodEnter(tid, tstamp, icount, method, linecount);
+        break;
+      case "RETURN":
+        CallGraph.methodExit(tid, tstamp, content);
+        break;
+      case "ENTRY":
+        if (content.startsWith("catchException")) {
+          if (mthNode != null) {
+            mthNode.setExecption(tid, linecount);
+          }
+        }
+        break;
+      case "ERROR":
+        // increment the error count
+        GuiPanel.errorCount++;
+        if (mthNode != null) {
+          mthNode.setError(tid, linecount);
+        }
+        break;
+      default:
+        break;
+    }
+    
+    return (linecount == 0);
   }
 
 }
