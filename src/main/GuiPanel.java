@@ -12,6 +12,7 @@ import callgraph.MethodInfo;
 import callgraph.CallGraph;
 import command.ThreadLauncher;
 import command.CommandLauncher;
+import gui.GuiControls.FrameSize;
 import logging.FontInfo.FontType;
 import logging.FontInfo.TextColor;
 import java.awt.Component;
@@ -26,8 +27,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
+import java.net.DatagramSocket;
 import java.net.HttpURLConnection;
+import java.net.InetAddress;
+import java.net.SocketException;
 import java.net.URL;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
@@ -55,7 +60,13 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 public final class GuiPanel {
 
   private static final String NEWLINE = System.getProperty("line.separator");
-
+  private static final PrintStream STANDARD_OUT = System.out;
+  private static final PrintStream STANDARD_ERR = System.err;         
+  //private static final String CLASSFILE_STORAGE = ""; // application/";
+  
+  // location of danalyzer program
+  private static final String DSEPATH = "/home/dan/Projects/isstac/dse/";
+  
   public enum GraphHighlight { NONE, STATUS, TIME, INSTRUCTION, ITERATION, THREAD }
 
   private enum ElapsedMode { OFF, RUN, RESET }
@@ -68,52 +79,46 @@ public final class GuiPanel {
   public enum BytecodeType { ERROR,METHOD, TEXT, PARAM, COMMENT, BRANCH, INVOKE, LOAD, STORE, OTHER }
   
   // tab panel selections
-  public enum PanelTabs { BYTECODE, COMMAND, DATABASE, DEBUG, GRAPH }
+  public enum PanelTabs { COMMAND, PARAM, BYTECODE, DATABASE, DEBUG, GRAPH }
   
-  // location of danalyzer program
-  private static final String DSEPATH = "/home/dan/Projects/isstac/dse/";
+  private static final GuiControls     mainFrame = new GuiControls();
+  private static PropertiesFile  props;
+  private static JTabbedPane     tabPanel;
+  private static JFileChooser    fileSelector;
+  private static JComboBox       mainClassCombo;
+  private static JComboBox       classCombo;
+  private static JComboBox       methodCombo;
+  private static Logger          bytecodeLogger;
+  private static Logger          commandLogger;
+  private static Logger          debugLogger;
+  private static Logger          paramLogger;
+  private static Timer           pktTimer;
+  private static Timer           graphTimer;
+  private static int             linesRead;
+  private static int             threadCount;
+  private static int             errorCount;
+  private static final ArrayList<Integer> threadList = new ArrayList<>();
+  private static long            elapsedStart;
+  private static ElapsedMode     elapsedMode;
+  private static GraphHighlight  graphMode;
+  private static boolean         graphShowAllThreads;
+  private static String          projectPathName;
+  private static String          projectName;
+  private static int             tabIndex = 0;
+  private static ThreadLauncher  threadLauncher;
+  private static DatabaseTable   dbtable;
   
-  private static final String CLASSFILE_STORAGE = ""; // application/";
-
-  private static GuiControls    mainFrame = new GuiControls();
-  private static PropertiesFile props;
-  private static JTabbedPane    tabPanel;
-  private static JPanel         graphPanel;
-  private static JFileChooser   fileSelector;
-  private static JComboBox      mainClassCombo;
-  private static JComboBox      classCombo;
-  private static JComboBox      methodCombo;
-  private static Logger         bytecodeLogger;
-  private static Logger         commandLogger;
-  private static Logger         debugLogger;
-  private static Timer          pktTimer;
-  private static Timer          graphTimer;
-  private static int            linesRead;
-  private static int            threadCount;
-  private static int            errorCount;
-  private static ArrayList<Integer> threadList = new ArrayList<>();
-  private static long           elapsedStart;
-  private static ElapsedMode    elapsedMode;
-  private static String         projectPathName;
-  private static String         projectName;
-  private static int            tabIndex = 0;
-  private static ThreadLauncher threadLauncher;
-  private static PrintStream    standardOut = System.out;
-  private static PrintStream    standardErr = System.err;         
-  private static DatabaseTable  dbtable;
-  
-  private static Visitor        makeConnection;
-  private static String         serverPort = "";
-  private static String         clientPort = "";
+  private static Visitor         makeConnection;
+  private static String          serverPort = "";
+  private static String          clientPort = "";
   private static NetworkServer   udpThread;
   private static NetworkListener networkListener;
-  private static MsgListener    inputListener;
+  private static MsgListener     inputListener;
   
   private static ArrayList<String>  classList;
   private static HashMap<String, ArrayList<String>> clsMethMap; // maps the list of methods to each class
   private static final HashMap<PanelTabs, Integer> tabSelect = new HashMap<>();
   private static final HashMap<String, FontInfo> bytecodeFontTbl = new HashMap<>();
-  private static final HashMap<String, FontInfo> commandFontTbl = null;
   private static final HashMap<String, FontInfo> debugFontTbl = new HashMap<>();
   private static final HashMap<PanelTabs, Component> tabbedPanels = new HashMap<>();
   
@@ -140,6 +145,23 @@ public final class GuiPanel {
       }
     };
 
+    GuiPanel.classList = new ArrayList<>();
+    GuiPanel.clsMethMap = new HashMap<>();
+    GuiPanel.errorCount = 0;
+    GuiPanel.threadCount = 0;
+    GuiPanel.elapsedStart = 0;
+    GuiPanel.elapsedMode = ElapsedMode.OFF;
+    GuiPanel.graphMode = GraphHighlight.NONE;
+    GuiPanel.graphShowAllThreads = true;
+
+    String ipaddr = "<unknown>";
+    // get this server's ip address
+    try(final DatagramSocket socket = new DatagramSocket()){
+      socket.connect(InetAddress.getByName("8.8.8.8"), 10002);
+      ipaddr = socket.getLocalAddress().getHostAddress();
+    } catch (SocketException | UnknownHostException ex) {  }
+    GuiPanel.serverPort = "Server port (" + (tcp ? "TCP" : "UDP") + ")  -  " + ipaddr + ":" + port;
+    
     // create the main panel and controls
     createDebugPanel();
 
@@ -174,19 +196,13 @@ public final class GuiPanel {
     // start timer when 1st line is received from port
     GuiPanel.elapsedMode = ElapsedMode.RESET;
 }
-  
+
   public void createDebugPanel() {
     // if a panel already exists, close the old one
     if (GuiPanel.mainFrame.isValidFrame()) {
       GuiPanel.mainFrame.close();
     }
 
-    GuiPanel.classList = new ArrayList<>();
-    GuiPanel.clsMethMap = new HashMap<>();
-    GuiPanel.threadCount = 0;
-    GuiPanel.elapsedStart = 0;
-    GuiPanel.elapsedMode = ElapsedMode.OFF;
-    
     // these just make the gui entries cleaner
     String panel;
     GuiControls.Orient LEFT = GuiControls.Orient.LEFT;
@@ -194,8 +210,8 @@ public final class GuiPanel {
     GuiControls.Orient RIGHT = GuiControls.Orient.RIGHT;
     
     // create the frame
-//    mainFrame.newFrame("danlauncher", 1200, 800, FrameSize.FULLSCREEN);
-    mainFrame.newFrame("danlauncher", 0.8);
+    mainFrame.newFrame("danlauncher", 1200, 800, FrameSize.FULLSCREEN);
+//    mainFrame.newFrame("danlauncher", 0.8);
 
     // create the entries in the main frame
     panel = null;
@@ -225,7 +241,9 @@ public final class GuiPanel {
     mainFrame.makeTextField(panel, "TXT_ARGLIST"  , ""            , LEFT, true, "", true);
     mainFrame.makeButton   (panel, "BTN_SEND"     , "Post Data"   , LEFT, false);
     mainFrame.makeTextField(panel, "TXT_INPUT"    , ""            , LEFT, true, "", true);
-    mainFrame.makeButton   (panel, "BTN_SOL_STRT" , "Start Solver", LEFT, true);
+    mainFrame.makeTextField(panel, "TXT_PORT"     , "Server Port" , LEFT, true, "8080", true);
+    mainFrame.makeButton   (panel, "BTN_SOL_STRT" , "Run Solver"  , LEFT, false);
+    mainFrame.makeButton   (panel, "BTN_DB_CLEAR" , "Clear DB"    , LEFT, true);
 
     // initially disable the class/method select and generating bytecode
     mainClassCombo = mainFrame.getCombobox ("COMBO_MAINCLS");
@@ -240,7 +258,10 @@ public final class GuiPanel {
     mainFrame.getButton("BTN_BYTECODE").setEnabled(false);
     mainFrame.getButton("BTN_RUNTEST").setEnabled(false);
     mainFrame.getButton("BTN_SEND").setEnabled(false);
+    mainFrame.getTextField("TXT_PORT").setEnabled(false);
+    mainFrame.getLabel("TXT_PORT").setEnabled(false);
     mainFrame.getButton("BTN_SOL_STRT").setEnabled(false);
+    mainFrame.getButton("BTN_DB_CLEAR").setEnabled(false);
     mainFrame.getTextField("TXT_ARGLIST").setEnabled(false);
     mainFrame.getTextField("TXT_INPUT").setEnabled(false);
     
@@ -252,6 +273,7 @@ public final class GuiPanel {
       @Override
       public void windowClosing(java.awt.event.WindowEvent evt) {
         enableUpdateTimers(false);
+        networkListener.exit();
         dbtable.exit();
         mainFrame.close();
         System.exit(0);
@@ -261,9 +283,11 @@ public final class GuiPanel {
       @Override
       public void stateChanged(ChangeEvent e) {
         // if we switched to the graph display tab, update the graph
-//        if (isTabSelection(PanelTabs.GRAPH)) {
-//          GuiPanel.mainFrame.repack();
-//        }
+        if (isTabSelection(PanelTabs.GRAPH)) {
+          if (CallGraph.updateCallGraph(graphMode, false)) {
+//            GuiPanel.mainFrame.repack();
+          }
+        }
       }
     });
     classCombo.addActionListener(new ActionListener() {
@@ -291,7 +315,10 @@ public final class GuiPanel {
         mainFrame.getButton("BTN_BYTECODE").setEnabled(true);
         mainFrame.getButton("BTN_RUNTEST").setEnabled(true);
         mainFrame.getButton("BTN_SEND").setEnabled(true);
+        mainFrame.getTextField("TXT_PORT").setEnabled(true);
+        mainFrame.getLabel("TXT_PORT").setEnabled(true);
         mainFrame.getButton("BTN_SOL_STRT").setEnabled(true);
+        mainFrame.getButton("BTN_DB_CLEAR").setEnabled(true);
         mainFrame.getTextField("TXT_ARGLIST").setEnabled(true);
         mainFrame.getTextField("TXT_INPUT").setEnabled(true);
       }
@@ -314,14 +341,21 @@ public final class GuiPanel {
     (GuiPanel.mainFrame.getButton("BTN_SEND")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
+        String targetURL = "http://localhost:" + mainFrame.getTextField("TXT_PORT").getText();
         String input = mainFrame.getTextField("TXT_INPUT").getText();
-        executePost(input);
+        executePost(targetURL, input);
       }
     });
     (GuiPanel.mainFrame.getButton("BTN_SOL_STRT")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         dansolver.Dansolver.main(null);
+      }
+    });
+    (GuiPanel.mainFrame.getButton("BTN_DB_CLEAR")).addActionListener(new ActionListener() {
+      @Override
+      public void actionPerformed(java.awt.event.ActionEvent evt) {
+        dbtable.clearDB();
       }
     });
     
@@ -367,18 +401,20 @@ public final class GuiPanel {
     
     // add the tabbed message panels for bytecode output, command output, and debug output
     addPanelToTab(PanelTabs.COMMAND , new JTextArea());
+    addPanelToTab(PanelTabs.PARAM   , new JTextArea());
     addPanelToTab(PanelTabs.BYTECODE, new JTextPane());
     addPanelToTab(PanelTabs.DATABASE, new JTable());
     addPanelToTab(PanelTabs.DEBUG   , new JTextPane());
     addPanelToTab(PanelTabs.GRAPH   , new JPanel());
 
     // create the message logging for the text panels
-    commandLogger  = createTextLogger(PanelTabs.COMMAND , commandFontTbl);
+    commandLogger  = createTextLogger(PanelTabs.COMMAND , null);
+    paramLogger    = createTextLogger(PanelTabs.PARAM   , null);
     bytecodeLogger = createTextLogger(PanelTabs.BYTECODE, bytecodeFontTbl);
     debugLogger    = createTextLogger(PanelTabs.DEBUG   , debugFontTbl);
 
     // init the CallGraph panel
-//    CallGraph.initCallGraph((JPanel) getTabPanel(PanelTabs.GRAPH));
+    CallGraph.initCallGraph((JPanel) getTabPanel(PanelTabs.GRAPH));
 
     // init the database table panel
     dbtable = new DatabaseTable((JTable) getTabPanel(GuiPanel.PanelTabs.DATABASE));
@@ -560,6 +596,7 @@ public final class GuiPanel {
     setMethodSelections((String) classCombo.getSelectedItem());
 
     // in case selections require expansion, adjust frame packing
+    // TODO: skip this, since it causes the frrame size to get extremely large for some reason
 //    mainFrame.getFrame().pack();
   }
 
@@ -637,6 +674,79 @@ public final class GuiPanel {
     }
   }
   
+//  private static void setHighlightMode(GraphHighlight mode) {
+//    JRadioButton threadSelBtn = GuiPanel.mainFrame.getRadiobutton("RB_THREAD");
+//    JRadioButton timeSelBtn   = GuiPanel.mainFrame.getRadiobutton("RB_ELAPSED");
+//    JRadioButton instrSelBtn  = GuiPanel.mainFrame.getRadiobutton("RB_INSTRUCT");
+//    JRadioButton iterSelBtn   = GuiPanel.mainFrame.getRadiobutton("RB_ITER");
+//    JRadioButton statSelBtn   = GuiPanel.mainFrame.getRadiobutton("RB_STATUS");
+//    JRadioButton noneSelBtn   = GuiPanel.mainFrame.getRadiobutton("RB_NONE");
+//
+//    // turn on the selected mode and turn off all others
+//    switch(mode) {
+//      case THREAD:
+//        threadSelBtn.setSelected(true);
+//        timeSelBtn.setSelected(false);
+//        instrSelBtn.setSelected(false);
+//        iterSelBtn.setSelected(false);
+//        statSelBtn.setSelected(false);
+//        noneSelBtn.setSelected(false);
+//
+//        // send the thread selection to the CallGraph
+//        JLabel label = mainFrame.getLabel("TXT_TH_SEL");
+//        int select = Integer.parseInt(label.getText().trim());
+//        CallGraph.setThreadSelection(select);
+//        break;
+//      case TIME:
+//        threadSelBtn.setSelected(false);
+//        timeSelBtn.setSelected(true);
+//        instrSelBtn.setSelected(false);
+//        iterSelBtn.setSelected(false);
+//        statSelBtn.setSelected(false);
+//        noneSelBtn.setSelected(false);
+//        break;
+//      case INSTRUCTION:
+//        threadSelBtn.setSelected(false);
+//        timeSelBtn.setSelected(false);
+//        instrSelBtn.setSelected(true);
+//        iterSelBtn.setSelected(false);
+//        statSelBtn.setSelected(false);
+//        noneSelBtn.setSelected(false);
+//        break;
+//      case ITERATION:
+//        threadSelBtn.setSelected(false);
+//        timeSelBtn.setSelected(false);
+//        instrSelBtn.setSelected(false);
+//        iterSelBtn.setSelected(true);
+//        statSelBtn.setSelected(false);
+//        noneSelBtn.setSelected(false);
+//        break;
+//      case STATUS:
+//        threadSelBtn.setSelected(false);
+//        timeSelBtn.setSelected(false);
+//        instrSelBtn.setSelected(false);
+//        iterSelBtn.setSelected(false);
+//        statSelBtn.setSelected(true);
+//        noneSelBtn.setSelected(false);
+//        break;
+//      case NONE:
+//        threadSelBtn.setSelected(false);
+//        timeSelBtn.setSelected(false);
+//        instrSelBtn.setSelected(false);
+//        iterSelBtn.setSelected(false);
+//        statSelBtn.setSelected(false);
+//        noneSelBtn.setSelected(true);
+//      default:
+//        break;
+//    }
+//
+//    // set the mode flag & update graph
+//    graphMode = mode;
+//    if (isTabSelection(PanelTabs.GRAPH)) {
+//      CallGraph.updateCallGraph(graphMode, false);
+//    }
+//  }
+  
   private static void printStatusClear() {
     mainFrame.getTextField("TXT_MESSAGES").setText("                   ");
   }
@@ -650,6 +760,10 @@ public final class GuiPanel {
       
     // echo status to command output window
     printCommandError(message);
+  }
+  
+  private static void printParameter(String message) {
+    paramLogger.printLine(message);
   }
   
   private static void printCommandMessage(String message) {
@@ -771,8 +885,8 @@ public final class GuiPanel {
       classpath += ":" + DSEPATH + "danalyzer/lib/com.microsoft.z3.jar";
       classpath += ":/*:/lib/*";
 
-      // remove any existing class files in the "application" folder in the location of the jar file
-      File applPath = new File(projectPathName + CLASSFILE_STORAGE);
+      // remove any existing class files in the location of the jar file
+      File applPath = new File(projectPathName);  // + CLASSFILE_STORAGE
       if (applPath.isDirectory()) {
         for(String fname: applPath.list()){
           if (fname.endsWith(".class")) {
@@ -890,9 +1004,8 @@ public final class GuiPanel {
     threadLauncher.launch(command, projectPathName, "run_" + projectName, null);
   }
 
-  private static void executePost(String urlParameters) {
+  private static void executePost(String targetURL, String urlParameters) {
     HttpURLConnection connection = null;
-    String targetURL = "http://localhost:8080"; // TODO: need to allow user to specify this
 
     try {
       // Create connection
@@ -937,12 +1050,12 @@ public final class GuiPanel {
     int offset;
     String relpathname = "";
     className = className + ".class";
-    if (!CLASSFILE_STORAGE.isEmpty()) {
-      offset = className.indexOf(CLASSFILE_STORAGE);
-      if (offset >= 0) {
-        className = className.substring(offset + CLASSFILE_STORAGE.length());
-      }
-    }
+//    if (!CLASSFILE_STORAGE.isEmpty()) {
+//      offset = className.indexOf(CLASSFILE_STORAGE);
+//      if (offset >= 0) {
+//        className = className.substring(offset + CLASSFILE_STORAGE.length());
+//      }
+//    }
     offset = className.lastIndexOf('/');
     if (offset > 0)  {
       relpathname = className.substring(0, offset + 1);
@@ -965,7 +1078,8 @@ public final class GuiPanel {
       String fullname = file.getName();
 
       if (fullname.equals(relpathname + className)) {
-        String fullpath = jarpathname + CLASSFILE_STORAGE + relpathname;
+        String fullpath = jarpathname + relpathname;
+//        String fullpath = jarpathname + CLASSFILE_STORAGE + relpathname;
         File fout = new File(fullpath + className);
         // skip if file already exists
         if (fout.isFile()) {
@@ -1117,6 +1231,8 @@ public final class GuiPanel {
       FileReader fileReader = new FileReader(file);
       BufferedReader bufferedReader = new BufferedReader(fileReader);
       String line;
+      int count = 0;
+      dbtable.initSymbolic();
       printCommandMessage("Symbolic parameters:");
       while ((line = bufferedReader.readLine()) != null) {
         if (line.startsWith("Symbolic:")) {
@@ -1127,6 +1243,7 @@ public final class GuiPanel {
             return;
           }
           String symname = word[1].trim() + "_" + word[0].trim().replace(".","/");
+          printParameter("P" + count++ + ": " + symname);
           printCommandMessage(" - " + symname);
 
           // add entry to list 
@@ -1149,8 +1266,8 @@ public final class GuiPanel {
       // restore the stdout and stderr
       System.out.flush();
       System.err.flush();
-      System.setOut(standardOut);
-      System.setErr(standardErr);
+      System.setOut(STANDARD_OUT);
+      System.setErr(STANDARD_ERR);
     }
 
     @Override
@@ -1186,9 +1303,11 @@ public final class GuiPanel {
     @Override
     public void actionPerformed(ActionEvent e) {
       // if Call Graph tab selected, update graph
-//      if (isTabSelection(PanelTabs.GRAPH)) {
-//        GuiPanel.mainFrame.repack();
-//      }
+      if (isTabSelection(PanelTabs.GRAPH)) {
+        if (CallGraph.updateCallGraph(graphMode, false)) {
+//          GuiPanel.mainFrame.repack();
+        }
+      }
     }
   }
 

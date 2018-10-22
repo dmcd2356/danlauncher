@@ -108,7 +108,7 @@ public class CallGraph {
     }
     return -1;
   }
-  
+
   private static void setGraphBlockColors(GuiPanel.GraphHighlight gmode, int tid) {
       // find the min and max limits for those cases where we color based on relative value
       long value;
