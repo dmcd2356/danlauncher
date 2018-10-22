@@ -3,7 +3,7 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package debug;
+package command;
 
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -17,7 +17,7 @@ import javax.swing.Timer;
  *
  * @author dmcd2356
  */
-class ThreadLauncher {
+public class ThreadLauncher {
 
     public interface ThreadAction {
         public void jobprestart (ThreadInfo threadInfo);

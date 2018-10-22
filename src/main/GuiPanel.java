@@ -3,10 +3,17 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package debug;
+package main;
 
-import debug.FontInfo.FontType;
-import debug.FontInfo.TextColor;
+import gui.GuiControls;
+import logging.Logger;
+import logging.FontInfo;
+import callgraph.MethodInfo;
+import callgraph.CallGraph;
+import command.ThreadLauncher;
+import command.CommandLauncher;
+import logging.FontInfo.FontType;
+import logging.FontInfo.TextColor;
 import java.awt.Component;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -30,9 +37,7 @@ import java.util.jar.JarFile;
 import javax.swing.BorderFactory;
 import javax.swing.JComboBox;
 import javax.swing.JFileChooser;
-import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTable;
@@ -100,17 +105,17 @@ public final class GuiPanel {
   private static Visitor        makeConnection;
   private static String         serverPort = "";
   private static String         clientPort = "";
-  private static ServerThread   udpThread;
-  private static MyListener     listener;
+  private static NetworkServer   udpThread;
+  private static NetworkListener networkListener;
   private static MsgListener    inputListener;
   
-  private static HashMap<PanelTabs, Integer> tabSelect = new HashMap<>();
-  private static HashMap<String, ArrayList<String>> clsMethMap; // maps the list of methods to each class
   private static ArrayList<String>  classList;
+  private static HashMap<String, ArrayList<String>> clsMethMap; // maps the list of methods to each class
+  private static final HashMap<PanelTabs, Integer> tabSelect = new HashMap<>();
   private static final HashMap<String, FontInfo> bytecodeFontTbl = new HashMap<>();
   private static final HashMap<String, FontInfo> commandFontTbl = null;
   private static final HashMap<String, FontInfo> debugFontTbl = new HashMap<>();
-  private static HashMap<PanelTabs, Component> tabbedPanels = new HashMap<>();
+  private static final HashMap<PanelTabs, Component> tabbedPanels = new HashMap<>();
   
 
   // allow ServerThread to indicate on panel when a connection has been made for TCP
@@ -119,16 +124,18 @@ public final class GuiPanel {
     void resetConnection();
   }
 
-  public GuiPanel(int port, boolean tcp) {
+  public GuiPanel(int port, boolean tcp, NetworkServer portThread) {
     makeConnection = new Visitor() {
       @Override
       public void showConnection(String connection) {
         clientPort = connection;
+        printStatusMessage("connected to  " + GuiPanel.clientPort);
         printCommandMessage("connected to  " + GuiPanel.clientPort);
       }
 
       @Override
       public void resetConnection() {
+        printStatusMessage("connected to  " + GuiPanel.clientPort + "  (CONNECTION CLOSED)");
         printCommandMessage("connected to  " + GuiPanel.clientPort + "  (CONNECTION CLOSED)");
       }
     };
@@ -147,18 +154,14 @@ public final class GuiPanel {
     }
     GuiPanel.fileSelector.setCurrentDirectory(new File(logfileName));
 
-    // start the TCP or UDP listener thread
-    try {
-      GuiPanel.udpThread = new ServerThread(port, tcp, logfileName, makeConnection);
-      GuiPanel.udpThread.start();
-      GuiPanel.listener = GuiPanel.udpThread;
-      GuiPanel.udpThread.setBufferFile(logfileName);
-      GuiPanel.mainFrame.getLabel("LBL_MESSAGES").setText("Logfile: " + udpThread.getOutputFile());
-    } catch (IOException ex) {
-      System.out.println(ex.getMessage());
-      System.exit(1);
-    }
+    // setup access to the network listener thread
+    GuiPanel.udpThread = portThread;
+    GuiPanel.udpThread.setLoggingCallback(makeConnection);
+    GuiPanel.udpThread.setBufferFile(logfileName);
+//    GuiPanel.mainFrame.getLabel("LBL_MESSAGES").setText("Logfile: " + udpThread.getOutputFile());
 
+    GuiPanel.networkListener = GuiPanel.udpThread; // this allows us to signal the network listener
+    
     // create a timer for reading and displaying the messages received (from either network or file)
     GuiPanel.inputListener = new MsgListener();
     pktTimer = new Timer(1, GuiPanel.inputListener);
@@ -591,13 +594,13 @@ public final class GuiPanel {
   private static void startElapsedTime() {
     GuiPanel.elapsedStart = System.currentTimeMillis();
     GuiPanel.elapsedMode = ElapsedMode.RUN;
-    GuiPanel.mainFrame.getTextField("FIELD_ELAPSED").setText("00:00");
+//    GuiPanel.mainFrame.getTextField("FIELD_ELAPSED").setText("00:00");
   }
   
   private static void resetElapsedTime() {
     GuiPanel.elapsedStart = 0;
     GuiPanel.elapsedMode = ElapsedMode.RESET;
-    GuiPanel.mainFrame.getTextField("FIELD_ELAPSED").setText("00:00");
+//    GuiPanel.mainFrame.getTextField("FIELD_ELAPSED").setText("00:00");
   }
   
   private static void updateElapsedTime() {
@@ -611,7 +614,7 @@ public final class GuiPanel {
         String timestamp = ((mins < 10) ? "0" : "") + mins.toString() + ":" +
                            ((secs < 10) ? "0" : "") + secs.toString(); // + "." +
                            //((msec < 10) ? "00" : (msec < 100) ? "0" : "") + msec.toString();
-        GuiPanel.mainFrame.getTextField("FIELD_ELAPSED").setText(timestamp);
+//        GuiPanel.mainFrame.getTextField("FIELD_ELAPSED").setText(timestamp);
       }
     }
   }
@@ -1294,7 +1297,8 @@ public final class GuiPanel {
     if (typestr.trim().equals("START")) {
       System.out.println("START DETECTED...");
     }
-    if (typestr.trim().equals("START") && GuiPanel.mainFrame.getCheckbox("BTN_AUTORESET").isSelected()) {
+    if (typestr.trim().equals("START")) {
+//    if (typestr.trim().equals("START") && GuiPanel.mainFrame.getCheckbox("BTN_AUTORESET").isSelected()) {
       System.out.println("RESET PERFORMED...");
       udpThread.resetInput();         // this adds log entry to file for demarcation
       GuiPanel.resetCapturedInput();  // this clears the displayed data and stats
@@ -1310,7 +1314,7 @@ public final class GuiPanel {
     printDebug(linecount, timestr, threadid, typestr, content);
           
     GuiPanel.linesRead++;
-    (GuiPanel.mainFrame.getTextField("TXT_PROCESSED")).setText("" + GuiPanel.linesRead);
+//    (GuiPanel.mainFrame.getTextField("TXT_PROCESSED")).setText("" + GuiPanel.linesRead);
 
     // get the current method that is being executed
     MethodInfo mthNode = CallGraph.getLastMethod(tid);

@@ -3,10 +3,10 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package debug;
+package logging;
 
-import debug.FontInfo.FontType;
-import debug.FontInfo.TextColor;
+import logging.FontInfo.FontType;
+import logging.FontInfo.TextColor;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Graphics;

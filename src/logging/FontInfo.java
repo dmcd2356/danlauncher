@@ -3,7 +3,7 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package debug;
+package logging;
 
 /**
  *
@@ -25,7 +25,7 @@ public class FontInfo {
   String     font;       // the font family (e.g. Courier)
   int        size;       // the font size
         
-  FontInfo (TextColor col, FontType type, int fsize, String fontname) {
+  public FontInfo (TextColor col, FontType type, int fsize, String fontname) {
     color = col;
     fonttype = type;
     font = fontname;

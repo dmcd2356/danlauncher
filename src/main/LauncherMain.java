@@ -3,7 +3,7 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package debug;
+package main;
 
 import java.io.IOException;
 
@@ -11,7 +11,7 @@ import java.io.IOException;
  *
  * @author dan
  */
-public class DebugMain {
+public class LauncherMain {
 
   // init these to defaults
   public static int SERVER_PORT = 5000;
@@ -50,8 +50,18 @@ public class DebugMain {
       }
     }
 
-    // start the debug message panel
-    GuiPanel gui = new GuiPanel(port, bTcp);
+    try {
+      // start the TCP/UDP listener thread
+      NetworkServer udpThread = new NetworkServer(port, bTcp);
+      udpThread.start();
+
+      // start the debug message panel
+      GuiPanel gui = new GuiPanel(port, bTcp, udpThread);
+
+    } catch (IOException ex) {
+      System.out.println(ex.getMessage());
+      System.exit(1);
+    }
   }
   
 }
