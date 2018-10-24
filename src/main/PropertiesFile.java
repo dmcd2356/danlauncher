@@ -18,13 +18,14 @@ import java.util.Properties;
  */
 public class PropertiesFile {
   // the location of the properties file for this application
-  final static private String PROPERTIES_PATH = ".dandebug/";
+  static private String PROPERTIES_PATH;
   final static private String PROPERTIES_FILE = "site.properties";
 
   private Properties   props;
 
-  PropertiesFile () {
-      
+  PropertiesFile (String name) {
+
+    PROPERTIES_PATH = "." + name + "/";
     props = null;
     FileInputStream in = null;
     File propfile = new File(PROPERTIES_PATH + PROPERTIES_FILE);
@@ -79,6 +80,7 @@ public class PropertiesFile {
     String value = props.getProperty(tag);
     if (value == null || value.isEmpty()) {
       System.err.println("site.properties <" + tag + "> : not found, setting to " + dflt);
+      props.setProperty(tag, dflt);
       return dflt;
     }
 

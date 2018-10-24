@@ -30,7 +30,7 @@ public class DebugLogger {
         CALL, RETURN, UNINST, STATS, STACK, STACKS, STACKI, LOCAL, LOCALS, SOLVE, PATH }
 
   private static JTextPane       panel;
-  private static Logger          debugLogger;
+  private static Logger          logger;
   private static int             linesRead;
   private static int             threadCount;
   private static int             errorCount;
@@ -66,11 +66,15 @@ public class DebugLogger {
 
     // create the text panel and assign it to the logger
     panel = new JTextPane();
-    debugLogger = new Logger((Component) panel, name, fontmap);
+    logger = new Logger((Component) panel, name, fontmap);
   }
   
   public JTextPane getTextPane() {
     return panel;
+  }
+  
+  public void clear() {
+    logger.clear();
   }
   
   /**
@@ -96,26 +100,26 @@ public class DebugLogger {
       
       // print message (seperate into multiple lines if ASCII newlines are contained in it)
       if (!content.contains(NEWLINE)) {
-        debugLogger.printField("INFO", linestr + "  ");
-        debugLogger.printField("INFO", elapsed + " ");
-        debugLogger.printField("INFO", threadid + " ");
-        debugLogger.printField(typestr, typestr + ": " + content + NEWLINE);
+        logger.printField("INFO", linestr + "  ");
+        logger.printField("INFO", elapsed + " ");
+        logger.printField("INFO", threadid + " ");
+        logger.printField(typestr, typestr + ": " + content + NEWLINE);
       }
       else {
         // seperate into lines and print each independantly
         String[] msgarray = content.split(NEWLINE);
         for (String msg : msgarray) {
-          debugLogger.printField("INFO", linestr + "  ");
-          debugLogger.printField("INFO", elapsed + " ");
-          debugLogger.printField("INFO", threadid + " ");
-          debugLogger.printField(typestr, typestr + ": " + msg + NEWLINE);
+          logger.printField("INFO", linestr + "  ");
+          logger.printField("INFO", elapsed + " ");
+          logger.printField("INFO", threadid + " ");
+          logger.printField(typestr, typestr + ": " + msg + NEWLINE);
         }
       }
     }
   }
 
   private static void printDebug(String content) {
-    debugLogger.printLine(content);
+    logger.printLine(content);
   }
   
   public static boolean processMessage(String message) {
@@ -187,7 +191,7 @@ public class DebugLogger {
       System.out.println("RESET PERFORMED...");
       GuiPanel.resetLoggedTime();
       GuiPanel.resetCapturedInput();  // this clears the displayed data and stats
-      debugLogger.clear();            // clear the text panel
+      logger.clear();            // clear the text panel
     }
     else if (GuiPanel.isElapsedModeReset() && linecount == 0) {
       // else if we detect the start of a new debug session, restart our elapsed timer

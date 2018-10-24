@@ -14,17 +14,16 @@ import command.ThreadLauncher;
 import command.CommandLauncher;
 import debug.DebugLogger;
 import gui.GuiControls.FrameSize;
-import java.awt.Color;
-import logging.FontInfo.FontType;
-import logging.FontInfo.TextColor;
 import java.awt.Component;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -50,15 +49,10 @@ import javax.swing.JScrollPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
-import javax.swing.JTextPane;
 import javax.swing.Timer;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import javax.swing.filechooser.FileNameExtensionFilter;
-import javax.swing.text.BadLocationException;
-import javax.swing.text.DefaultHighlighter;
-import javax.swing.text.Highlighter;
-import javax.swing.text.Highlighter.HighlightPainter;
 
 /**
  *
@@ -79,7 +73,7 @@ public final class GuiPanel {
   private enum ElapsedMode { OFF, RUN, RESET }
 
   // tab panel selections
-  public enum PanelTabs { COMMAND, PARAM, BYTECODE, DATABASE, DEBUG, GRAPH }
+  public enum PanelTabs { COMMAND, DATABASE, BYTECODE, PARAMS, LOG, GRAPH }
   
   private static final GuiControls     mainFrame = new GuiControls();
   private static PropertiesFile  props;
@@ -97,7 +91,7 @@ public final class GuiPanel {
   private static long            elapsedStart;
   private static ElapsedMode     elapsedMode;
   private static GraphHighlight  graphMode;
-  private static boolean         graphShowAllThreads;
+  //private static boolean         graphShowAllThreads;
   private static String          projectPathName;
   private static String          projectName;
   private static int             tabIndex = 0;
@@ -113,10 +107,10 @@ public final class GuiPanel {
   private static MsgListener     inputListener;
   
   private static ArrayList<String>  classList;
-  private static HashMap<String, ArrayList<String>> clsMethMap; // maps the list of methods to each class
-  private static final HashMap<PanelTabs, Integer> tabSelect = new HashMap<>();
-  private static final HashMap<String, FontInfo> bytecodeFontTbl = new HashMap<>();
-  private static final HashMap<String, FontInfo> debugFontTbl = new HashMap<>();
+  private static HashMap<String, ArrayList<String>>  clsMethMap; // maps the list of methods to each class
+  private static final HashMap<PanelTabs, Integer>   tabSelect = new HashMap<>();
+  private static final HashMap<String, FontInfo>     bytecodeFontTbl = new HashMap<>();
+  private static final HashMap<String, FontInfo>     debugFontTbl = new HashMap<>();
   private static final HashMap<PanelTabs, Component> tabbedPanels = new HashMap<>();
   
 
@@ -147,7 +141,7 @@ public final class GuiPanel {
     GuiPanel.elapsedStart = 0;
     GuiPanel.elapsedMode = ElapsedMode.OFF;
     GuiPanel.graphMode = GraphHighlight.NONE;
-    GuiPanel.graphShowAllThreads = true;
+    //GuiPanel.graphShowAllThreads = true;
 
     String ipaddr = "<unknown>";
     // get this server's ip address
@@ -157,25 +151,25 @@ public final class GuiPanel {
     } catch (SocketException | UnknownHostException ex) {  }
     GuiPanel.serverPort = "Server port (" + (tcp ? "TCP" : "UDP") + ")  -  " + ipaddr + ":" + port;
     
+    // we need a filechooser
+    GuiPanel.fileSelector = new JFileChooser();
+
+    // check for a properties file
+    props = new PropertiesFile("danlauncher");
+    String logfileName = System.getProperty("user.dir") + "/debug.log"; // the default value
+    logfileName = props.getPropertiesItem("LogFile", logfileName);
+    GuiPanel.fileSelector.setCurrentDirectory(new File(logfileName));
+
     // create the main panel and controls
     createDebugPanel();
 
     // this creates a command launcher on a separate thread
     threadLauncher = new ThreadLauncher((JTextArea) getTabPanel(PanelTabs.COMMAND));
 
-    // check for a properties file
-    props = new PropertiesFile();
-    String logfileName = props.getPropertiesItem("LogFile", "");
-    if (logfileName.isEmpty()) {
-      logfileName = System.getProperty("user.dir") + "/debug.log";
-    }
-    GuiPanel.fileSelector.setCurrentDirectory(new File(logfileName));
-
     // setup access to the network listener thread
     GuiPanel.udpThread = portThread;
     GuiPanel.udpThread.setLoggingCallback(makeConnection);
     GuiPanel.udpThread.setBufferFile(logfileName);
-//    GuiPanel.mainFrame.getLabel("LBL_MESSAGES").setText("Logfile: " + udpThread.getOutputFile());
 
     GuiPanel.networkListener = GuiPanel.udpThread; // this allows us to signal the network listener
     
@@ -242,7 +236,9 @@ public final class GuiPanel {
     mainFrame.makeTextField (panel, "TXT_INPUT"    , ""            , LEFT, true, "", 20, true);
     mainFrame.makeTextField (panel, "TXT_PORT"     , "Server Port" , LEFT, true, "8080", 10, true);
     mainFrame.makeButton    (panel, "BTN_SOL_STRT" , "Run Solver"  , LEFT, false);
-    mainFrame.makeButton    (panel, "BTN_DB_CLEAR" , "Clear DB"    , LEFT, true);
+    mainFrame.makeButton    (panel, "BTN_STOP"     , "STOP"        , RIGHT, true);
+    mainFrame.makeButton    (panel, "BTN_LOG_CLEAR", "Clear Log"   , RIGHT, true);
+    mainFrame.makeButton    (panel, "BTN_DB_CLEAR" , "Clear DB"    , RIGHT, true);
 
     // initially disable the class/method select and generating bytecode
     mainClassCombo = mainFrame.getCombobox ("COMBO_MAINCLS");
@@ -260,15 +256,14 @@ public final class GuiPanel {
     mainFrame.getTextField("TXT_PORT").setEnabled(false);
     mainFrame.getLabel("TXT_PORT").setEnabled(false);
     mainFrame.getButton("BTN_SOL_STRT").setEnabled(false);
+    mainFrame.getButton("BTN_STOP").setEnabled(false);
+    mainFrame.getButton("BTN_LOG_CLEAR").setEnabled(false);
     mainFrame.getButton("BTN_DB_CLEAR").setEnabled(false);
     mainFrame.getTextField("TXT_ARGLIST").setEnabled(false);
     mainFrame.getTextField("TXT_INPUT").setEnabled(false);
 
     // save reference to tabbed panel
     tabPanel = mainFrame.getTabbedPanel("PNL_TABBED");
-
-    // we need a filechooser for the Save buttons
-    GuiPanel.fileSelector = new JFileChooser();
 
     // setup the control actions
     GuiPanel.mainFrame.getFrame().addWindowListener(new java.awt.event.WindowAdapter() {
@@ -320,6 +315,7 @@ public final class GuiPanel {
         mainFrame.getTextField("TXT_PORT").setEnabled(true);
         mainFrame.getLabel("TXT_PORT").setEnabled(true);
         mainFrame.getButton("BTN_SOL_STRT").setEnabled(true);
+        mainFrame.getButton("BTN_LOG_CLEAR").setEnabled(true);
         mainFrame.getButton("BTN_DB_CLEAR").setEnabled(true);
         mainFrame.getTextField("TXT_ARGLIST").setEnabled(true);
         mainFrame.getTextField("TXT_INPUT").setEnabled(true);
@@ -360,25 +356,45 @@ public final class GuiPanel {
         dbtable.clearDB();
       }
     });
+    (GuiPanel.mainFrame.getButton("BTN_LOG_CLEAR")).addActionListener(new ActionListener() {
+      @Override
+      public void actionPerformed(java.awt.event.ActionEvent evt) {
+        debugLogger.clear();
+      }
+    });
+    (GuiPanel.mainFrame.getButton("BTN_STOP")).addActionListener(new ActionListener() {
+      @Override
+      public void actionPerformed(java.awt.event.ActionEvent evt) {
+        // stop the running process
+        ThreadLauncher.ThreadInfo threadInfo = threadLauncher.stopAll();
+        if (threadInfo.pid >= 0) {
+          printCommandMessage("Killing job " + threadInfo.jobid + ": pid " + threadInfo.pid);
+
+          String[] command = { "kill", "-15", threadInfo.pid.toString() };
+          CommandLauncher commandLauncher = new CommandLauncher(commandLogger);
+          commandLauncher.start(command, null);
+        }
+      }
+    });
     
     // display the frame
     GuiPanel.mainFrame.display();
 
     // create the special text loggers
-    debugLogger = new DebugLogger(PanelTabs.DEBUG.toString());
+    debugLogger = new DebugLogger(PanelTabs.LOG.toString());
     bytecodeLogger = new BytecodeLogger(PanelTabs.BYTECODE.toString());
 
     // add the tabbed message panels for bytecode output, command output, and debug output
     addPanelToTab(PanelTabs.COMMAND , new JTextArea());
-    addPanelToTab(PanelTabs.PARAM   , new JTextArea());
-    addPanelToTab(PanelTabs.BYTECODE, bytecodeLogger.getTextPane());
     addPanelToTab(PanelTabs.DATABASE, new JTable());
-    addPanelToTab(PanelTabs.DEBUG   , debugLogger.getTextPane());
+    addPanelToTab(PanelTabs.BYTECODE, bytecodeLogger.getTextPane());
+    addPanelToTab(PanelTabs.PARAMS  , new JTextArea());
+    addPanelToTab(PanelTabs.LOG     , debugLogger.getTextPane());
     addPanelToTab(PanelTabs.GRAPH   , new JPanel());
 
     // create the message logging for the text panels
     commandLogger  = createTextLogger(PanelTabs.COMMAND , null);
-    paramLogger    = createTextLogger(PanelTabs.PARAM   , null);
+    paramLogger    = createTextLogger(PanelTabs.PARAMS  , null);
 
     // init the CallGraph panel
     CallGraph.initCallGraph((JPanel) getTabPanel(PanelTabs.GRAPH));
@@ -786,6 +802,11 @@ public final class GuiPanel {
       
         // update the class and method selections
         setupClassList(projectPathName);
+        
+        // set the location of the debug log file to this directory
+        String logfileName = projectPathName + "/debug.log";
+        udpThread.setBufferFile(logfileName);
+        props.setPropertiesItem("LogFile", logfileName);
       } else {
         printStatusError("ERROR: instrumenting file: " + projectName);
       }
@@ -897,6 +918,9 @@ public final class GuiPanel {
 
     threadLauncher.init(new ThreadTermination());
     threadLauncher.launch(command, projectPathName, "run_" + projectName, null);
+
+    // allow user to terminate the test
+    mainFrame.getButton("BTN_STOP").setEnabled(true);
   }
 
   private static void executePost(String targetURL, String urlParameters) {
@@ -1017,38 +1041,94 @@ public final class GuiPanel {
   }
   
   public static void readSymbolicList() {
+    // initialize replacement config info
+    String content = "#! DANALYZER SYMBOLIC EXPRESSION LIST" + NEWLINE;
+    content += "# DO_NOT_CHANGE" + NEWLINE;
+    content += "IPAddress: localhost" + NEWLINE;
+    content += "DebugPort: 5000" + NEWLINE;
+    content += "DebugMode: TCPPORT" + NEWLINE;
+    content += "DebugFlags: WARN SOLVE PATH CALLS" + NEWLINE;
+    content += "TriggerOnCall: 0" + NEWLINE;
+    content += "TriggerOnReturn: 0" + NEWLINE;
+    content += "TriggerOnInstr: 0" + NEWLINE;
+    content += "TriggerOnError: 0" + NEWLINE;
+    content += "TriggerOnException: 0" + NEWLINE;
+    content += NEWLINE;
+
+    boolean needChange = false;
+    boolean noChange = false;
+    
     File file = new File(projectPathName + "danfig");
     if (!file.isFile()) {
       printCommandError("danfig file not found at path: " + projectPathName);
-      printCommandMessage("No symbolic parameters known.");
-      return;
-    }
-    try {
-      FileReader fileReader = new FileReader(file);
-      BufferedReader bufferedReader = new BufferedReader(fileReader);
-      String line;
-      int count = 0;
-      dbtable.initSymbolic();
-      printCommandMessage("Symbolic parameters:");
-      while ((line = bufferedReader.readLine()) != null) {
-        if (line.startsWith("Symbolic:")) {
-          line = line.substring("Symbolic:".length()).trim();
-          String word[] = line.split(",");
-          if (word.length < 2) {
-            printCommandError("ERROR: invalid symbolic definition - " + line);
-            return;
-          }
-          String symname = word[1].trim() + "_" + word[0].trim().replace(".","/");
-          printParameter("P" + count++ + ": " + symname);
-          printCommandMessage(" - " + symname);
+      printCommandMessage("No symbolic parameters");
+      needChange = true;
+    } else {
+      try {
+        FileReader fileReader = new FileReader(file);
+        BufferedReader bufferedReader = new BufferedReader(fileReader);
+        String line;
+        int count = 0;
+        dbtable.initSymbolic();
+        printCommandMessage("Symbolic parameters:");
+        while ((line = bufferedReader.readLine()) != null) {
+          line = line.trim();
+          if (line.startsWith("# DO_NOT_CHANGE")) {
+            printCommandMessage("Will not update danfig file");
+            noChange = true;
+          } else if (line.startsWith("Symbolic:")) {
+//            line = line.substring("Symbolic:".length()).trim();
+            String word[] = line.substring("Symbolic:".length()).trim().split(",");
+            if (word.length < 2) {
+              printCommandError("ERROR: invalid symbolic definition - " + line);
+              return;
+            }
+            String symname = word[1].trim() + "_" + word[0].trim().replace(".","/");
+            printParameter("P" + count++ + ": " + symname);
+            printCommandMessage(" - " + symname);
 
-          // add entry to list 
-          dbtable.addSymbolic(symname);
+            // add entry to list 
+            dbtable.addSymbolic(symname);
+          } else if (!line.startsWith("Constraint:")) {
+            line = "";
+            if (!line.startsWith("#")) {
+              needChange = true;
+            }
+          }
+          if (!line.isEmpty()) {
+            content += line + NEWLINE;
+          }
+        }
+        fileReader.close();
+      } catch (IOException ex) {
+        printCommandError(ex.getMessage());
+      }
+    }
+
+    // if a change is needed, rename the old file and write the modified file back
+    if (needChange && !noChange) {
+      printCommandMessage("Updating danfig file");
+      
+      // rename file so we can modify it
+      file.renameTo(new File(projectPathName + "danfig.save"));
+      
+      // create the new file
+      BufferedWriter bw = null;
+      try {
+        FileWriter fw = new FileWriter(file);
+        bw = new BufferedWriter(fw);
+        bw.write(content);
+      } catch (IOException ex) {
+        printCommandError(ex.getMessage());
+      } finally {
+        if (bw != null) {
+          try {
+            bw.close();
+          } catch (IOException ex) {
+            printCommandError(ex.getMessage());
+          }
         }
       }
-      fileReader.close();
-    } catch (IOException ex) {
-      printCommandError(ex.getMessage());
     }
   }
 
@@ -1114,6 +1194,9 @@ public final class GuiPanel {
           printCommandMessage("Failure executing command.");
           break;
       }
+      
+      // disable stop key
+      mainFrame.getButton("BTN_STOP").setEnabled(false);
     }
   }
         
