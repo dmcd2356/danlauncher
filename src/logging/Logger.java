@@ -66,6 +66,15 @@ public class Logger {
     }
   }
 
+  public void setColorMapping(HashMap<String, FontInfo> map) {
+    // copy the font mapping info over (use deep-copy loop instead of shallow-copy putAll)
+    if (map != null) {
+      for (Map.Entry<String, FontInfo> entry : map.entrySet()) {
+        messageTypeTbl.put(entry.getKey(), entry.getValue());
+      }
+    }
+  }
+  
   public final String getName() {
     return pnlname;
   }

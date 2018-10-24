@@ -5,6 +5,8 @@
  */
 package logging;
 
+import java.util.HashMap;
+
 /**
  *
  * @author dan
@@ -31,4 +33,27 @@ public class FontInfo {
     font = fontname;
     size = fsize;
   }
+
+  /**
+   * sets the association between a type of message and the characteristics
+   * in which to print the message.
+   * 
+   * @param map   - the hasmap to assign the entry to
+   * @param type  - the type to associate with the font characteristics
+   * @param color - the color to assign to the type
+   * @param ftype - the font attributes to associate with the type
+   * @param size  - the size of the font
+   * @param font  - the font family (e.g. Courier, Ariel, etc.)
+   */
+  public static void setTypeColor (HashMap<String, FontInfo> map, String type,
+      TextColor color, FontType ftype, int size, String font) {
+    FontInfo fontinfo = new FontInfo(color, ftype, size, font);
+    if (map.containsKey(type)) {
+      map.replace(type, fontinfo);
+    }
+    else {
+      map.put(type, fontinfo);
+    }
+  }
+
 }

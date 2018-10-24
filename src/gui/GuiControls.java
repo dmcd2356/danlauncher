@@ -62,13 +62,17 @@ public class GuiControls {
   private final HashMap<String, JTextField>    gTextField = new HashMap();
   private final HashMap<String, JRadioButton>  gRadiobutton = new HashMap();
   private final HashMap<String, JSpinner>      gSpinner = new HashMap();
-
+  
   public GuiControls() {
     this.mainFrame = null;
     this.mainLayout = null;
   }
   
   public GuiControls(String title, int height, int width) {
+    // limit height and width to max of screen dimensions
+    height = (height > SCREEN_SIZE.height) ? SCREEN_SIZE.height : height;
+    width  = (width  > SCREEN_SIZE.width)  ? SCREEN_SIZE.width  : width;
+
     framesize = new Dimension(height, width);
     this.mainFrame = new JFrame(title);
     this.mainFrame.setSize(framesize);
@@ -90,8 +94,8 @@ public class GuiControls {
     if (portion > 1.0) {
       portion = 1.0;
     }
-    framesize = new Dimension((int)((double)SCREEN_SIZE.width * portion),
-                              (int)((double)SCREEN_SIZE.height * portion));
+    framesize = new Dimension((int)(portion * (double)SCREEN_SIZE.height),
+                              (int)(portion * (double)SCREEN_SIZE.width));
     this.mainFrame = new JFrame(title);
     this.mainFrame.setSize(framesize);
     this.mainFrame.setMinimumSize(framesize);
@@ -108,6 +112,11 @@ public class GuiControls {
     if (mainFrame != null) {
       return;
     }
+
+    // limit height and width to max of screen dimensions
+    height = (height > SCREEN_SIZE.height) ? SCREEN_SIZE.height : height;
+    width  = (width  > SCREEN_SIZE.width)  ? SCREEN_SIZE.width  : width;
+
     framesize = new Dimension(height, width);
     this.mainFrame = new JFrame(title);
     this.mainFrame.setSize(framesize);
@@ -271,6 +280,10 @@ public class GuiControls {
    * @return the panel
    */
   public JPanel setPanelSize(String panelname, int height, int width) {
+    // limit height and width to max of screen dimensions
+    height = (height > SCREEN_SIZE.height) ? SCREEN_SIZE.height : height;
+    width  = (width  > SCREEN_SIZE.width)  ? SCREEN_SIZE.width  : width;
+
     JPanel panel = getPanel(panelname);
     Dimension fsize = new Dimension(height, width);
     panel.setSize(fsize);
@@ -596,11 +609,13 @@ public class GuiControls {
    * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
    * @param end     - true if this is last widget in the line
    * @param value   - 0 to have checkbox initially unselected, any other value for selected
+   * @param length  - length of text field in chars
    * @param writable - true if field is writable by user, false if display only
    * @return the checkbox widget
    */
   public JTextField makeTextField(String panelname, String name, String title, Orient pos,
-                boolean end, String value, boolean writable) {
+                boolean end, String value, int length, boolean writable) {
+    
     if (mainFrame == null || mainLayout == null) {
       return null;
     }
@@ -622,13 +637,19 @@ public class GuiControls {
     }
 
     // insert a label before the component
-    GridBagConstraints c = setGbagInsertLabel(panel, gridbag, pos, end, true, name, title);
+    GridBagConstraints c;
+    if (title.isEmpty()) {
+      c = setGbagConstraints(pos, end);
+    } else {
+      c = setGbagInsertLabel(panel, gridbag, pos, end, true, name, title);
+    }
     
     // create the component
+    Dimension size = new Dimension(length * 8, 25); // assume 6 pixels per char
     JTextField field = new JTextField();
     field.setText(value);
-    field.setPreferredSize(new Dimension(80, 25));  // TODO: add field to allow user to define length
-    field.setMinimumSize(new Dimension(80, 25));
+    field.setPreferredSize(size);
+    field.setMinimumSize(size);
     field.setEditable(writable);
     gridbag.setConstraints(field, c);
 
@@ -849,6 +870,32 @@ public class GuiControls {
     gridbag.setConstraints(newpanel, setGbagConstraints(pos, end));
     this.gPanel.put(name, newpanel);
     return newpanel;
+  }
+
+  /**
+   * This creates an empty JPanel and places it in the container.
+   * 
+   * @param panelname - the name of the jPanel container to place the component in (null if use main frame)
+   * @param name    - the name id of the component
+   * @param title   - the name to display as a label preceeding the widget (null if no border)
+   * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
+   * @param end     - true if this is last widget in the line
+   * @param height  - desired height of panel
+   * @param width   - desired width of panel
+   * @return the panel
+   */
+  public JPanel makePanel(String panelname, String name, String title, Orient pos, boolean end, int height, int width) {
+    JPanel panel = makePanel(panelname, name, title, pos, end);
+    if (panel != null) {
+      // limit height and width to max of screen dimensions
+      height = (height > SCREEN_SIZE.height) ? SCREEN_SIZE.height : height;
+      width  = (width  > SCREEN_SIZE.width)  ? SCREEN_SIZE.width  : width;
+
+      Dimension fsize = new Dimension(height, width);
+      panel.setSize(fsize);
+      panel.setMinimumSize(fsize);
+    }
+    return panel;
   }
 
   /**

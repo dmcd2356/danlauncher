@@ -47,7 +47,7 @@ public class DatabaseTable {
   private static final ArrayList<String> SYMBOLIC_PARAMS = new ArrayList<>();
   
   private static final String[] TABLE_COLUMNS = new String [] {
-    "ID", "Method", "Offset", "Solvable", "Solution" //, "Constraint"
+    "ID", "Method", "Offset", "Path", "Cost", "Solvable", "Solution" //, "Constraint"
   };
 
   private static JTable   dbTable;
@@ -67,16 +67,21 @@ public class DatabaseTable {
     String  id;
     String  method;
     String  offset;
+    String  lastpath;
+    String  cost;
     String  solvable;
     String  solution;
     String  constraint;
     boolean updated;
     
-    public DatabaseInfo(String idn, String meth, String off, String solve, String sol, String con) {
+    public DatabaseInfo(String idn, String meth, Integer off,
+                        Boolean path, Integer cst, Boolean solve, String sol, String con) {
       id         = idn   == null ? "" : idn;
       method     = meth  == null ? "" : meth;
-      offset     = off   == null ? "" : off;
-      solvable   = solve == null ? "" : solve;
+      offset     = off   == null ? "" : off.toString();
+      lastpath   = path  == null ? "" : path.toString();
+      cost       = cst   == null ? "" : cst.toString();
+      solvable   = solve == null ? "" : solve.toString();
       solution   = sol   == null ? "" : sol;
       constraint = con   == null ? "" : con;
       updated = false;
@@ -189,11 +194,7 @@ public class DatabaseTable {
 
     dbList.clear();
     for (Document doc : iterdocs) {
-      // get the id value for the entry
-      String id = doc.getObjectId("_id").toHexString(); // .getString("_id");
-      
-      Integer offset = doc.getInteger("offset");
-      Boolean solvable = doc.getBoolean("solvable");
+      // determine if we have any solutions
       String solution = "---";
       Document solutions = (Document) doc.get("solution"); //doc.getString("solution");
       if (solutions != null) {
@@ -206,10 +207,12 @@ public class DatabaseTable {
         }
       }
 
-      DatabaseInfo entry = new DatabaseInfo(id,
+      DatabaseInfo entry = new DatabaseInfo(doc.getObjectId("_id").toHexString(),
                                             doc.getString("method"),
-                                            (offset == null ? null : offset.toString()),
-                                            (solvable == null ? null : solvable.toString()),
+                                            doc.getInteger("offset"),
+                                            doc.getBoolean("lastpath"),
+                                            doc.getInteger("cost"),
+                                            doc.getBoolean("solvable"),
                                             solution,
                                             doc.getString("constraint") );
       dbList.add(entry);
@@ -232,6 +235,10 @@ public class DatabaseTable {
         return dbinfo.method;
       case "Offset":
         return dbinfo.offset;
+      case "Path":
+        return dbinfo.lastpath;
+      case "Cost":
+        return dbinfo.cost;
       case "Solvable":
         return dbinfo.solvable;
 //      case "Param":
@@ -249,6 +256,8 @@ public class DatabaseTable {
         tableEntry.id,
         tableEntry.method,
         tableEntry.offset,
+        tableEntry.lastpath,
+        tableEntry.cost,
         tableEntry.solvable,
         tableEntry.solution,
 //        tableEntry.constraint
@@ -347,12 +356,14 @@ public class DatabaseTable {
     switch(colname) {
       case "Method":
       case "Offset":
-        String meth = (String)dbTable.getValueAt(row, getColumnIndex("Method"));
-        String line = (String)dbTable.getValueAt(row, getColumnIndex("Offset"));
+        String meth   = (String)dbTable.getValueAt(row, getColumnIndex("Method"));
+        String line   = (String)dbTable.getValueAt(row, getColumnIndex("Offset"));
+        String branch = (String)dbTable.getValueAt(row, getColumnIndex("Path"));
         int offset = meth.lastIndexOf("/");
         String cls = meth.substring(0, offset);
         meth = meth.substring(offset + 1);
-        GuiPanel.generateBytecode(cls, meth, Integer.parseInt(line));
+        GuiPanel.generateBytecode(cls, meth);
+        GuiPanel.markBytecode(Integer.parseInt(line), branch.equals("true"));
         break;
       case "Solution":
         String solution = (String)dbTable.getValueAt(row, col);
