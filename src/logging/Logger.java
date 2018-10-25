@@ -26,13 +26,6 @@ import javax.swing.text.StyleContext;
  */
 public class Logger {
     
-  // these are used for limiting the amount of text displayed in the logger display to limit
-  // memory use. MAX_TEXT_BUFFER_SIZE defines the upper memory usage when the reduction takes
-  // place and REDUCE_BUFFER_SIZE is the minimum number of bytes to reduce it by (it will look
-  // for the next NEWLINE char).
-  private final static int MAX_TEXT_BUFFER_SIZE = 150000;
-  private final static int REDUCE_BUFFER_SIZE   = 50000;
-
   private final static String MAX_PADDING = "                    ";
   
   // the default point size and font types to use
@@ -40,6 +33,10 @@ public class Logger {
   private static final String DEFAULT_FONT = "Courier";
   private static final String NEWLINE = System.getProperty("line.separator");
 
+  // this sets the limit for the amount of text displayed in the logger display to prevent
+  // memory overruns. 'maxBufferSize' defines the buffer size of when to reduce it and it will
+  // eliminate the oldest 25% of text plus any additional until a NEWLINE char is reached.
+  private static int      maxBufferSize = 200000;
   private static String   pnlname;
   private JTextPane       textPane = null;
   private JTextArea       textArea = null;
@@ -73,6 +70,15 @@ public class Logger {
         messageTypeTbl.put(entry.getKey(), entry.getValue());
       }
     }
+  }
+  
+  public void setMaxBufferSize(int bufSize) {
+    // limit the min size to 100k, which is appx 1000 lines at 100 chars/line
+    if (bufSize < 100000) {
+      bufSize = 100000;
+    }
+
+    maxBufferSize = bufSize;
   }
   
   public final String getName() {
@@ -180,10 +186,10 @@ public class Logger {
       int len = textPane.getDocument().getLength();
 
       // trim off earlier data to reduce memory usage if we exceed our bounds
-      if (len > MAX_TEXT_BUFFER_SIZE) {
+      if (len > maxBufferSize) {
         try {
           int oldlen = len;
-          int start = REDUCE_BUFFER_SIZE;
+          int start = maxBufferSize / 4; // reduce size by 25%
           String text = textPane.getDocument().getText(start, 500);
           int offset = text.indexOf(NEWLINE);
           if (offset >= 0) {

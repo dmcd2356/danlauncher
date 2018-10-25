@@ -363,7 +363,7 @@ public class DatabaseTable {
         String cls = meth.substring(0, offset);
         meth = meth.substring(offset + 1);
         GuiPanel.generateBytecode(cls, meth);
-        GuiPanel.markBytecode(Integer.parseInt(line), branch.equals("true"));
+        GuiPanel.highlightBranch(Integer.parseInt(line), branch.equals("true"));
         break;
       case "Solution":
         String solution = (String)dbTable.getValueAt(row, col);

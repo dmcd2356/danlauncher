@@ -26,6 +26,11 @@ public class BytecodeLogger {
   
   private static final String NEWLINE = System.getProperty("line.separator");
 
+  // these are the bitmask values for highlighting types
+  private static final int HIGHLIGHT_CURSOR = 0x0001;
+  private static final int HIGHLIGHT_BRANCH = 0x0002;
+  private static final int HIGHLIGHT_ALL    = 0xFFFF;
+  
   // types of messages
   private enum MsgType { ERROR,METHOD, TEXT, PARAM, COMMENT, BRANCH, INVOKE, LOAD, STORE, OTHER }
   
@@ -71,54 +76,71 @@ public class BytecodeLogger {
   public void highlightClear() {
     System.out.println("highlightClear");
     panel.getHighlighter().removeAllHighlights();
+    clearHighlighting(HIGHLIGHT_ALL);
   }
 
-  public void highlightBytecode(int branchLine, boolean branch) {
+  public void showCurrentLine(int line) {
+    if (line < 2) {
+      return;
+    }
+    
+    // because we can't change the highlight color once set, clear everything and start afresh
+    // clear all previous branch entries and remove all highlighting
+    panel.getHighlighter().removeAllHighlights();
+    clearHighlighting(HIGHLIGHT_CURSOR); // clears the CURSOR bits from the bytecode info
+
+    // now mark the current line (account for the 2 line header at top of file)
+    highlightSetMark(line - 2, HIGHLIGHT_CURSOR);
+    
+    highlightUpdate();   // update the display
+
+//    highlightUpdate(HIGHLIGHT_BRANCH);   // update the display
+//
+//    // now mark the current line (account for the 2 line header at top of file)
+//    highlightBytecodeLine(line - 2, HIGHLIGHT_CURSOR);
+  }
+  
+  public void highlightBranch(int branchLine, boolean branch) {
     // check for error conditions
     if (bytecode.isEmpty()) {
-      System.err.println("highlightBytecode: no bytecode found");
+      System.err.println("highlightBranch: no bytecode found");
       return;
     }
     if (bytecode.size() < branchLine) {
-      System.err.println("highlightBytecode: line " + branchLine + " exceeds bytecode length " + bytecode.size());
+      System.err.println("highlightBranch: line " + branchLine + " exceeds bytecode length " + bytecode.size());
       return;
     }
     BytecodeInfo bc = bytecode.get(branchLine);
     if (!bc.isbranch) {
-      System.err.println("highlightBytecode: " + branchLine + " not branch opcode: " + bc.opcode);
+      System.err.println("highlightBranch: " + branchLine + " not branch opcode: " + bc.opcode);
       return;
     }
 
-    // get the text from the panel
-    String text = panel.getText();
+    // clear all previous branch entries and remove all highlighting
+    panel.getHighlighter().removeAllHighlights();
+    clearHighlighting(HIGHLIGHT_BRANCH);
 
+    // if a cursor selection was made, set it now
+//    highlightUpdate(HIGHLIGHT_CURSOR);
+    
     // highlight the the branch line
-    highlightBytecode(bc.ixStart, bc.ixEnd);
+//    highlightBytecodeLine(branchLine, HIGHLIGHT_BRANCH);
+    highlightSetMark(branchLine, HIGHLIGHT_BRANCH);
     
     // determine if we take the branch or not to determine the next line to highlight
-    int startix = -1, endix;
+    int nextLine = branchLine + 1; // the line following the branch opcode (branch not taken)
     if (branch) {
-      // find the line corresponding to the branch index
-      bc = findBranchLine(bc.param);
-      if (bc == null) {
-        return;
-      }
-      startix = bc.ixStart;
-      endix = bc.ixEnd;
-    } else {
-      // highlight the next line (branch not taken)
-      startix = bc.ixEnd;
-      endix = text.indexOf(NEWLINE, startix);
-      if (endix < 0) {
-        endix = text.length() - 1;
-      } else {
-        ++endix;
-      }
+      nextLine = findBranchLine(bc.param); // the branch destination (branch taken)
     }
 
-    highlightBytecode(startix, endix);
+    if (nextLine >= 0) {
+      highlightSetMark(nextLine, HIGHLIGHT_BRANCH);
+//      highlightBytecodeLine(nextLine, HIGHLIGHT_BRANCH);
+    }
+
+    highlightUpdate();   // update the display
   }
-  
+
   /**
    * reads the javap output and extracts and displays the opcodes for the selected method.
    * outputs the info to the bytecode logger.
@@ -143,8 +165,7 @@ public class BytecodeLogger {
     methodLoaded = "";
     bytecode = new ArrayList<>();
 
-    String[] lines = content.split(System.getProperty("line.separator"));
-    boolean found = false;
+    String[] lines = content.split(NEWLINE);
     for (String entry : lines) {
       entry = entry.replace("\t", " ").trim();
         
@@ -209,14 +230,13 @@ public class BytecodeLogger {
           // method entry found, let's see if it's the one we want
           if (methodSelect.startsWith(methName)) {
             methodLoaded = classSelect + "." + methodSelect;
-            found = true;
             printBytecodeMethod(methodLoaded);
           }
         }
       }
     }
   }
-  
+
   private class BytecodeInfo {
     public int     offset;      // byte offset of entry within the method
     public String  opcode;      // opcode
@@ -225,6 +245,7 @@ public class BytecodeLogger {
     public boolean isbranch;    // true if opcode is a branch
     public int     ixStart;     // char offset in text of start of line
     public int     ixEnd;       // char offset in text of end of line
+    public int     mark;        // highlight bits
   }
   
   private static void printBytecodeMethod(String methodName) {
@@ -256,15 +277,85 @@ public class BytecodeLogger {
     logger.printField("COMMENT", comment + NEWLINE);
   }
   
-  private void highlightBytecode(int startOff, int endOff) {
+  private void highlightBytecode(int startOff, int endOff, Color color) {
     Highlighter highlighter = panel.getHighlighter();
-    Highlighter.HighlightPainter painter = new DefaultHighlighter.DefaultHighlightPainter(Color.pink);
+    Highlighter.HighlightPainter painter = new DefaultHighlighter.DefaultHighlightPainter(color);
     try {
       highlighter.addHighlight(startOff, endOff, painter);
     } catch (BadLocationException ex) { }
   }
 
-  private BytecodeInfo findBranchLine(String param) {
+  private void clearHighlighting(int type) {
+    if (type == 0) {
+      return;
+    }
+    
+    // remove the specified type of highlighting from all lines
+    for (int line = 0; line < bytecode.size(); line++) {
+      BytecodeInfo bc = bytecode.get(line);
+      if ((bc.mark & type) != 0) {
+        bc.mark = bc.mark & ~type;
+        bytecode.set(line, bc);
+System.out.println("clearHighlighting: clear line " + line + " to " + bc.mark + " (removed bit " + type + ")");
+      }
+    }
+  }
+
+  private void highlightSetMark(int line, int type) {
+    BytecodeInfo bc = bytecode.get(line);
+    bc.mark |= type;
+    bytecode.set(line, bc);
+System.out.println("highlightSetMark: set line " + line + " to " + bc.mark);
+  }
+  
+  private void highlightUpdate() {
+    for (int line = 0; line < bytecode.size(); line++) {
+      BytecodeInfo bc = bytecode.get(line);
+      if (bc.mark != 0) {
+        highlightBytecodeLine(line, bc.mark);
+      }
+    }
+  }
+  
+  private void highlightUpdate(int type) {
+    for (int line = 0; line < bytecode.size(); line++) {
+      BytecodeInfo bc = bytecode.get(line);
+      if ((bc.mark & type) != 0) {
+        highlightBytecodeLine(line, type);
+      }
+    }
+  }
+  
+  private void highlightBytecodeLine(int line, int type) {
+    BytecodeInfo bc = bytecode.get(line);
+
+    // check if we already have a highlighting for the line
+    bc.mark |= type;
+
+    Color color;
+    switch (bc.mark) {
+      case HIGHLIGHT_CURSOR:
+        color = Color.yellow;
+        break;
+      case HIGHLIGHT_BRANCH:
+        color = Color.pink;
+        break;
+      case HIGHLIGHT_BRANCH | HIGHLIGHT_CURSOR:
+        color = Color.orange;
+        break;
+      default:
+        color = Color.white;
+        break;
+    }
+    
+    // highlight the the branch line
+    highlightBytecode(bc.ixStart, bc.ixEnd, color);
+    
+    // add entry to mapping of highlighted lines
+    bytecode.set(line, bc);
+  }
+  
+  private int findBranchLine(String param) {
     int offset;
 
     // convert branch location to an int value
@@ -272,18 +363,18 @@ public class BytecodeLogger {
       offset = Integer.parseUnsignedInt(param);
     } catch (NumberFormatException ex) {
       System.err.println("findBranchOffset: invalid branch location value: " + param);
-      return null;
+      return -1;
     }
     
     // search for offset entry in array
     for (int ix = 0; ix < bytecode.size(); ix++) {
       if (offset == bytecode.get(ix).offset) {
-        return bytecode.get(ix);
+        return ix;
       }
     }
 
     System.err.println("findBranchOffset: branch location value not found in method: " + param);
-    return null;
+    return -1;
   }
   
   /**
@@ -326,6 +417,7 @@ public class BytecodeLogger {
       bc.isbranch = isBranchOpcode(opcode);
       bc.ixStart  = startix;
       bc.ixEnd    = panel.getText().length();
+      bc.mark     = 0;
       bytecode.add(bc);
     }
   }

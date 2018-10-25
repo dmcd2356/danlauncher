@@ -73,6 +73,10 @@ public class DebugLogger {
     return panel;
   }
   
+  public void setMaxBufferSize(int bufSize) {
+    logger.setMaxBufferSize(bufSize);
+  }
+  
   public void clear() {
     logger.clear();
   }
@@ -191,7 +195,7 @@ public class DebugLogger {
       System.out.println("RESET PERFORMED...");
       GuiPanel.resetLoggedTime();
       GuiPanel.resetCapturedInput();  // this clears the displayed data and stats
-      logger.clear();            // clear the text panel
+//      logger.clear();            // clear the text panel
     }
     else if (GuiPanel.isElapsedModeReset() && linecount == 0) {
       // else if we detect the start of a new debug session, restart our elapsed timer

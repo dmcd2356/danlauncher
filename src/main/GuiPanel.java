@@ -17,6 +17,8 @@ import gui.GuiControls.FrameSize;
 import java.awt.Component;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.DataOutputStream;
@@ -49,6 +51,8 @@ import javax.swing.JScrollPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
+import javax.swing.JTextPane;
+import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
@@ -64,9 +68,15 @@ public final class GuiPanel {
   private static final PrintStream STANDARD_OUT = System.out;
   private static final PrintStream STANDARD_ERR = System.err;         
   //private static final String CLASSFILE_STORAGE = ""; // application/";
-  
+
+  // default location for jre for running instrumented project
+  String JAVA_HOME = "/usr/lib/jvm/java-8-openjdk-amd64";
+
   // location of danalyzer program
   private static final String DSEPATH = "/home/dan/Projects/isstac/dse/";
+  
+  // location of this program
+  private static final String HOMEPATH = System.getProperty("user.dir");
   
   public enum GraphHighlight { NONE, STATUS, TIME, INSTRUCTION, ITERATION, THREAD }
 
@@ -151,25 +161,28 @@ public final class GuiPanel {
     } catch (SocketException | UnknownHostException ex) {  }
     GuiPanel.serverPort = "Server port (" + (tcp ? "TCP" : "UDP") + ")  -  " + ipaddr + ":" + port;
     
-    // we need a filechooser
-    GuiPanel.fileSelector = new JFileChooser();
-
-    // check for a properties file
+    // check for a properties file and init default values if not found
     props = new PropertiesFile("danlauncher");
-    String logfileName = System.getProperty("user.dir") + "/debug.log"; // the default value
-    logfileName = props.getPropertiesItem("LogFile", logfileName);
-    GuiPanel.fileSelector.setCurrentDirectory(new File(logfileName));
+    String projectPath = props.getPropertiesItem("PROJECT_PATH", HOMEPATH);
+    String maxLogLength = props.getPropertiesItem("MAX_LOG_LENGTH", "500000");
+    
+    // we need a filechooser and initialize it to the project path
+    GuiPanel.fileSelector = new JFileChooser();
+    GuiPanel.fileSelector.setCurrentDirectory(new File(projectPath));
 
     // create the main panel and controls
     createDebugPanel();
 
+    if (debugLogger != null && !maxLogLength.isEmpty()) {
+      debugLogger.setMaxBufferSize(Integer.parseUnsignedInt(maxLogLength));
+    }
     // this creates a command launcher on a separate thread
     threadLauncher = new ThreadLauncher((JTextArea) getTabPanel(PanelTabs.COMMAND));
 
     // setup access to the network listener thread
     GuiPanel.udpThread = portThread;
     GuiPanel.udpThread.setLoggingCallback(makeConnection);
-    GuiPanel.udpThread.setBufferFile(logfileName);
+    GuiPanel.udpThread.setBufferFile(projectPath + "/debug.log");
 
     GuiPanel.networkListener = GuiPanel.udpThread; // this allows us to signal the network listener
     
@@ -228,16 +241,21 @@ public final class GuiPanel {
     panel = "PNL_ACTION";
     mainFrame.makeButton    (panel, "BTN_LOADFILE" , "Select Jar"  , LEFT, false);
     mainFrame.makeLabel     (panel, "LBL_JARFILE"  , "           " , LEFT, true);
+    
     mainFrame.makeCombobox  (panel, "COMBO_MAINCLS", "Main Class"  , LEFT, true);
-    mainFrame.makeGap       (panel);
+    mainFrame.makeLineGap   (panel);
     mainFrame.makeButton    (panel, "BTN_RUNTEST"  , "Run code"    , LEFT, false);
-    mainFrame.makeTextField (panel, "TXT_ARGLIST"  , ""            , LEFT, true, "", 20, true);
+    mainFrame.makeTextField (panel, "TXT_ARGLIST"  , ""            , LEFT, true, "", 40, true);
+    
     mainFrame.makeButton    (panel, "BTN_SEND"     , "Post Data"   , LEFT, false);
-    mainFrame.makeTextField (panel, "TXT_INPUT"    , ""            , LEFT, true, "", 20, true);
-    mainFrame.makeTextField (panel, "TXT_PORT"     , "Server Port" , LEFT, true, "8080", 10, true);
+    mainFrame.makeTextField (panel, "TXT_INPUT"    , ""            , LEFT, true, "", 40, true);
+    
+    mainFrame.makeTextField (panel, "TXT_PORT"     , "Server Port" , LEFT, true, "8080", 8, true);
+    
     mainFrame.makeButton    (panel, "BTN_SOL_STRT" , "Run Solver"  , LEFT, false);
-    mainFrame.makeButton    (panel, "BTN_STOP"     , "STOP"        , RIGHT, true);
-    mainFrame.makeButton    (panel, "BTN_LOG_CLEAR", "Clear Log"   , RIGHT, true);
+    mainFrame.makeButton    (panel, "BTN_STOP"     , "STOP"        , LEFT, false);
+    mainFrame.makeGap       (panel, 80);
+    mainFrame.makeButton    (panel, "BTN_LOG_CLEAR", "Clear Log"   , RIGHT, false);
     mainFrame.makeButton    (panel, "BTN_DB_CLEAR" , "Clear DB"    , RIGHT, true);
 
     // initially disable the class/method select and generating bytecode
@@ -392,6 +410,10 @@ public final class GuiPanel {
     addPanelToTab(PanelTabs.LOG     , debugLogger.getTextPane());
     addPanelToTab(PanelTabs.GRAPH   , new JPanel());
 
+    // add a mouse listener for the bytecode viewer
+    JTextPane bcTextPanel = bytecodeLogger.getTextPane();
+    bcTextPanel.addMouseListener(new BytecodeMouseListener());
+    
     // create the message logging for the text panels
     commandLogger  = createTextLogger(PanelTabs.COMMAND , null);
     paramLogger    = createTextLogger(PanelTabs.PARAMS  , null);
@@ -403,6 +425,34 @@ public final class GuiPanel {
     dbtable = new DatabaseTable((JTable) getTabPanel(GuiPanel.PanelTabs.DATABASE));
   }
 
+  public class BytecodeMouseListener extends MouseAdapter {
+
+    @Override
+    public void mouseClicked (MouseEvent evt) {
+      JTextPane bcTextPanel = bytecodeLogger.getTextPane();
+      String contents = bcTextPanel.getText();
+
+      // set caret to the mouse location and get the caret position (char offset within text)
+      bcTextPanel.setCaretPosition(bcTextPanel.viewToModel(evt.getPoint()));
+      int caretpos = bcTextPanel.getCaretPosition();
+      
+      // now determine line number and offset within the line for the caret
+      int line = 0;
+      int offset = 0;
+      for (int ix = 0; ix < caretpos; ix++) {
+        if (contents.charAt(ix) == '\n' || contents.charAt(ix) == '\r') {
+          ++line;
+          offset = ix;
+        }
+      }
+      int curoffset = caretpos - offset - 1;
+      System.out.println("caret = " + caretpos + ", line " + line + ", offset " + curoffset);
+      
+      // highlight the current line selection
+      bytecodeLogger.showCurrentLine(line);
+    }
+  }
+  
   private static Component getTabPanel(PanelTabs tabname) {
     if (!tabbedPanels.containsKey(tabname)) {
       System.err.println("ERROR: '" + tabname + "' panel not found in tabs");
@@ -803,10 +853,11 @@ public final class GuiPanel {
         // update the class and method selections
         setupClassList(projectPathName);
         
+        // save location of project selection
+        props.setPropertiesItem("PROJECT_PATH", projectPathName);
+        
         // set the location of the debug log file to this directory
-        String logfileName = projectPathName + "/debug.log";
-        udpThread.setBufferFile(logfileName);
-        props.setPropertiesItem("LogFile", logfileName);
+        udpThread.setBufferFile(projectPathName + "/debug.log");
       } else {
         printStatusError("ERROR: instrumenting file: " + projectName);
       }
@@ -861,8 +912,8 @@ public final class GuiPanel {
     }
   }
 
-  public static void markBytecode(int start, boolean branch) {
-    bytecodeLogger.highlightBytecode(start, branch);
+  public static void highlightBranch(int start, boolean branch) {
+    bytecodeLogger.highlightBranch(start, branch);
   }
   
   private void runTest(String arglist) {
@@ -885,8 +936,8 @@ public final class GuiPanel {
       return;
     }
 
-    // TODO: let user pick his java home
-    String JAVA_HOME = "/usr/lib/jvm/java-8-openjdk-amd64";
+    // use java home setting from properties file
+    String javaHome = props.getPropertiesItem("JAVA_HOME", JAVA_HOME);
     
     // build up the command to run
     String localpath = "*";
@@ -900,7 +951,7 @@ public final class GuiPanel {
               + ":" + DSEPATH + "danalyzer/lib/mongodb-driver-sync-3.8.2.jar"
               + ":" + DSEPATH + "danalyzer/lib/bson-3.8.2.jar";
     String options = "-Xverify:none";
-    String bootlpath = "-Dsun.boot.library.path=" + JAVA_HOME + "/bin:/usr/lib";
+    String bootlpath = "-Dsun.boot.library.path=" + javaHome + "/bin:/usr/lib";
     String bootcpath ="-Xbootclasspath/a"
               + ":" + DSEPATH + "danalyzer/dist/danalyzer.jar"
               + ":" + DSEPATH + "danalyzer/lib/com.microsoft.z3.jar"

@@ -428,11 +428,11 @@ public class GuiControls {
   }
 
   /**
-   * This creates an empty JLabel and places it in the container to add a gap.
+   * This creates an empty JLabel and places it in the container to add a vertical gap between components.
    * 
    * @param panelname - the name of the jPanel container to place the component in (null if use main frame)
    */
-  public void makeGap(String panelname) {
+  public void makeLineGap(String panelname) {
     if (mainFrame == null || mainLayout == null) {
       return;
     }
@@ -448,6 +448,36 @@ public class GuiControls {
     } else {
       gridbag = this.mainLayout;
       gridbag.setConstraints(label, setGbagConstraints(Orient.LEFT, true));
+      this.mainFrame.add(label);
+    }
+  }
+  
+  /**
+   * This creates an empty JLabel and places it in the container to add a horizontal gap between components.
+   * 
+   * @param panelname - the name of the jPanel container to place the component in (null if use main frame)
+   * @param length - length in pixels for the gap (the width of the dummy label)
+   */
+  public void makeGap(String panelname, int length) {
+    if (mainFrame == null || mainLayout == null) {
+      return;
+    }
+
+    JLabel label = new JLabel("");
+    Dimension dim = new Dimension(25, length);
+    label.setPreferredSize(dim);
+    label.setMinimumSize(dim);
+    label.setMaximumSize(dim);
+
+    GridBagLayout gridbag;
+    if (panelname != null) {
+      JPanel panel = getSelectedPanel(panelname);
+      gridbag = (GridBagLayout) panel.getLayout();
+      gridbag.setConstraints(label, setGbagConstraints(Orient.LEFT, false));
+      panel.add(label);
+    } else {
+      gridbag = this.mainLayout;
+      gridbag.setConstraints(label, setGbagConstraints(Orient.LEFT, false));
       this.mainFrame.add(label);
     }
   }
