@@ -220,7 +220,7 @@ public final class GuiPanel {
     panel = null; // this creates the entries in the main frame
     mainFrame.makePanel      (panel, "PNL_MESSAGES" , "Status"    , LEFT, true);
     mainFrame.makePanel      (panel, "PNL_CONTROLS" , ""          , LEFT, false);
-    mainFrame.makePanel      (panel, "PNL_SOLUTIONS", "Solutions" , LEFT, true, 300, 250);
+    mainFrame.makePanel      (panel, "PNL_SOLUTIONS", "Solutions" , LEFT, true, 300, 275);
     mainFrame.makeTabbedPanel(panel, "PNL_TABBED"   , ""          , LEFT, true);
 
     panel = "PNL_MESSAGES";
@@ -253,10 +253,10 @@ public final class GuiPanel {
     mainFrame.makeTextField (panel, "TXT_PORT"     , "Server Port" , LEFT, true, "8080", 8, true);
     
     mainFrame.makeButton    (panel, "BTN_SOL_STRT" , "Run Solver"  , LEFT, false);
-    mainFrame.makeButton    (panel, "BTN_STOP"     , "STOP"        , LEFT, false);
-    mainFrame.makeGap       (panel, 80);
-    mainFrame.makeButton    (panel, "BTN_LOG_CLEAR", "Clear Log"   , RIGHT, false);
-    mainFrame.makeButton    (panel, "BTN_DB_CLEAR" , "Clear DB"    , RIGHT, true);
+    mainFrame.makeButton    (panel, "BTN_STOP"     , "STOP"        , LEFT, true);
+
+    mainFrame.makeButton    (panel, "BTN_LOG_CLEAR", "Clear Log"   , LEFT, false);
+    mainFrame.makeButton    (panel, "BTN_DB_CLEAR" , "Clear DB"    , LEFT, true);
 
     // initially disable the class/method select and generating bytecode
     mainClassCombo = mainFrame.getCombobox ("COMBO_MAINCLS");
