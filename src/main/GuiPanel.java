@@ -5,20 +5,19 @@
  */
 package main;
 
-import bytecode.BytecodeLogger;
+import panels.DatabaseTable;
+import panels.BytecodeViewer;
 import gui.GuiControls;
 import logging.Logger;
 import logging.FontInfo;
 import callgraph.CallGraph;
 import command.ThreadLauncher;
 import command.CommandLauncher;
-import debug.DebugLogger;
+import panels.DebugLogger;
 import gui.GuiControls.FrameSize;
 import java.awt.Component;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.DataOutputStream;
@@ -51,8 +50,6 @@ import javax.swing.JScrollPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
-import javax.swing.JTextPane;
-import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
@@ -94,7 +91,7 @@ public final class GuiPanel {
   private static JComboBox       methodCombo;
   private static Logger          commandLogger;
   private static Logger          paramLogger;
-  private static BytecodeLogger  bytecodeLogger;
+  private static BytecodeViewer  bytecodeLogger;
   private static DebugLogger     debugLogger;
   private static Timer           pktTimer;
   private static Timer           graphTimer;
@@ -400,7 +397,7 @@ public final class GuiPanel {
 
     // create the special text loggers
     debugLogger = new DebugLogger(PanelTabs.LOG.toString());
-    bytecodeLogger = new BytecodeLogger(PanelTabs.BYTECODE.toString());
+    bytecodeLogger = new BytecodeViewer(PanelTabs.BYTECODE.toString());
 
     // add the tabbed message panels for bytecode output, command output, and debug output
     addPanelToTab(PanelTabs.COMMAND , new JTextArea());
@@ -861,9 +858,6 @@ public final class GuiPanel {
       return;
     }
 
-    // clear the output display
-    bytecodeLogger.clear();
-      
     // decompile the selected class file
     String[] command = { "javap", "-p", "-c", "-s", "-l", classSelect + ".class" };
     CommandLauncher commandLauncher = new CommandLauncher(commandLogger);

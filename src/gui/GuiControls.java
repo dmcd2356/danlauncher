@@ -287,6 +287,7 @@ public class GuiControls {
     JPanel panel = getPanel(panelname);
     Dimension fsize = new Dimension(height, width);
     panel.setSize(fsize);
+    panel.setPreferredSize(fsize);
     panel.setMinimumSize(fsize);
     return panel;
   }
@@ -456,18 +457,17 @@ public class GuiControls {
    * This creates an empty JLabel and places it in the container to add a horizontal gap between components.
    * 
    * @param panelname - the name of the jPanel container to place the component in (null if use main frame)
-   * @param length - length in pixels for the gap (the width of the dummy label)
+   * @param width - width in pixels for the gap (the width of the dummy label)
    */
-  public void makeGap(String panelname, int length) {
+  public void makeGap(String panelname, int width) {
     if (mainFrame == null || mainLayout == null) {
       return;
     }
 
     JLabel label = new JLabel("");
-    Dimension dim = new Dimension(25, length);
+    Dimension dim = new Dimension(25, width);
     label.setPreferredSize(dim);
     label.setMinimumSize(dim);
-    label.setMaximumSize(dim);
 
     GridBagLayout gridbag;
     if (panelname != null) {
@@ -923,6 +923,7 @@ public class GuiControls {
 
       Dimension fsize = new Dimension(height, width);
       panel.setSize(fsize);
+      panel.setPreferredSize(fsize);
       panel.setMinimumSize(fsize);
     }
     return panel;
@@ -1119,9 +1120,9 @@ public class GuiControls {
     return spanel;
   }
 
-  public static JFrame makeFrameWithText(String title, String text) {
+  public static JFrame makeFrameWithText(String title, String text, int height, int width) {
     // define size of panel
-    Dimension dim = new Dimension(500,300);
+    Dimension dim = new Dimension(height, width);
 
     // create a text panel component and place the text message in it
     JTextArea tpanel = new JTextArea();

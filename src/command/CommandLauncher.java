@@ -18,11 +18,10 @@ import javax.swing.JTextArea;
  *
  */
 public class CommandLauncher {
-    private JTextArea response;
-    private Logger logger;
+    private static final JTextArea response = new JTextArea(); // output for stdout & stderr
+    private final Logger logger;
     
     public CommandLauncher (Logger log) {
-        this.response = null;
         this.logger = log;
     }
     
@@ -61,15 +60,13 @@ public class CommandLauncher {
         }
         logMessage("COMMAND", String.join(" ", command));
         
-        // create an output area for stderr and stdout
-        this.response = new JTextArea();
-
         // build up the command and argument string
         ProcessBuilder builder = new ProcessBuilder(command);
         if (workdir != null) {
             File workingdir = new File(workdir);
-            if (workingdir.isDirectory())
+            if (workingdir.isDirectory()) {
                 builder.directory(workingdir);
+            }
         }
         
         PrintStream standardOut = System.out;
@@ -111,8 +108,9 @@ public class CommandLauncher {
             }
         }
 
-        if (retcode == 0)
+        if (retcode == 0) {
             retcode = p.exitValue();
+        }
         p.destroy();
 
         // restore the stdout and stderr

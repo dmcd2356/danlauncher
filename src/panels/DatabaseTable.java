@@ -3,7 +3,7 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package main;
+package panels;
 
 import gui.GuiControls;
 import com.mongodb.BasicDBObject;
@@ -35,6 +35,7 @@ import javax.swing.table.JTableHeader;
 //import javax.swing.SpinnerDateModel;
 import javax.swing.table.TableCellRenderer;
 import javax.swing.table.TableColumnModel;
+import main.GuiPanel;
 import org.bson.Document;
 import org.bson.conversions.Bson;
 
@@ -367,14 +368,13 @@ public class DatabaseTable {
         break;
       case "Solution":
         String solution = (String)dbTable.getValueAt(row, col);
-        // copy the solution value to the input field
+        // TODO: copy the solution value to the input field
         break;
       case "ID":
-//      case "Constraint":
         //String constraint = (String)dbTable.getValueAt(row, getColumnIndex("Constraint"));
         String constraint = dbList.get(row).constraint;
         // pop up a panel that contains the full context string
-        GuiControls.makeFrameWithText("Constraint value", constraint);
+        GuiControls.makeFrameWithText("Constraint value", constraint, 500, 300);
         break;
       default:
         break;

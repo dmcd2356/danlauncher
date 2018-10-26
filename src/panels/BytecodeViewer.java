@@ -3,10 +3,12 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package bytecode;
+package panels;
 
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
@@ -24,7 +26,7 @@ import logging.Logger;
  *
  * @author dan
  */
-public class BytecodeLogger {
+public class BytecodeViewer {
   
   private static final String NEWLINE = System.getProperty("line.separator");
 
@@ -42,7 +44,7 @@ public class BytecodeLogger {
   private static ArrayList<BytecodeInfo> bytecode = new ArrayList<>();
   private static String          methodLoaded = "";
 
-  public BytecodeLogger(String name) {
+  public BytecodeViewer(String name) {
     String fonttype = "Courier";
     FontInfo.setTypeColor (fontmap, MsgType.ERROR.toString(),   TextColor.Red,    FontType.Bold  , 14, fonttype);
     FontInfo.setTypeColor (fontmap, MsgType.METHOD.toString(),  TextColor.Violet, FontType.Italic, 16, fonttype);
@@ -59,16 +61,13 @@ public class BytecodeLogger {
     panel = new JTextPane();
     logger = new Logger((Component) panel, name, fontmap);
   
-    // add a mouse listener for the bytecode viewer
+    // add mouse & key listeners for the bytecode viewer
     panel.addMouseListener(new BytecodeMouseListener());
+    panel.addKeyListener(new BytecodeKeyListener());
 }
   
   public JTextPane getTextPane() {
     return panel;
-  }
-  
-  public void clear() {
-    logger.clear();
   }
   
   public boolean isMethodDisplayed(String classSelect, String methodSelect) {
@@ -79,68 +78,43 @@ public class BytecodeLogger {
   }
   
   public void highlightClear() {
-    System.out.println("highlightClear");
+    System.out.println("BytecodeLogger: highlightClear");
     panel.getHighlighter().removeAllHighlights();
     clearHighlighting(HIGHLIGHT_ALL);
   }
 
-  public void showCurrentLine(int line) {
-    if (line < 2) {
-      return;
-    }
-    
-    // because we can't change the highlight color once set, clear everything and start afresh
-    // clear all previous branch entries and remove all highlighting
-    panel.getHighlighter().removeAllHighlights();
-    clearHighlighting(HIGHLIGHT_CURSOR); // clears the CURSOR bits from the bytecode info
-
-    // now mark the current line (account for the 2 line header at top of file)
-    highlightSetMark(line - 2, HIGHLIGHT_CURSOR);
-    
-    highlightUpdate();   // update the display
-
-//    highlightUpdate(HIGHLIGHT_BRANCH);   // update the display
-//
-//    // now mark the current line (account for the 2 line header at top of file)
-//    highlightBytecodeLine(line - 2, HIGHLIGHT_CURSOR);
-  }
-  
-  public void highlightBranch(int branchLine, boolean branch) {
+  public void highlightBranch(int line, boolean branch) {
+    System.out.println("BytecodeLogger: highlightBranch " + line + " (" + branch + ")");
     // check for error conditions
     if (bytecode.isEmpty()) {
       System.err.println("highlightBranch: no bytecode found");
       return;
     }
-    if (bytecode.size() < branchLine) {
-      System.err.println("highlightBranch: line " + branchLine + " exceeds bytecode length " + bytecode.size());
+    if (bytecode.size() < line) {
+      System.err.println("highlightBranch: line " + line + " exceeds bytecode length " + bytecode.size());
       return;
     }
-    BytecodeInfo bc = bytecode.get(branchLine);
+    BytecodeInfo bc = bytecode.get(line);
     if (!bc.isbranch) {
-      System.err.println("highlightBranch: " + branchLine + " not branch opcode: " + bc.opcode);
+      System.err.println("highlightBranch: " + line + " not branch opcode: " + bc.opcode);
       return;
     }
 
     // clear all previous branch entries and remove all highlighting
-    panel.getHighlighter().removeAllHighlights();
     clearHighlighting(HIGHLIGHT_BRANCH);
 
-    // if a cursor selection was made, set it now
-//    highlightUpdate(HIGHLIGHT_CURSOR);
-    
-    // highlight the the branch line
-//    highlightBytecodeLine(branchLine, HIGHLIGHT_BRANCH);
-    highlightSetMark(branchLine, HIGHLIGHT_BRANCH);
+    // mark the the branch line
+    highlightSetMark(line, HIGHLIGHT_BRANCH);
     
     // determine if we take the branch or not to determine the next line to highlight
-    int nextLine = branchLine + 1; // the line following the branch opcode (branch not taken)
     if (branch) {
-      nextLine = findBranchLine(bc.param); // the branch destination (branch taken)
-    }
-
-    if (nextLine >= 0) {
-      highlightSetMark(nextLine, HIGHLIGHT_BRANCH);
-//      highlightBytecodeLine(nextLine, HIGHLIGHT_BRANCH);
+      // the branch destination (branch taken)
+      int branchLine = findBranchLine(bc.param);
+      if (branchLine >= 0) {
+        highlightSetMark(branchLine, HIGHLIGHT_BRANCH);
+      }
+    } else {
+      highlightSetMark(line + 1, HIGHLIGHT_BRANCH); // the line following the branch opcode
     }
 
     highlightUpdate();   // update the display
@@ -148,13 +122,14 @@ public class BytecodeLogger {
 
   /**
    * reads the javap output and extracts and displays the opcodes for the selected method.
-   * outputs the info to the bytecode logger.
+   * outputs the opcode info to the ArrayList 'bytecode' and saves the method name in 'methodLoaded'.
    * 
    * @param classSelect  - the class name of the method
    * @param methodSelect - the method name to search for
    * @param content      - the javap output
    */
   public void parseJavap(String classSelect, String methodSelect, String content) {
+    System.out.println("BytecodeLogger: parseJavap " + classSelect + "." + methodSelect);
     // javap uses the dot format for the class name, so convert it
     classSelect = classSelect.replace("/", ".");
     int lastoffset = -1;
@@ -168,6 +143,7 @@ public class BytecodeLogger {
 
     // else we need to start with a clean slate
     methodLoaded = "";
+    logger.clear();
     bytecode = new ArrayList<>();
 
     String[] lines = content.split(NEWLINE);
@@ -301,7 +277,6 @@ public class BytecodeLogger {
       if ((bc.mark & type) != 0) {
         bc.mark = bc.mark & ~type;
         bytecode.set(line, bc);
-System.out.println("clearHighlighting: clear line " + line + " to " + bc.mark + " (removed bit " + type + ")");
       }
     }
   }
@@ -310,10 +285,13 @@ System.out.println("clearHighlighting: clear line " + line + " to " + bc.mark + 
     BytecodeInfo bc = bytecode.get(line);
     bc.mark |= type;
     bytecode.set(line, bc);
-System.out.println("highlightSetMark: set line " + line + " to " + bc.mark);
   }
   
   private void highlightUpdate() {
+    // clear all highlighting
+    panel.getHighlighter().removeAllHighlights();
+
+    // now re-apply the marked settings
     for (int line = 0; line < bytecode.size(); line++) {
       BytecodeInfo bc = bytecode.get(line);
       if (bc.mark != 0) {
@@ -322,13 +300,36 @@ System.out.println("highlightSetMark: set line " + line + " to " + bc.mark);
     }
   }
   
-  private void highlightUpdate(int type) {
+  private void highlightCursorPosition(int cursor) {
+    // make sure the cursor is within the range of the actual bytecode
+    BytecodeInfo bc = bytecode.get(0);
+    int start = bc.ixStart;
+    bc = bytecode.get(bytecode.size() - 1);
+    int end = bc.ixEnd;
+    if (cursor < start || cursor > end) {
+      return;
+    }
+    
+    // find the current line that is cursor-highlighted
+    int newpos = -1;
     for (int line = 0; line < bytecode.size(); line++) {
-      BytecodeInfo bc = bytecode.get(line);
-      if ((bc.mark & type) != 0) {
-        highlightBytecodeLine(line, type);
+      bc = bytecode.get(line);
+      if (cursor >= bc.ixStart && cursor <= bc.ixEnd) {
+        // mark the selected line
+        bc.mark = bc.mark | HIGHLIGHT_CURSOR;
+        bytecode.set(line, bc);
+        newpos = bc.ixStart;
+        //System.out.println("highlightCursorPosition: selected line " + line + ", offset = "
+        //    + bc.ixStart + " - " + bc.ixEnd);
+      } else {
+        // remove mark from all other lines
+        bc.mark = bc.mark & ~HIGHLIGHT_CURSOR;
+        bytecode.set(line, bc);
       }
     }
+
+    // update the highlighting
+    highlightUpdate();
   }
   
   private void highlightBytecodeLine(int line, int type) {
@@ -354,7 +355,7 @@ System.out.println("highlightSetMark: set line " + line + " to " + bc.mark);
     }
     
     // highlight the the branch line
-    highlightBytecode(bc.ixStart, bc.ixEnd, color);
+    highlightBytecode(bc.ixStart, bc.ixEnd + 1, color);
     
     // add entry to mapping of highlighted lines
     bytecode.set(line, bc);
@@ -407,7 +408,7 @@ System.out.println("highlightSetMark: set line " + line + " to " + bc.mark);
         }
       }
 
-      // get current length of text genereated for the starting offset
+      // get current length of text generated for the starting offset
       int startix = panel.getText().length();
 
       // add the line to the text display
@@ -421,7 +422,7 @@ System.out.println("highlightSetMark: set line " + line + " to " + bc.mark);
       bc.comment  = comment;
       bc.isbranch = isBranchOpcode(opcode);
       bc.ixStart  = startix;
-      bc.ixEnd    = panel.getText().length();
+      bc.ixEnd    = panel.getText().length() - 1;
       bc.mark     = 0;
       bytecode.add(bc);
     }
@@ -451,7 +452,7 @@ System.out.println("highlightSetMark: set line " + line + " to " + bc.mark);
     return -1;
   }
   
-  public class BytecodeMouseListener extends MouseAdapter {
+  private class BytecodeMouseListener extends MouseAdapter {
 
     @Override
     public void mouseClicked (MouseEvent evt) {
@@ -459,23 +460,58 @@ System.out.println("highlightSetMark: set line " + line + " to " + bc.mark);
 
       // set caret to the mouse location and get the caret position (char offset within text)
       panel.setCaretPosition(panel.viewToModel(evt.getPoint()));
-      int caretpos = panel.getCaretPosition();
+      int curpos = panel.getCaretPosition();
       
       // now determine line number and offset within the line for the caret
       int line = 0;
       int offset = 0;
-      for (int ix = 0; ix < caretpos; ix++) {
+      for (int ix = 0; ix < curpos; ix++) {
         if (contents.charAt(ix) == '\n' || contents.charAt(ix) == '\r') {
           ++line;
           offset = ix;
         }
       }
-      int curoffset = caretpos - offset - 1;
-      System.out.println("caret = " + caretpos + ", line " + line + ", offset " + curoffset);
+      int curoffset = curpos - offset - 1;
+      //System.out.println("cursor = " + curpos + ", line " + line + ", offset " + curoffset);
       
       // highlight the current line selection
-      showCurrentLine(line);
+      highlightCursorPosition(curpos);
     }
+  }
+  
+  private class BytecodeKeyListener implements KeyListener {
+
+    @Override
+    public void keyPressed(KeyEvent ke) {
+      // when the key is initially pressed
+      //System.out.println("keyPressed: " + ke.getKeyCode());
+    }
+
+    @Override
+    public void keyTyped(KeyEvent ke) {
+      // follows keyPressed and preceeds keyReleased when entered key is character type
+      //System.out.println("keyTyped: " + ke.getKeyCode() + " = '" + ke.getKeyChar() + "'");
+    }
+
+    @Override
+    public void keyReleased(KeyEvent ke) {
+      // when the key has been released
+      //System.out.println("keyReleased: " + ke.getKeyCode());
+      int curpos = panel.getCaretPosition();
+      switch (ke.getKeyCode()) {
+        case KeyEvent.VK_UP:    // UP ARROW key
+          //System.out.println("UP key: at cursor " + curpos);
+          highlightCursorPosition(curpos);
+          break;
+        case KeyEvent.VK_DOWN:  // DOWN ARROW key
+          //System.out.println("DN key: at cursor " + curpos);
+          highlightCursorPosition(curpos);
+          break;
+        default:
+          break;
+      }
+    }
+
   }
   
 }
