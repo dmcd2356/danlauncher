@@ -137,12 +137,12 @@ public class DatabaseTable {
         dbTableMouseClicked(evt);
       }
     });
-    dbTable.addKeyListener(new java.awt.event.KeyAdapter() {
-      @Override
-      public void keyPressed(java.awt.event.KeyEvent evt) {
-        dbTableKeyPressed(evt);
-      }
-    });
+//    dbTable.addKeyListener(new java.awt.event.KeyAdapter() {
+//      @Override
+//      public void keyPressed(java.awt.event.KeyEvent evt) {
+//        dbTableKeyPressed(evt);
+//      }
+//    });
         
     // align columns in database table to center
     DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
@@ -387,26 +387,7 @@ public class DatabaseTable {
   private void dbTableKeyPressed(java.awt.event.KeyEvent evt) {                                          
     switch (evt.getKeyCode()) {
       case KeyEvent.VK_ENTER: // ENTER key
-//        if (rowSelection >= 0) {
-//          selectFileToDownload (rowSelection);
-//        }
-        // the ENTER key will by default advance the row selection.
-        // let's restore it, since we are using it to download files instead.
-        // TODO: disabled for now. the row selection is reset correctly,
-        //       but the display still highlights the next line.
-        //       If we enable this line, it causes the up/down arrows
-        //       to behave funny because the hilighted row does not match
-        //       the value of cloudRowSelection anymore.
-//        dbTable.setRowSelectionInterval(cloudRowSelection, cloudRowSelection);
-          break;
-/*
-      // These didn't work correctly - they caused the cursor selection to
-      // move rather randomly. These are now handled using KeyBindings for the table.
-      case KeyEvent.VK_UP:    // UP ARROW key
-      case KeyEvent.VK_DOWN:  // DOWN ARROW key
         break;
-*/
-                
       default:
         break;
     }

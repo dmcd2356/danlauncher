@@ -881,7 +881,7 @@ public class GuiControls {
 
     // create the panel and apply constraints
     JPanel newpanel = new JPanel();
-    if (title != null) {
+    if (!title.isEmpty()) {
       newpanel.setBorder(BorderFactory.createTitledBorder(title));
     }
 

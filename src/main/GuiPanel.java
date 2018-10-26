@@ -39,6 +39,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import javax.swing.BorderFactory;
@@ -69,11 +71,20 @@ public final class GuiPanel {
   // default location for jre for running instrumented project
   String JAVA_HOME = "/usr/lib/jvm/java-8-openjdk-amd64";
 
+  // project configuration file name (kept in project path)
+  private static final String CONFIG_FILE = ".danlauncher.cfg";
+  
   // location of danalyzer program
   private static final String DSEPATH = "/home/dan/Projects/isstac/dse/";
   
   // location of this program
   private static final String HOMEPATH = System.getProperty("user.dir");
+
+  private enum ProjectProperties { 
+    RUN_ARGUMENTS,
+    APP_SERVER_PORT,
+    IS_SERVER_TYPE
+  }
   
   public enum GraphHighlight { NONE, STATUS, TIME, INSTRUCTION, ITERATION, THREAD }
 
@@ -84,6 +95,7 @@ public final class GuiPanel {
   
   private static final GuiControls     mainFrame = new GuiControls();
   private static PropertiesFile  props;
+  private static PropertiesFile  project_props;
   private static JTabbedPane     tabPanel;
   private static JFileChooser    fileSelector;
   private static JComboBox       mainClassCombo;
@@ -104,10 +116,11 @@ public final class GuiPanel {
   private static int             tabIndex = 0;
   private static ThreadLauncher  threadLauncher;
   private static DatabaseTable   dbtable;
+  private static String          inputAttempt = "";
   private static DefaultListModel solutionList;
-  
+  private static HashMap<String, Long> solutionMap = new HashMap<>();
   private static Visitor         makeConnection;
-  private static String          serverPort = "";
+//  private static String          serverPort = "";
   private static String          clientPort = "";
   private static NetworkServer   udpThread;
   private static NetworkListener networkListener;
@@ -156,10 +169,10 @@ public final class GuiPanel {
       socket.connect(InetAddress.getByName("8.8.8.8"), 10002);
       ipaddr = socket.getLocalAddress().getHostAddress();
     } catch (SocketException | UnknownHostException ex) {  }
-    GuiPanel.serverPort = "Server port (" + (tcp ? "TCP" : "UDP") + ")  -  " + ipaddr + ":" + port;
+//    GuiPanel.serverPort = "Server port (" + (tcp ? "TCP" : "UDP") + ")  -  " + ipaddr + ":" + port;
     
-    // check for a properties file and init default values if not found
-    props = new PropertiesFile("danlauncher");
+    // check for the global danlauncher properties file and init default values if not found
+    props = new PropertiesFile(".danlauncher");
     String projectPath = props.getPropertiesItem("PROJECT_PATH", HOMEPATH);
     String maxLogLength = props.getPropertiesItem("MAX_LOG_LENGTH", "500000");
     
@@ -216,19 +229,30 @@ public final class GuiPanel {
 
     panel = null; // this creates the entries in the main frame
     mainFrame.makePanel      (panel, "PNL_MESSAGES" , "Status"    , LEFT, true);
-    mainFrame.makePanel      (panel, "PNL_CONTROLS" , ""          , LEFT, false);
-    mainFrame.makePanel      (panel, "PNL_SOLUTIONS", "Solutions" , LEFT, true, 300, 275);
+    mainFrame.makePanel      (panel, "PNL_CONTROLS" , ""          , LEFT, true);
+//    mainFrame.makePanel      (panel, "PNL_SOLUTIONS", "Solutions" , LEFT, true, 300, 275);
     mainFrame.makeTabbedPanel(panel, "PNL_TABBED"   , ""          , LEFT, true);
 
     panel = "PNL_MESSAGES";
     mainFrame.makeTextField (panel, "TXT_MESSAGES"  , ""          , LEFT, true, "", 150, false);
 
     panel = "PNL_CONTROLS";
-    mainFrame.makePanel     (panel, "PNL_ACTION"    , "Controls"  , LEFT, false);
-    mainFrame.makePanel     (panel, "PNL_BYTECODE"  , "Bytecode"  , LEFT, true);
+    mainFrame.makePanel     (panel, "PNL_SELECTS"   , ""          , LEFT, false);
+    mainFrame.makePanel     (panel, "PNL_ACTION"    , "Controls"  , LEFT, false, 300, 250);
+    mainFrame.makePanel     (panel, "PNL_SOLUTIONS" , "Solutions" , LEFT, true, 300, 250);
+
+    panel = "PNL_SELECTS";
+    mainFrame.makePanel     (panel, "PNL_FILE_SEL"  , "File Select", LEFT, true);
+    mainFrame.makePanel     (panel, "PNL_BYTECODE"  , "Bytecode"   , LEFT, true);
 
     panel = "PNL_SOLUTIONS";
     mainFrame.makeScrollList(panel, "LIST_SOLUTIONS", "" , solutionList);
+
+    panel = "PNL_FILE_SEL";
+    mainFrame.makeButton    (panel, "BTN_LOADFILE" , "Select Jar"  , LEFT, false);
+    mainFrame.makeLabel     (panel, "LBL_JARFILE"  , "           " , LEFT, true);
+    mainFrame.makeCombobox  (panel, "COMBO_MAINCLS", "Main Class"  , LEFT, true);
+    mainFrame.makeCheckbox  (panel, "CBOX_POST"    , "Input using Post (server application)", LEFT, true, 0);
 
     panel = "PNL_BYTECODE";
     mainFrame.makeCombobox  (panel, "COMBO_CLASS"  , "Class"       , LEFT, true);
@@ -236,24 +260,15 @@ public final class GuiPanel {
     mainFrame.makeButton    (panel, "BTN_BYTECODE" , "Get Bytecode", LEFT, true);
 
     panel = "PNL_ACTION";
-    mainFrame.makeButton    (panel, "BTN_LOADFILE" , "Select Jar"  , LEFT, false);
-    mainFrame.makeLabel     (panel, "LBL_JARFILE"  , "           " , LEFT, true);
-    
-    mainFrame.makeCombobox  (panel, "COMBO_MAINCLS", "Main Class"  , LEFT, true);
-    mainFrame.makeLineGap   (panel);
     mainFrame.makeButton    (panel, "BTN_RUNTEST"  , "Run code"    , LEFT, false);
     mainFrame.makeTextField (panel, "TXT_ARGLIST"  , ""            , LEFT, true, "", 40, true);
-    
+    mainFrame.makeButton    (panel, "BTN_STOPTEST" , "STOP"        , LEFT, true);
     mainFrame.makeButton    (panel, "BTN_SEND"     , "Post Data"   , LEFT, false);
     mainFrame.makeTextField (panel, "TXT_INPUT"    , ""            , LEFT, true, "", 40, true);
-    
     mainFrame.makeTextField (panel, "TXT_PORT"     , "Server Port" , LEFT, true, "8080", 8, true);
-    
-    mainFrame.makeButton    (panel, "BTN_SOL_STRT" , "Run Solver"  , LEFT, false);
-    mainFrame.makeButton    (panel, "BTN_STOP"     , "STOP"        , LEFT, true);
-
-    mainFrame.makeButton    (panel, "BTN_LOG_CLEAR", "Clear Log"   , LEFT, false);
-    mainFrame.makeButton    (panel, "BTN_DB_CLEAR" , "Clear DB"    , LEFT, true);
+    mainFrame.makeButton    (panel, "BTN_SOLVER"   , "Run Solver"  , LEFT, true);
+    mainFrame.makeButton    (panel, "BTN_DB_CLEAR" , "Clear DB"    , LEFT, false);
+    mainFrame.makeButton    (panel, "BTN_LOG_CLEAR", "Clear Log"   , LEFT, true);
 
     // initially disable the class/method select and generating bytecode
     mainClassCombo = mainFrame.getCombobox ("COMBO_MAINCLS");
@@ -262,20 +277,21 @@ public final class GuiPanel {
     mainClassCombo.setEnabled(false);
     classCombo.setEnabled(false);
     methodCombo.setEnabled(false);
+    mainFrame.getCheckbox("CBOX_POST").setEnabled(false);
     mainFrame.getLabel("COMBO_MAINCLS").setEnabled(false);
     mainFrame.getLabel("COMBO_CLASS").setEnabled(false);
     mainFrame.getLabel("COMBO_METHOD").setEnabled(false);
     mainFrame.getButton("BTN_BYTECODE").setEnabled(false);
     mainFrame.getButton("BTN_RUNTEST").setEnabled(false);
-    mainFrame.getButton("BTN_SEND").setEnabled(false);
-    mainFrame.getTextField("TXT_PORT").setEnabled(false);
-    mainFrame.getLabel("TXT_PORT").setEnabled(false);
-    mainFrame.getButton("BTN_SOL_STRT").setEnabled(false);
-    mainFrame.getButton("BTN_STOP").setEnabled(false);
+    mainFrame.getButton("BTN_SOLVER").setEnabled(false);
+    mainFrame.getButton("BTN_STOPTEST").setEnabled(false);
     mainFrame.getButton("BTN_LOG_CLEAR").setEnabled(false);
     mainFrame.getButton("BTN_DB_CLEAR").setEnabled(false);
     mainFrame.getTextField("TXT_ARGLIST").setEnabled(false);
     mainFrame.getTextField("TXT_INPUT").setEnabled(false);
+    mainFrame.getButton("BTN_SEND").setEnabled(false);
+    mainFrame.getTextField("TXT_PORT").setEnabled(false);
+    mainFrame.getLabel("TXT_PORT").setEnabled(false);
 
     // save reference to tabbed panel
     tabPanel = mainFrame.getTabbedPanel("PNL_TABBED");
@@ -321,21 +337,51 @@ public final class GuiPanel {
         mainClassCombo.setEnabled(false);
         classCombo.setEnabled(true);
         methodCombo.setEnabled(true);
+        mainFrame.getCheckbox("CBOX_POST").setEnabled(true);
         mainFrame.getLabel("COMBO_MAINCLS").setEnabled(true);
         mainFrame.getLabel("COMBO_CLASS").setEnabled(true);
         mainFrame.getLabel("COMBO_METHOD").setEnabled(true);
         mainFrame.getButton("BTN_BYTECODE").setEnabled(true);
         mainFrame.getButton("BTN_RUNTEST").setEnabled(true);
-        mainFrame.getButton("BTN_SEND").setEnabled(true);
-        mainFrame.getTextField("TXT_PORT").setEnabled(true);
-        mainFrame.getLabel("TXT_PORT").setEnabled(true);
-        mainFrame.getButton("BTN_SOL_STRT").setEnabled(true);
+        mainFrame.getButton("BTN_SOLVER").setEnabled(true);
         mainFrame.getButton("BTN_LOG_CLEAR").setEnabled(true);
         mainFrame.getButton("BTN_DB_CLEAR").setEnabled(true);
         mainFrame.getTextField("TXT_ARGLIST").setEnabled(true);
         mainFrame.getTextField("TXT_INPUT").setEnabled(true);
+
+        if (mainFrame.getCheckbox("CBOX_POST").isSelected()) {
+          mainFrame.getButton("BTN_SEND").setEnabled(true);
+          mainFrame.getTextField("TXT_PORT").setEnabled(true);
+          mainFrame.getLabel("TXT_PORT").setEnabled(true);
+        }
       }
     });
+    // updateConfigFile()
+    (GuiPanel.mainFrame.getCheckbox("CBOX_POST")).addActionListener(new ActionListener() {
+      @Override
+      public void actionPerformed(java.awt.event.ActionEvent evt) {
+        // enable/disable "send to port" controls accordingly
+        boolean isServerType = mainFrame.getCheckbox("CBOX_POST").isSelected();
+        mainFrame.getButton("BTN_SEND").setEnabled(isServerType);
+        mainFrame.getTextField("TXT_PORT").setEnabled(isServerType);
+        mainFrame.getLabel("TXT_PORT").setEnabled(isServerType);
+
+        updateProjectProperty(ProjectProperties.IS_SERVER_TYPE);
+      }
+    });
+    (GuiPanel.mainFrame.getTextField("TXT_ARGLIST")).addActionListener(new ActionListener() {
+      @Override
+      public void actionPerformed(java.awt.event.ActionEvent evt) {
+        updateProjectProperty(ProjectProperties.RUN_ARGUMENTS);
+      }
+    });
+    (GuiPanel.mainFrame.getTextField("TXT_ARGLIST")).addActionListener(new ActionListener() {
+      @Override
+      public void actionPerformed(java.awt.event.ActionEvent evt) {
+        updateProjectProperty(ProjectProperties.APP_SERVER_PORT);
+      }
+    });
+
     (GuiPanel.mainFrame.getButton("BTN_BYTECODE")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
@@ -359,7 +405,7 @@ public final class GuiPanel {
         executePost(targetURL, input);
       }
     });
-    (GuiPanel.mainFrame.getButton("BTN_SOL_STRT")).addActionListener(new ActionListener() {
+    (GuiPanel.mainFrame.getButton("BTN_SOLVER")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         dansolver.Dansolver.main(null);
@@ -377,7 +423,7 @@ public final class GuiPanel {
         debugLogger.clear();
       }
     });
-    (GuiPanel.mainFrame.getButton("BTN_STOP")).addActionListener(new ActionListener() {
+    (GuiPanel.mainFrame.getButton("BTN_STOPTEST")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         // stop the running process
@@ -489,6 +535,32 @@ public final class GuiPanel {
       return false;
     }
     return GuiPanel.tabPanel.getSelectedIndex() == tabSelect.get(select);
+  }
+
+  public static void highlightBranch(int start, boolean branch) {
+    bytecodeLogger.highlightBranch(start, branch);
+  }
+  
+  public static void resetLoggedTime() {
+    // this adds log entry to file for demarcation
+    udpThread.resetInput();
+    
+    // this resets and starts the timer
+    GuiPanel.startElapsedTime();
+  }
+  
+  public static void resetCapturedInput() {
+    // clear the packet buffer and statistics
+    udpThread.clear();
+
+    // clear the graphics panel
+    CallGraph.clearGraphAndMethodList();
+    if (isTabSelection(PanelTabs.GRAPH)) {
+      CallGraph.updateCallGraph(GuiPanel.GraphHighlight.NONE, false);
+    }
+          
+    // reset the elapsed time
+//    GuiPanel.resetElapsedTime();
   }
 
   /**
@@ -654,85 +726,15 @@ public final class GuiPanel {
     }
   }
   
-//  private static void setHighlightMode(GraphHighlight mode) {
-//    JRadioButton threadSelBtn = GuiPanel.mainFrame.getRadiobutton("RB_THREAD");
-//    JRadioButton timeSelBtn   = GuiPanel.mainFrame.getRadiobutton("RB_ELAPSED");
-//    JRadioButton instrSelBtn  = GuiPanel.mainFrame.getRadiobutton("RB_INSTRUCT");
-//    JRadioButton iterSelBtn   = GuiPanel.mainFrame.getRadiobutton("RB_ITER");
-//    JRadioButton statSelBtn   = GuiPanel.mainFrame.getRadiobutton("RB_STATUS");
-//    JRadioButton noneSelBtn   = GuiPanel.mainFrame.getRadiobutton("RB_NONE");
-//
-//    // turn on the selected mode and turn off all others
-//    switch(mode) {
-//      case THREAD:
-//        threadSelBtn.setSelected(true);
-//        timeSelBtn.setSelected(false);
-//        instrSelBtn.setSelected(false);
-//        iterSelBtn.setSelected(false);
-//        statSelBtn.setSelected(false);
-//        noneSelBtn.setSelected(false);
-//
-//        // send the thread selection to the CallGraph
-//        JLabel label = mainFrame.getLabel("TXT_TH_SEL");
-//        int select = Integer.parseInt(label.getText().trim());
-//        CallGraph.setThreadSelection(select);
-//        break;
-//      case TIME:
-//        threadSelBtn.setSelected(false);
-//        timeSelBtn.setSelected(true);
-//        instrSelBtn.setSelected(false);
-//        iterSelBtn.setSelected(false);
-//        statSelBtn.setSelected(false);
-//        noneSelBtn.setSelected(false);
-//        break;
-//      case INSTRUCTION:
-//        threadSelBtn.setSelected(false);
-//        timeSelBtn.setSelected(false);
-//        instrSelBtn.setSelected(true);
-//        iterSelBtn.setSelected(false);
-//        statSelBtn.setSelected(false);
-//        noneSelBtn.setSelected(false);
-//        break;
-//      case ITERATION:
-//        threadSelBtn.setSelected(false);
-//        timeSelBtn.setSelected(false);
-//        instrSelBtn.setSelected(false);
-//        iterSelBtn.setSelected(true);
-//        statSelBtn.setSelected(false);
-//        noneSelBtn.setSelected(false);
-//        break;
-//      case STATUS:
-//        threadSelBtn.setSelected(false);
-//        timeSelBtn.setSelected(false);
-//        instrSelBtn.setSelected(false);
-//        iterSelBtn.setSelected(false);
-//        statSelBtn.setSelected(true);
-//        noneSelBtn.setSelected(false);
-//        break;
-//      case NONE:
-//        threadSelBtn.setSelected(false);
-//        timeSelBtn.setSelected(false);
-//        instrSelBtn.setSelected(false);
-//        iterSelBtn.setSelected(false);
-//        statSelBtn.setSelected(false);
-//        noneSelBtn.setSelected(true);
-//      default:
-//        break;
-//    }
-//
-//    // set the mode flag & update graph
-//    graphMode = mode;
-//    if (isTabSelection(PanelTabs.GRAPH)) {
-//      CallGraph.updateCallGraph(graphMode, false);
-//    }
-//  }
-  
   private static void printStatusClear() {
     mainFrame.getTextField("TXT_MESSAGES").setText("                   ");
   }
   
   private static void printStatusMessage(String message) {
     mainFrame.getTextField("TXT_MESSAGES").setText(message);
+      
+    // echo status to command output window
+    printCommandError(message);
   }
   
   private static void printStatusError(String message) {
@@ -754,6 +756,48 @@ public final class GuiPanel {
     commandLogger.printLine(message);
   }
   
+  private static void initProjectProperties(ProjectProperties tag) {
+    String setting = getProjectControl(tag);
+    String val = project_props.getPropertiesItem(tag.toString(), setting);
+    if (!val.equals(setting)) {
+      setProjectControl(tag, val);
+    }
+  }
+  
+  private static void updateProjectProperty(ProjectProperties tag) {
+    project_props.setPropertiesItem(tag.toString(), getProjectControl(tag));
+  }
+  
+  private static String getProjectControl(ProjectProperties tag) {
+    switch(tag) {
+      case RUN_ARGUMENTS:
+        return mainFrame.getTextField("TXT_ARGLIST").getText();
+      case APP_SERVER_PORT:
+        return mainFrame.getTextField("TXT_PORT").getText();
+      case IS_SERVER_TYPE:
+        return "" + mainFrame.getCheckbox("CBOX_POST").isSelected();
+      default:
+        break;
+    }
+    return "";
+  }
+  
+  private static void setProjectControl(ProjectProperties tag, String value) {
+    switch(tag) {
+      case RUN_ARGUMENTS:
+        mainFrame.getTextField("TXT_ARGLIST").setText(value);
+        break;
+      case APP_SERVER_PORT:
+        mainFrame.getTextField("TXT_PORT").setText(value);
+        break;
+      case IS_SERVER_TYPE:
+        mainFrame.getCheckbox("CBOX_POST").setSelected(value.equals("true"));
+        break;
+      default:
+        break;
+    }
+  }
+  
   private static boolean fileCheck(String fname) {
     if (new File(fname).isFile()) {
       return true;
@@ -763,8 +807,33 @@ public final class GuiPanel {
     return false;
   }
   
+  private static void addSolution(String solution, long cost) {
+    if(solutionMap.containsKey(solution)) {
+      solutionMap.replace(solution, cost);
+      System.out.println("Replaced solution " + solution + " with cost: " + cost);
+
+      // let's clear the field and redo them all
+      solutionList.clear();
+      Iterator it = solutionMap.entrySet().iterator();
+      while (it.hasNext()) {
+        Map.Entry pair = (Map.Entry)it.next();
+        String coststr = cost < 0 ? "---" : "" + pair.getValue();
+        solutionList.addElement(pair.getKey() + "    " + coststr);
+        //it.remove(); // avoids a ConcurrentModificationException
+      }
+    } else {
+      solutionMap.put(solution, cost);
+      System.out.println("Added solution " + solution + " at cost: " + cost);
+
+      // can simply add the entry
+      String coststr = cost < 0 ? "---" : "" + cost;
+      solutionList.addElement(solution + "    " + coststr);
+    }
+  }
+  
   private static void loadJarFile() {
     printStatusClear();
+
     FileNameExtensionFilter filter = new FileNameExtensionFilter("Jar Files", "jar");
     GuiPanel.fileSelector.setFileFilter(filter);
     //GuiPanel.fileSelector.setSelectedFile(new File("TestMain.jar"));
@@ -823,62 +892,25 @@ public final class GuiPanel {
         
         // set the location of the debug log file to this directory
         udpThread.setBufferFile(projectPathName + "/debug.log");
+        
+        // init project config file to current settings
+        project_props = new PropertiesFile(projectPathName + "/.danlauncher");
+        initProjectProperties(ProjectProperties.RUN_ARGUMENTS);
+        initProjectProperties(ProjectProperties.APP_SERVER_PORT);
+        initProjectProperties(ProjectProperties.IS_SERVER_TYPE);
+        
+        // reset the soultion list
+        solutionMap.clear();
+        solutionList.clear();
       } else {
         printStatusError("ERROR: instrumenting file: " + projectName);
       }
     }
   }
-  
-  public static void generateBytecode(String classSelect, String methodSelect) {
+
+  private void runTest(String arglist) {
     printStatusClear();
 
-    // check if bytecode for this method already displayed
-    if (bytecodeLogger.isMethodDisplayed(classSelect, methodSelect)) {
-      printStatusMessage("Bytecode already loaded");
-
-      // clear any highlighting
-      bytecodeLogger.highlightClear();
-      
-      // swich tab to show bytecode
-      setTabSelect(PanelTabs.BYTECODE);
-      return;
-    }
-    
-    // first we have to pull off the class files from the jar file
-    File jarfile = new File(projectPathName + projectName);
-    if (!jarfile.isFile()) {
-      printStatusError("ERROR: Jar file not found: " + jarfile);
-      return;
-    }
-    try {
-      // extract the selected class file
-      extractClassFile(jarfile, classSelect);
-    } catch (IOException ex) {
-      printStatusError("ERROR: " + ex);
-      return;
-    }
-
-    // decompile the selected class file
-    String[] command = { "javap", "-p", "-c", "-s", "-l", classSelect + ".class" };
-    CommandLauncher commandLauncher = new CommandLauncher(commandLogger);
-    int retcode = commandLauncher.start(command, projectPathName);
-    if (retcode == 0) {
-      String content = commandLauncher.getResponse();
-      bytecodeLogger.parseJavap(classSelect, methodSelect, content);
-      printStatusMessage("Successfully generated bytecode");
-
-      // swich tab to show bytecode
-      setTabSelect(PanelTabs.BYTECODE);
-    } else {
-      printStatusError("ERROR: running javap on file: " + classSelect + ".class");
-    }
-  }
-
-  public static void highlightBranch(int start, boolean branch) {
-    bytecodeLogger.highlightBranch(start, branch);
-  }
-  
-  private void runTest(String arglist) {
     String instrJarFile = projectName.substring(0, projectName.indexOf(".")) + "-dan-ed.jar";
     
     // verify all the required files exist
@@ -926,6 +958,13 @@ public final class GuiPanel {
               + ":" + mongolib
               + ":" + localpath;
 
+    if (!mainFrame.getCheckbox("CBOX_POST").isSelected()) {
+      inputAttempt = arglist;
+      elapsedStart = System.currentTimeMillis();
+    }
+
+    printStatusMessage("Run command started...");
+    
     // run the instrumented jar file
     String[] command = { "java", options, bootlpath, bootcpath, agentpath, "-cp", classpath, mainclass, arglist };
 
@@ -933,14 +972,65 @@ public final class GuiPanel {
     threadLauncher.launch(command, projectPathName, "run_" + projectName, null);
 
     // allow user to terminate the test
-    mainFrame.getButton("BTN_STOP").setEnabled(true);
+    mainFrame.getButton("BTN_STOPTEST").setEnabled(true);
+  }
+
+  public static void generateBytecode(String classSelect, String methodSelect) {
+    printStatusClear();
+
+    // check if bytecode for this method already displayed
+    if (bytecodeLogger.isMethodDisplayed(classSelect, methodSelect)) {
+      printStatusMessage("Bytecode already loaded");
+
+      // clear any highlighting
+      bytecodeLogger.highlightClear();
+      
+      // swich tab to show bytecode
+      setTabSelect(PanelTabs.BYTECODE);
+      return;
+    }
+    
+    // first we have to pull off the class files from the jar file
+    File jarfile = new File(projectPathName + projectName);
+    if (!jarfile.isFile()) {
+      printStatusError("ERROR: Jar file not found: " + jarfile);
+      return;
+    }
+    try {
+      // extract the selected class file
+      extractClassFile(jarfile, classSelect);
+    } catch (IOException ex) {
+      printStatusError("ERROR: " + ex);
+      return;
+    }
+
+    // decompile the selected class file
+    String[] command = { "javap", "-p", "-c", "-s", "-l", classSelect + ".class" };
+    CommandLauncher commandLauncher = new CommandLauncher(commandLogger);
+    int retcode = commandLauncher.start(command, projectPathName);
+    if (retcode == 0) {
+      String content = commandLauncher.getResponse();
+      bytecodeLogger.parseJavap(classSelect, methodSelect, content);
+      printStatusMessage("Successfully generated bytecode");
+
+      // swich tab to show bytecode
+      setTabSelect(PanelTabs.BYTECODE);
+    } else {
+      printStatusError("ERROR: running javap on file: " + classSelect + ".class");
+    }
   }
 
   private static void executePost(String targetURL, String urlParameters) {
+    printStatusMessage("Posting message to: " + targetURL);
+    printCommandMessage("Message contents: " + urlParameters);
+
     HttpURLConnection connection = null;
     
     // get starting time
-    long elapsedStart = System.currentTimeMillis();
+    if (mainFrame.getCheckbox("CBOX_POST").isSelected()) {
+      inputAttempt = urlParameters;
+      elapsedStart = System.currentTimeMillis();
+    }
 
     try {
       // Create connection
@@ -969,21 +1059,16 @@ public final class GuiPanel {
       }
       rd.close();
       // display response.toString()
-      printCommandMessage("RESPONSE: " + response.toString());
-
-      // TODO: this is not really the elapsed time - we need to read from the debug output to
-      // determine when the terminating condition has been reached.
-      long elapsed = System.currentTimeMillis() - elapsedStart;
+      printStatusMessage("Post successful");
+      printCommandMessage("Post RESPONSE: " + response.toString());
 
       // add input value to solutions tried
-      String entry = urlParameters + "   " + elapsed;
-      if (!GuiPanel.solutionList.contains(entry)) {
-        System.out.println("Added symbolic entry " + solutionList.size() + ": " + entry);
-        GuiPanel.solutionList.addElement(entry);
-//        GuiPanel.symbList.setSelectedIndex(solutionList.size()-1); // select the new (last) entry
-      }
+      // TODO: this is not really the elapsed time - we need to read from the debug output to
+      // determine when the terminating condition has been reached.
+      addSolution(inputAttempt, System.currentTimeMillis() - elapsedStart);
     } catch (IOException ex) {
       // display error
+      printStatusMessage("Post failure");
       printCommandError(ex.getMessage());
     } finally {
       if (connection != null) {
@@ -1053,7 +1138,7 @@ public final class GuiPanel {
     printStatusError("ERROR: '" + className + "' not found in " + jarfile.getAbsoluteFile());
   }
   
-  public static void readSymbolicList() {
+  private static void readSymbolicList() {
     // initialize replacement config info
     String content = "#! DANALYZER SYMBOLIC EXPRESSION LIST" + NEWLINE;
     content += "# DO_NOT_CHANGE" + NEWLINE;
@@ -1145,28 +1230,6 @@ public final class GuiPanel {
     }
   }
 
-  public static void resetLoggedTime() {
-    // this adds log entry to file for demarcation
-    udpThread.resetInput();
-    
-    // this resets and starts the timer
-    GuiPanel.startElapsedTime();
-  }
-  
-  public static void resetCapturedInput() {
-    // clear the packet buffer and statistics
-    udpThread.clear();
-
-    // clear the graphics panel
-    CallGraph.clearGraphAndMethodList();
-    if (isTabSelection(PanelTabs.GRAPH)) {
-      CallGraph.updateCallGraph(GuiPanel.GraphHighlight.NONE, false);
-    }
-          
-    // reset the elapsed time
-//    GuiPanel.resetElapsedTime();
-  }
-
   /**
    * This performs the actions to take upon completion of the thread command.
    */
@@ -1196,6 +1259,10 @@ public final class GuiPanel {
       printCommandMessage("jobfinished - job " + threadInfo.jobid + ": status = " + threadInfo.exitcode);
       switch (threadInfo.exitcode) {
         case 0:
+          if (!mainFrame.getCheckbox("CBOX_POST").isSelected()) {
+            // TODO: need to get the actual cost here
+            addSolution(inputAttempt, System.currentTimeMillis() - elapsedStart);
+          }
           break;
         case 137:
           printCommandMessage("User SIGKILL complete.");
@@ -1209,7 +1276,7 @@ public final class GuiPanel {
       }
       
       // disable stop key
-      mainFrame.getButton("BTN_STOP").setEnabled(false);
+      mainFrame.getButton("BTN_STOPTEST").setEnabled(false);
     }
   }
         

@@ -25,7 +25,7 @@ public class PropertiesFile {
 
   PropertiesFile (String name) {
 
-    PROPERTIES_PATH = "." + name + "/";
+    PROPERTIES_PATH = name + "/";
     props = null;
     FileInputStream in = null;
     File propfile = new File(PROPERTIES_PATH + PROPERTIES_FILE);
@@ -79,8 +79,9 @@ public class PropertiesFile {
 
     String value = props.getProperty(tag);
     if (value == null || value.isEmpty()) {
-      System.err.println("site.properties <" + tag + "> : not found, setting to " + dflt);
-      props.setProperty(tag, dflt);
+      setPropertiesItem (tag, dflt);
+//      System.err.println("site.properties <" + tag + "> : not found, setting to " + dflt);
+//      props.setProperty(tag, dflt);
       return dflt;
     }
 
