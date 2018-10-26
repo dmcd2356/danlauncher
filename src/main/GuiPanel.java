@@ -410,10 +410,6 @@ public final class GuiPanel {
     addPanelToTab(PanelTabs.LOG     , debugLogger.getTextPane());
     addPanelToTab(PanelTabs.GRAPH   , new JPanel());
 
-    // add a mouse listener for the bytecode viewer
-    JTextPane bcTextPanel = bytecodeLogger.getTextPane();
-    bcTextPanel.addMouseListener(new BytecodeMouseListener());
-    
     // create the message logging for the text panels
     commandLogger  = createTextLogger(PanelTabs.COMMAND , null);
     paramLogger    = createTextLogger(PanelTabs.PARAMS  , null);
@@ -425,34 +421,6 @@ public final class GuiPanel {
     dbtable = new DatabaseTable((JTable) getTabPanel(GuiPanel.PanelTabs.DATABASE));
   }
 
-  public class BytecodeMouseListener extends MouseAdapter {
-
-    @Override
-    public void mouseClicked (MouseEvent evt) {
-      JTextPane bcTextPanel = bytecodeLogger.getTextPane();
-      String contents = bcTextPanel.getText();
-
-      // set caret to the mouse location and get the caret position (char offset within text)
-      bcTextPanel.setCaretPosition(bcTextPanel.viewToModel(evt.getPoint()));
-      int caretpos = bcTextPanel.getCaretPosition();
-      
-      // now determine line number and offset within the line for the caret
-      int line = 0;
-      int offset = 0;
-      for (int ix = 0; ix < caretpos; ix++) {
-        if (contents.charAt(ix) == '\n' || contents.charAt(ix) == '\r') {
-          ++line;
-          offset = ix;
-        }
-      }
-      int curoffset = caretpos - offset - 1;
-      System.out.println("caret = " + caretpos + ", line " + line + ", offset " + curoffset);
-      
-      // highlight the current line selection
-      bytecodeLogger.showCurrentLine(line);
-    }
-  }
-  
   private static Component getTabPanel(PanelTabs tabname) {
     if (!tabbedPanels.containsKey(tabname)) {
       System.err.println("ERROR: '" + tabname + "' panel not found in tabs");

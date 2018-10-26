@@ -7,6 +7,8 @@ package bytecode;
 
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.HashMap;
 import javax.swing.JTextPane;
@@ -56,7 +58,10 @@ public class BytecodeLogger {
     // create the text panel and assign it to the logger
     panel = new JTextPane();
     logger = new Logger((Component) panel, name, fontmap);
-  }
+  
+    // add a mouse listener for the bytecode viewer
+    panel.addMouseListener(new BytecodeMouseListener());
+}
   
   public JTextPane getTextPane() {
     return panel;
@@ -444,6 +449,33 @@ System.out.println("highlightSetMark: set line " + line + " to " + bc.mark);
     } catch (NumberFormatException ex) { }
 
     return -1;
+  }
+  
+  public class BytecodeMouseListener extends MouseAdapter {
+
+    @Override
+    public void mouseClicked (MouseEvent evt) {
+      String contents = panel.getText();
+
+      // set caret to the mouse location and get the caret position (char offset within text)
+      panel.setCaretPosition(panel.viewToModel(evt.getPoint()));
+      int caretpos = panel.getCaretPosition();
+      
+      // now determine line number and offset within the line for the caret
+      int line = 0;
+      int offset = 0;
+      for (int ix = 0; ix < caretpos; ix++) {
+        if (contents.charAt(ix) == '\n' || contents.charAt(ix) == '\r') {
+          ++line;
+          offset = ix;
+        }
+      }
+      int curoffset = caretpos - offset - 1;
+      System.out.println("caret = " + caretpos + ", line " + line + ", offset " + curoffset);
+      
+      // highlight the current line selection
+      showCurrentLine(line);
+    }
   }
   
 }
