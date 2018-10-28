@@ -5,6 +5,7 @@
  */
 package callgraph;
 
+import main.LauncherMain;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
@@ -12,7 +13,6 @@ import com.mxgraph.model.mxCell;
 import com.mxgraph.swing.handler.mxGraphHandler;
 import com.mxgraph.swing.mxGraphComponent;
 import com.mxgraph.view.mxGraph;
-import main.GuiPanel;
 import java.awt.Graphics;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -52,7 +52,7 @@ public class CallGraph {
   private static int numNodes;
   private static int numEdges;
   private static int threadSel;
-  private static GuiPanel.GraphHighlight curGraphMode;
+  private static LauncherMain.GraphHighlight curGraphMode;
   private static boolean graphShowAllThreads;
   
   private static Stack<Integer> getStack(int tid) {
@@ -95,7 +95,7 @@ public class CallGraph {
     return ratio;
   }
   
-  private static long getMethodValue(GuiPanel.GraphHighlight gmode, int tid, MethodInfo mthNode) {
+  private static long getMethodValue(LauncherMain.GraphHighlight gmode, int tid, MethodInfo mthNode) {
     switch (gmode) {
       case TIME :
         return mthNode.getDuration(tid);
@@ -109,7 +109,7 @@ public class CallGraph {
     return -1;
   }
 
-  private static void setGraphBlockColors(GuiPanel.GraphHighlight gmode, int tid) {
+  private static void setGraphBlockColors(LauncherMain.GraphHighlight gmode, int tid) {
       // find the min and max limits for those cases where we color based on relative value
       long value;
       long maxValue = 0;
@@ -242,7 +242,7 @@ System.out.println("drawCG: Methods = " + methList.size());
    */
   public static void initCallGraph(JPanel panel) {
     clearGraphAndMethodList();
-    CallGraph.curGraphMode = GuiPanel.GraphHighlight.NONE;
+    CallGraph.curGraphMode = LauncherMain.GraphHighlight.NONE;
     CallGraph.graphShowAllThreads = true;
     CallGraph.rangeStepsize = 20;
     CallGraph.graphPanel = panel;
@@ -253,7 +253,7 @@ System.out.println("drawCG: Methods = " + methList.size());
    */
   public static void clearGraphAndMethodList() {
     clearGraph();
-    CallGraph.curGraphMode = GuiPanel.GraphHighlight.NONE;
+    CallGraph.curGraphMode = LauncherMain.GraphHighlight.NONE;
     CallGraph.graphShowAllThreads = true;
     CallGraph.graphMethList = new ArrayList<>();
   }
@@ -340,7 +340,7 @@ System.out.println("drawCG: Methods = " + methList.size());
    * @param force
    * @return true if graph was updated
    */  
-  public static boolean updateCallGraph(GuiPanel.GraphHighlight gmode, boolean force) {
+  public static boolean updateCallGraph(LauncherMain.GraphHighlight gmode, boolean force) {
     boolean updated = false;
 
     // exit if the graphics panel has not been established
@@ -377,8 +377,8 @@ System.out.println("drawCG: Methods = " + methList.size());
       int tid = ALL_THREADS;
       if (graphShowAllThreads == false) {
         tid = CallGraph.threadSel;
-        if (gmode == GuiPanel.GraphHighlight.THREAD) {
-          gmode = GuiPanel.GraphHighlight.NONE;
+        if (gmode == LauncherMain.GraphHighlight.THREAD) {
+          gmode = LauncherMain.GraphHighlight.NONE;
         }
       }
 

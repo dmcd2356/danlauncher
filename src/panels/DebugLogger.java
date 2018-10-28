@@ -15,7 +15,7 @@ import logging.FontInfo;
 import logging.FontInfo.FontType;
 import logging.FontInfo.TextColor;
 import logging.Logger;
-import main.GuiPanel;
+import main.LauncherMain;
 
 /**
  *
@@ -159,7 +159,7 @@ public class DebugLogger {
       }
       // enable the thread highlighting controls if we have more than 1 thread
       if (threadCount > 1) {
-        GuiPanel.setThreadEnabled(true);
+        LauncherMain.setThreadEnabled(true);
       }
     }
     String typestr = message.substring(0, 6).toUpperCase(); // 6-char message type (may contain space)
@@ -193,13 +193,13 @@ public class DebugLogger {
     if (typestr.trim().equals("START")) {
 //    if (typestr.trim().equals("START") && GuiPanel.mainFrame.getCheckbox("BTN_AUTORESET").isSelected()) {
       System.out.println("RESET PERFORMED...");
-      GuiPanel.resetLoggedTime();
-      GuiPanel.resetCapturedInput();  // this clears the displayed data and stats
+      LauncherMain.resetLoggedTime();
+      LauncherMain.resetCapturedInput();  // this clears the displayed data and stats
 //      logger.clear();            // clear the text panel
     }
-    else if (GuiPanel.isElapsedModeReset() && linecount == 0) {
+    else if (LauncherMain.isElapsedModeReset() && linecount == 0) {
       // else if we detect the start of a new debug session, restart our elapsed timer
-      GuiPanel.resetLoggedTime();
+      LauncherMain.resetLoggedTime();
     }
 
     // send message to the debug display

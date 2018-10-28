@@ -22,7 +22,6 @@ import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-//import java.util.HashMap;
 import javax.swing.AbstractAction;
 import javax.swing.JLabel;
 import javax.swing.JTable;
@@ -32,10 +31,9 @@ import javax.swing.Timer;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
-//import javax.swing.SpinnerDateModel;
 import javax.swing.table.TableCellRenderer;
 import javax.swing.table.TableColumnModel;
-import main.GuiPanel;
+import main.LauncherMain;
 import org.bson.Document;
 import org.bson.conversions.Bson;
 
@@ -363,8 +361,8 @@ public class DatabaseTable {
         int offset = meth.lastIndexOf("/");
         String cls = meth.substring(0, offset);
         meth = meth.substring(offset + 1);
-        GuiPanel.generateBytecode(cls, meth);
-        GuiPanel.highlightBranch(Integer.parseInt(line), branch.equals("true"));
+        LauncherMain.generateBytecode(cls, meth);
+        LauncherMain.highlightBranch(Integer.parseInt(line), branch.equals("true"));
         break;
       case "Solution":
         String solution = (String)dbTable.getValueAt(row, col);
@@ -402,7 +400,7 @@ public class DatabaseTable {
   @Override
     public void actionPerformed(ActionEvent e) {
       // exit if database panel is not selected
-      if (!GuiPanel.isTabSelection(GuiPanel.PanelTabs.DATABASE)) {
+      if (!LauncherMain.isTabSelection_GRAPH()) {
         return;
       }
 

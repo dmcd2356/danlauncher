@@ -3,7 +3,7 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package command;
+package util;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -45,12 +45,13 @@ public class RunnerThread extends Thread {
     @Override
     public void run() {
             try {
-            System.out.println("RunnerThread command: " + String.join(" ", command));
+            System.out.println("--------------------------------------------------------------------------------");
             if (workingdir == null) {
-              System.out.println("From current directory");
+              System.out.println("RunnerThread running from current directory");
             } else {
-              System.out.println("From path: " + workingdir);
+              System.out.println("RunnerThread running from path: " + workingdir);
             }
+            System.out.println(String.join(" ", command));
         
             running = true;
             exitcode = issueCommand(this.command);
@@ -159,11 +160,13 @@ public class RunnerThread extends Thread {
             System.setErr(printStream);
         }
             
-        System.out.println("------------------------------------------------------------");
-        if (workingdir != null)
-            System.out.println("Executing command from " + workingdir + ": " + String.join(" ", command));
-        else
-            System.out.println("Executing command: " + String.join(" ", command));
+        System.out.println("--------------------------------------------------------------------------------");
+        if (workingdir == null) {
+          System.out.println("RunnerThread running from current directory");
+        } else {
+          System.out.println("RunnerThread running from path: " + workingdir);
+        }
+        System.out.println(String.join(" ", command));
         proc = builder.start();
         pid = getPidOfProcess(proc);
 

@@ -6,7 +6,7 @@
 package main;
 
 import logging.FileSaver;
-import main.GuiPanel.Visitor;
+import main.LauncherMain.Visitor;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;

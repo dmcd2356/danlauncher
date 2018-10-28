@@ -1,7 +1,7 @@
 /*
  * This class extends from OutputStream to redirect output to a JTextArrea.
  */
-package command;
+package util;
 
 //package net.codejava.swing;
 
