@@ -648,16 +648,25 @@ public final class LauncherMain {
   }
   
   public static boolean isTabSelection_GRAPH() {
-    PanelTabs select = PanelTabs.GRAPH;
-    if (LauncherMain.tabPanel == null || tabSelect.isEmpty()) {
+    return isTabSelection(PanelTabs.GRAPH);
+  }
+
+  public static boolean isTabSelection_DATABASE() {
+    return isTabSelection(PanelTabs.DATABASE);
+  }
+
+  private static boolean isTabSelection(PanelTabs select) {
+    if (tabPanel == null || tabSelect.isEmpty()) {
       return false;
     }
-    int curTab = LauncherMain.tabPanel.getSelectedIndex();
     if (!tabSelect.containsKey(select)) {
       System.err.println("Tab selection '" + select + "' not found!");
       return false;
     }
-    return LauncherMain.tabPanel.getSelectedIndex() == tabSelect.get(select);
+
+    int graphTab = tabSelect.get(select);
+    int curTab = tabPanel.getSelectedIndex();
+    return curTab == graphTab;
   }
 
   public static void highlightBranch(int start, boolean branch) {
@@ -1410,27 +1419,28 @@ public final class LauncherMain {
 
     @Override
     public void jobstarted(ThreadLauncher.ThreadInfo threadInfo) {
-      printCommandMessage("jobstart - job " + threadInfo.jobid + ": " + threadInfo.jobname);
+      printCommandMessage("jobstart - " + threadInfo.jobname + ": pid " + threadInfo.pid);
     }
         
     @Override
     public void jobfinished(ThreadLauncher.ThreadInfo threadInfo) {
-      printCommandMessage("jobfinished - job " + threadInfo.jobid + ": status = " + threadInfo.exitcode);
+      printCommandMessage("jobfinished - " + threadInfo.jobname + ": status = " + threadInfo.exitcode);
       switch (threadInfo.exitcode) {
         case 0:
           if (!GuiControls.getCheckbox("CBOX_POST").isSelected()) {
             // TODO: need to get the actual cost here
             addSolution(inputAttempt, System.currentTimeMillis() - elapsedStart);
           }
+          printStatusMessage(threadInfo.jobname + " command (pid " + threadInfo.pid + ") completed successfully");
           break;
         case 137:
-          printStatusMessage("Execution terminated with SIGKILL");
+          printStatusMessage(threadInfo.jobname + " command terminated with SIGKILL");
           break;
         case 143:
-          printStatusMessage("Execution terminated with SIGTERM");
+          printStatusMessage(threadInfo.jobname + " command terminated with SIGTERM");
           break;
         default:
-          printStatusMessage("Failure executing command.");
+          printStatusMessage("Failure executing command: " + threadInfo.jobname);
           break;
       }
       

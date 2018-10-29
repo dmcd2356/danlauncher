@@ -50,7 +50,6 @@ public class DatabaseTable {
   };
 
   private static JTable   dbTable;
-  private static DatabaseUpdateListener dbListener;
   private static Timer    databaseTimer;
   private static ArrayList<DatabaseInfo> dbList = new ArrayList<>();
   private static boolean  bSortOrder;
@@ -151,8 +150,7 @@ public class DatabaseTable {
     headerLabel.setHorizontalAlignment( SwingConstants.CENTER );
         
     // create a timer for updating the cloud job information
-    dbListener = new DatabaseUpdateListener();
-    databaseTimer = new Timer(2000, dbListener);
+    databaseTimer = new Timer(2000, new DatabaseUpdateListener());
     databaseTimer.start();
 
     // create up & down key handlers for cloud row selection
@@ -400,7 +398,7 @@ public class DatabaseTable {
   @Override
     public void actionPerformed(ActionEvent e) {
       // exit if database panel is not selected
-      if (!LauncherMain.isTabSelection_GRAPH()) {
+      if (!LauncherMain.isTabSelection_DATABASE()) {
         return;
       }
 
