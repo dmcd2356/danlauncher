@@ -1001,6 +1001,7 @@ public final class LauncherMain {
         printCommandMessage("Input file already instrumented - using as is.");
         projectName = projectName.substring(0, projectName.indexOf("-dan-ed.jar")) + ".jar";
       } else {
+        // instrument the jar file
         String[] command = { "java", "-cp", classpath, mainclass, projectName };
         CommandLauncher commandLauncher = new CommandLauncher(commandLogger);
         retcode = commandLauncher.start(command, projectPathName);
@@ -1010,6 +1011,36 @@ public final class LauncherMain {
         } else {
           printStatusError("ERROR: instrumenting file: " + projectName);
           return;
+        }
+        
+        // rename the instrumented file to a temp name
+        String instrFileName = projectName.substring(0, projectName.indexOf(".jar")) + "-dan-ed.jar";
+        String tempjar = "temp.jar";
+        File jarfile = new File(projectPathName + instrFileName);
+        if (!jarfile.isFile()) {
+          printStatusError("ERROR: instrumented file not found: " + instrFileName);
+          return;
+        }
+        File tempfile = new File(projectPathName + tempjar);
+        jarfile.renameTo(tempfile);
+        printCommandMessage(instrFileName + " renamed to " + tempjar);
+        
+        // strip out any debug info (it screws up the agent)
+        // this will transform the temp file and name it the same as the original instrumented file
+        String[] command2 = { "pack200", "-r", "-G", projectPathName + tempjar, projectPathName + instrFileName };
+//        retcode = commandLauncher.start(command2, projectPathName);
+//        if (retcode == 0) {
+//          printStatusMessage("Debug stripping was successful");
+//          printCommandMessage(commandLauncher.getResponse());
+//        } else {
+//          printStatusError("ERROR: stripping file: " + instrFileName);
+//          return;
+//        }
+        
+        // remove temp file
+        if (tempfile.isFile()) {
+//          tempfile.delete();
+//          printCommandMessage("removed file: " + tempjar);
         }
       }
       
