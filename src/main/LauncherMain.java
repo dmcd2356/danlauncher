@@ -109,13 +109,14 @@ public final class LauncherMain {
   private static Logger          paramLogger;
   private static BytecodeViewer  bytecodeLogger;
   private static DebugLogger     debugLogger;
-  private static Timer           pktTimer;
+  private static Timer           debugMsgTimer;
   private static Timer           graphTimer;
   private static long            elapsedStart;
   private static ElapsedMode     elapsedMode;
   private static GraphHighlight  graphMode;
   private static String          projectPathName;
   private static String          projectName;
+  private static String          debugPort;
   private static int             tabIndex = 0;
   private static ThreadLauncher  threadLauncher;
   private static DatabaseTable   dbtable;
@@ -123,9 +124,9 @@ public final class LauncherMain {
   private static DefaultListModel solutionList;
   private static Visitor         makeConnection;
   private static String          clientPort = "";
-  private static NetworkServer   udpThread;
+  private static NetworkServer   udpThread = null;
   private static NetworkListener networkListener;
-  private static MsgListener     inputListener;
+  private static DebugInputListener inputListener;
   private static String          javaHome;
   private static boolean         mainClassInitializing;
   
@@ -218,46 +219,17 @@ public final class LauncherMain {
     // this creates a command launcher that can run on a separate thread
     threadLauncher = new ThreadLauncher((JTextArea) getTabPanel(PanelTabs.COMMAND));
 
-    // setup access to the network listener thread
-    // start the TCP/UDP listener thread
-    try {
-      int port = Integer.parseUnsignedInt(debugPort);
-      udpThread = new NetworkServer(port, true);
-      System.out.println("danlauncher receiving port: " + port);
-    } catch (IOException | NumberFormatException ex) {
-      System.out.println(ex.getMessage());
-      System.exit(1);
-    }
-    startDebugPort(projectPath);
-    
     // create a timer for reading and displaying the messages received (from either network or file)
-    inputListener = new MsgListener();
-    pktTimer = new Timer(1, inputListener);
-    pktTimer.start();
+    inputListener = new DebugInputListener();
+    debugMsgTimer = new Timer(1, inputListener);
 
     // create a slow timer for updating the call graph
     graphTimer = new Timer(1000, new GraphUpdateListener());
-    graphTimer.start();
 
     // start timer when 1st line is received from port
     elapsedMode = ElapsedMode.RESET;
 }
 
-  public void startDebugPort(String projectPath) {
-    udpThread.start();
-    udpThread.setLoggingCallback(makeConnection);
-    udpThread.setBufferFile(projectPath + "/debug.log");
-
-//    // get this server's ip address
-//    String ipaddr = "<unknown>";
-//    try(final DatagramSocket socket = new DatagramSocket()){
-//      socket.connect(InetAddress.getByName("8.8.8.8"), 10002);
-//      ipaddr = socket.getLocalAddress().getHostAddress();
-//    } catch (SocketException | UnknownHostException ex) {  }
-
-    networkListener = LauncherMain.udpThread; // this allows us to signal the network listener
-  }
-  
   public void createDebugPanel() {
     // if a panel already exists, close the old one
     if (GuiControls.isValidFrame()) {
@@ -576,6 +548,77 @@ public final class LauncherMain {
     tabbedPanels.put(tabname, panel);
   }
   
+  private static void startDebugPort(String projectPath) {
+    int port;
+    try {
+      port = Integer.parseUnsignedInt(debugPort);
+    } catch (NumberFormatException ex) {
+      System.err.println("ERROR: Invalid port value for NetworkServer: " + debugPort);
+      port = 5000; // set to default value
+    }
+
+    enableUpdateTimers(false);
+
+    if (udpThread != null) {
+      // server is already running, see if no change in parameters
+      if (port != udpThread.getPort()) {
+        // port change: we have to close the current server so we can create a new one using a different port
+        udpThread.exit();
+        System.out.println("Changinng NetworkServer port from " + udpThread.getPort() + " to " + port);
+        // continue onto starting a new server
+      } else if (!projectPath.equals(udpThread.getOutputFile())) {
+        // storage location changed - easy, we can just change the setting on the fly
+        System.out.println("Changing NetworkServer log location to: " + projectPath + "debug.log");
+        udpThread.setBufferFile(projectPath + "debug.log");
+        return;
+      } else {
+        // no change - even easier. just exit.
+        System.out.println("No change in NetworkServer.");
+        return;
+      }
+    }
+    
+    try {
+      udpThread = new NetworkServer(port, true);
+    } catch (IOException ex) {
+      System.err.println("ERROR: unable to start NetworkServer. " + ex);
+    }
+
+    System.out.println("danlauncher receiving port: " + port);
+    udpThread.start();
+    udpThread.setLoggingCallback(makeConnection);
+    udpThread.setBufferFile(projectPath + "/debug.log");
+
+//    // get this server's ip address
+//    String ipaddr = "<unknown>";
+//    try(final DatagramSocket socket = new DatagramSocket()){
+//      socket.connect(InetAddress.getByName("8.8.8.8"), 10002);
+//      ipaddr = socket.getLocalAddress().getHostAddress();
+//    } catch (SocketException | UnknownHostException ex) {  }
+
+    networkListener = udpThread; // this allows us to signal the network listener
+
+    enableUpdateTimers(true);
+  }
+  
+  private static void enableUpdateTimers(boolean enable) {
+    if (enable) {
+      if (debugMsgTimer != null) {
+        debugMsgTimer.start();
+      }
+      if (graphTimer != null) {
+        graphTimer.start();
+      }
+    } else {
+      if (debugMsgTimer != null) {
+        debugMsgTimer.stop();
+      }
+      if (graphTimer != null) {
+        graphTimer.stop();
+      }
+    }
+  }
+  
   private Logger createTextLogger(PanelTabs tabname, HashMap<String, FontInfo> fontmap) {
     return new Logger(getTabPanel(tabname), tabname.toString(), fontmap);
   }
@@ -618,15 +661,19 @@ public final class LauncherMain {
   
   public static void resetLoggedTime() {
     // this adds log entry to file for demarcation
-    udpThread.resetInput();
+    if (udpThread != null) {
+      udpThread.resetInput();
+    }
     
     // this resets and starts the timer
-    LauncherMain.startElapsedTime();
+    startElapsedTime();
   }
   
   public static void resetCapturedInput() {
     // clear the packet buffer and statistics
-    udpThread.clear();
+    if (udpThread != null) {
+      udpThread.clear();
+    }
 
     // clear the graphics panel
     CallGraph.clearGraphAndMethodList();
@@ -635,7 +682,7 @@ public final class LauncherMain {
     }
           
     // reset the elapsed time
-//    GuiPanel.resetElapsedTime();
+//    resetElapsedTime();
   }
 
   /**
@@ -797,24 +844,6 @@ public final class LauncherMain {
     }
   }
   
-  private static void enableUpdateTimers(boolean enable) {
-    if (enable) {
-      if (pktTimer != null) {
-        pktTimer.start();
-      }
-      if (graphTimer != null) {
-        graphTimer.start();
-      }
-    } else {
-      if (pktTimer != null) {
-        pktTimer.stop();
-      }
-      if (graphTimer != null) {
-        graphTimer.stop();
-      }
-    }
-  }
-  
   private static void printStatusClear() {
     GuiControls.getTextField("TXT_MESSAGES").setText("                   ");
   }
@@ -930,6 +959,9 @@ public final class LauncherMain {
       projectName = file.getName();
       projectPathName = file.getParentFile().getAbsolutePath() + "/";
       
+      // save location of project selection
+      systemProps.setPropertiesItem(SystemProperties.PROJECT_PATH.toString(), projectPathName);
+        
       // init project config file to current settings
       initProjectProperties(projectPathName);
         
@@ -941,7 +973,7 @@ public final class LauncherMain {
         return;
       }
     
-      // read the symbolic parameter definitions
+      // read the symbolic parameter definitions from danfig file (if present)
       readSymbolicList();
   
       String mainclass = "danalyzer.instrumenter.Instrumenter";
@@ -986,11 +1018,8 @@ public final class LauncherMain {
       // update the class and method selections
       setupClassList(projectPathName);
         
-      // save location of project selection
-      systemProps.setPropertiesItem(SystemProperties.PROJECT_PATH.toString(), projectPathName);
-        
-      // set the location of the debug log file to this directory
-      udpThread.setBufferFile(projectPathName + "debug.log");
+      // setup access to the network listener thread
+      startDebugPort(projectPathName);
         
       // reset the soultion list
       solutionMap.clear();
@@ -1231,7 +1260,7 @@ public final class LauncherMain {
     String content = "#! DANALYZER SYMBOLIC EXPRESSION LIST" + NEWLINE;
     content += "# DO_NOT_CHANGE" + NEWLINE;
     content += "IPAddress: localhost" + NEWLINE;
-    content += "DebugPort: 5000" + NEWLINE;
+    content += "DebugPort: " + debugPort + NEWLINE;
     content += "DebugMode: TCPPORT" + NEWLINE;
     content += "DebugFlags: WARN SOLVE PATH CALLS" + NEWLINE;
     content += "TriggerOnCall: 0" + NEWLINE;
@@ -1380,13 +1409,15 @@ public final class LauncherMain {
     }
   }
 
-  private class MsgListener implements ActionListener {
+  private class DebugInputListener implements ActionListener {
     @Override
     public void actionPerformed(ActionEvent e) {
       // read & process next message
-      String message = LauncherMain.udpThread.getNextMessage();
-      if (message != null) {
-        DebugLogger.processMessage(message);
+      if (udpThread != null) {
+        String message = udpThread.getNextMessage();
+        if (message != null) {
+          DebugLogger.processMessage(message);
+        }
       }
     }
   }

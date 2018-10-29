@@ -101,6 +101,10 @@ public final class NetworkServer extends Thread implements NetworkListener {
     return pktsLost;
   }
   
+  public int getPort() {
+    return serverPort;
+  }
+  
   public String getOutputFile() {
     return storageFileName;
   }
