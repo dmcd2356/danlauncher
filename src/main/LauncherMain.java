@@ -119,13 +119,14 @@ public final class LauncherMain {
   private static String          debugPort;
   private static int             tabIndex = 0;
   private static ThreadLauncher  threadLauncher;
+  private static CommandLauncher commandLauncher;
   private static DatabaseTable   dbtable;
   private static String          inputAttempt = "";
   private static DefaultListModel solutionList;
   private static Visitor         makeConnection;
   private static String          clientPort = "";
   private static NetworkServer   udpThread = null;
-  private static NetworkListener networkListener;
+  private static NetworkListener networkListener = null;
   private static DebugInputListener inputListener;
   private static String          javaHome;
   private static boolean         mainClassInitializing;
@@ -218,6 +219,9 @@ public final class LauncherMain {
 
     // this creates a command launcher that can run on a separate thread
     threadLauncher = new ThreadLauncher((JTextArea) getTabPanel(PanelTabs.COMMAND));
+
+    // this creates a command launcher that runs on the current thread
+    commandLauncher = new CommandLauncher(commandLogger);
 
     // create a timer for reading and displaying the messages received (from either network or file)
     inputListener = new DebugInputListener();
@@ -322,7 +326,9 @@ public final class LauncherMain {
       @Override
       public void windowClosing(java.awt.event.WindowEvent evt) {
         enableUpdateTimers(false);
-        networkListener.exit();
+        if (networkListener != null) {
+          networkListener.exit();
+        }
         dbtable.exit();
         GuiControls.close();
         System.exit(0);
@@ -478,7 +484,6 @@ public final class LauncherMain {
           printCommandMessage("Killing job " + threadInfo.jobid + ": pid " + threadInfo.pid);
 
           String[] command = { "kill", "-15", threadInfo.pid.toString() };
-          CommandLauncher commandLauncher = new CommandLauncher(commandLogger);
           commandLauncher.start(command, null);
         }
       }
@@ -856,7 +861,7 @@ public final class LauncherMain {
   }
   
   private static void printStatusError(String message) {
-    GuiControls.getTextField("TXT_MESSAGES").setText(message);
+    GuiControls.getTextField("TXT_MESSAGES").setText("ERROR: " + message);
       
     // echo status to command output window
     printCommandError(message);
@@ -980,7 +985,7 @@ public final class LauncherMain {
       String classpath = DSEPATH + "danalyzer/dist/danalyzer.jar";
       classpath += ":" + DSEPATH + "danalyzer/lib/commons-io-2.5.jar";
       classpath += ":" + DSEPATH + "danalyzer/lib/asm-all-5.2.jar";
-      classpath += ":" + DSEPATH + "danalyzer/lib/com.microsoft.z3.jar";
+//      classpath += ":" + DSEPATH + "danalyzer/lib/com.microsoft.z3.jar";
       classpath += ":/*:/lib/*";
 
       // remove any existing class files in the location of the jar file
@@ -994,53 +999,60 @@ public final class LauncherMain {
         }
       }
       
-      // instrument the jar file
-      int retcode = 0;
+      // determine if jar file needs instrumenting
       if (projectName.endsWith("-dan-ed.jar")) {
         // file is already instrumented - use it as-is
         printCommandMessage("Input file already instrumented - using as is.");
         projectName = projectName.substring(0, projectName.indexOf("-dan-ed.jar")) + ".jar";
       } else {
+        int retcode = 0;
+        String baseName = projectName.substring(0, projectName.indexOf(".jar"));
+
+        // strip out any debug info (it screws up the agent)
+        // this will transform the temp file and name it the same as the original instrumented file
+        printCommandMessage("Stripping debug info from uninstrumented jar file");
+        String outputName = baseName + "-strip.jar";
+        String[] command2 = { "pack200", "-r", "-G", projectPathName + outputName, projectPathName + projectName };
+        retcode = commandLauncher.start(command2, projectPathName);
+        if (retcode == 0) {
+          printStatusMessage("Debug stripping was successful");
+          printCommandMessage(commandLauncher.getResponse());
+        } else {
+          printStatusError("stripping file: " + projectName);
+          return;
+        }
+        
         // instrument the jar file
-        String[] command = { "java", "-cp", classpath, mainclass, projectName };
-        CommandLauncher commandLauncher = new CommandLauncher(commandLogger);
+        printCommandMessage("Instrumenting stripped file: " + outputName);
+        String[] command = { "java", "-cp", classpath, mainclass, outputName };
         retcode = commandLauncher.start(command, projectPathName);
         if (retcode == 0) {
           printStatusMessage("Instrumentation successful");
           printCommandMessage(commandLauncher.getResponse());
+          outputName = baseName + "-strip-dan-ed.jar";
         } else {
-          printStatusError("ERROR: instrumenting file: " + projectName);
+          printStatusError("instrumenting file: " + outputName);
           return;
         }
         
-        // rename the instrumented file to a temp name
-        String instrFileName = projectName.substring(0, projectName.indexOf(".jar")) + "-dan-ed.jar";
-        String tempjar = "temp.jar";
-        File jarfile = new File(projectPathName + instrFileName);
-        if (!jarfile.isFile()) {
-          printStatusError("ERROR: instrumented file not found: " + instrFileName);
-          return;
-        }
+        // rename the instrumented file to the correct name
+        String tempjar = outputName;
+        outputName = baseName + "-dan-ed.jar";
+        printCommandMessage("Renaming " + tempjar + " to " + outputName);
         File tempfile = new File(projectPathName + tempjar);
-        jarfile.renameTo(tempfile);
-        printCommandMessage(instrFileName + " renamed to " + tempjar);
-        
-        // strip out any debug info (it screws up the agent)
-        // this will transform the temp file and name it the same as the original instrumented file
-        String[] command2 = { "pack200", "-r", "-G", projectPathName + tempjar, projectPathName + instrFileName };
-//        retcode = commandLauncher.start(command2, projectPathName);
-//        if (retcode == 0) {
-//          printStatusMessage("Debug stripping was successful");
-//          printCommandMessage(commandLauncher.getResponse());
-//        } else {
-//          printStatusError("ERROR: stripping file: " + instrFileName);
-//          return;
-//        }
+        if (!tempfile.isFile()) {
+          printStatusError("instrumented file not found: " + tempjar);
+          return;
+        }
+        File newfile = new File(projectPathName + outputName);
+        tempfile.renameTo(newfile);
         
         // remove temp file
+        tempjar = baseName + "-strip.jar";
+        tempfile = new File(projectPathName + tempjar);
         if (tempfile.isFile()) {
-//          tempfile.delete();
-//          printCommandMessage("removed file: " + tempjar);
+          printCommandMessage("Removing " + tempjar);
+          tempfile.delete();
         }
       }
       
@@ -1076,7 +1088,7 @@ public final class LauncherMain {
     // get the user-supplied main class and input value
     String mainclass = (String) mainClassCombo.getSelectedItem();
     if (mainclass == null) {
-      printStatusError("ERROR: no main class found!");
+      printStatusError("no main class found!");
       return;
     }
     mainclass = mainclass.replaceAll("/", ".");
@@ -1141,20 +1153,19 @@ public final class LauncherMain {
     // first we have to pull off the class files from the jar file
     File jarfile = new File(projectPathName + projectName);
     if (!jarfile.isFile()) {
-      printStatusError("ERROR: Jar file not found: " + jarfile);
+      printStatusError("Jar file not found: " + jarfile);
       return;
     }
     try {
       // extract the selected class file
       extractClassFile(jarfile, classSelect);
     } catch (IOException ex) {
-      printStatusError("ERROR: " + ex);
+      printStatusError(ex.getMessage());
       return;
     }
 
     // decompile the selected class file
     String[] command = { "javap", "-p", "-c", "-s", "-l", classSelect + ".class" };
-    CommandLauncher commandLauncher = new CommandLauncher(commandLogger);
     int retcode = commandLauncher.start(command, projectPathName);
     if (retcode == 0) {
       String content = commandLauncher.getResponse();
@@ -1164,7 +1175,7 @@ public final class LauncherMain {
       // swich tab to show bytecode
       setTabSelect(PanelTabs.BYTECODE);
     } else {
-      printStatusError("ERROR: running javap on file: " + classSelect + ".class");
+      printStatusError("running javap on file: " + classSelect + ".class");
     }
   }
 
@@ -1283,7 +1294,7 @@ public final class LauncherMain {
       }
     }
     
-    printStatusError("ERROR: '" + className + "' not found in " + jarfile.getAbsoluteFile());
+    printStatusError("'" + className + "' not found in " + jarfile.getAbsoluteFile());
   }
   
   private static void readSymbolicList() {
@@ -1413,13 +1424,13 @@ public final class LauncherMain {
           }
           break;
         case 137:
-          printCommandMessage("User SIGKILL complete.");
+          printStatusMessage("Execution terminated with SIGKILL");
           break;
         case 143:
-          printCommandMessage("User SIGTERM complete.");
+          printStatusMessage("Execution terminated with SIGTERM");
           break;
         default:
-          printCommandMessage("Failure executing command.");
+          printStatusMessage("Failure executing command.");
           break;
       }
       
