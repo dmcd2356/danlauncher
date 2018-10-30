@@ -458,8 +458,10 @@ public class CallGraph {
       if (which >= 0) {
         switch (selection[which]) {
           case "Yes":
-            String cls = selected.getClassName();
-            String meth = selected.getMethodName();
+            String cls = selected.getFullName();
+            int offset = cls.lastIndexOf(".");
+            String meth = cls.substring(offset + 1);
+            cls = cls.substring(0, offset);
             LauncherMain.generateBytecode(cls, meth);
             break;
           default:
