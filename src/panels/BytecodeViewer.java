@@ -37,13 +37,16 @@ public class BytecodeViewer {
   private static final int HIGHLIGHT_ALL    = 0xFFFF;
   
   // types of messages
-  private enum MsgType { ERROR,METHOD, TEXT, PARAM, COMMENT, BRANCH, INVOKE, LOAD, STORE, OTHER }
+  private static enum MsgType { ERROR, METHOD, TEXT, PARAM, COMMENT, BRANCH, INVOKE, LOAD, STORE, OTHER }
+  
+  private static enum ParseMode { NONE, METHOD, DESCRIPTION, OPCODE, LINENUM_TBL, LOCALVAR_TBL }
   
   private static JTextPane       panel;
   private static Logger          logger;
   private static HashMap<String, FontInfo> fontmap = new HashMap<>();
   private static ArrayList<BytecodeInfo> bytecode = new ArrayList<>();
   private static String          methodLoaded = "";
+  private static ParseMode       parseMode;
   private static boolean         valid;
 
   public BytecodeViewer(String name) {
@@ -137,10 +140,14 @@ public class BytecodeViewer {
    * @param content      - the javap output
    */
   public void parseJavap(String classSelect, String methodSelect, String content) {
-    System.out.println("BytecodeLogger: parseJavap " + classSelect + "." + methodSelect);
+    // make sure we use dotted format for class name as that is what javap uses
+    classSelect = classSelect.replaceAll("/", ".");
+    LauncherMain.printCommandMessage("parseJavap: " + classSelect + "." + methodSelect);
     // javap uses the dot format for the class name, so convert it
     classSelect = classSelect.replace("/", ".");
     int lastoffset = -1;
+    int curLine = 0;
+    parseMode = ParseMode.NONE;
     
     // check if method is already loaded
     if (methodLoaded.equals(classSelect + "." + methodSelect) && !bytecode.isEmpty()) {
@@ -155,14 +162,22 @@ public class BytecodeViewer {
     int offset = methodSelect.indexOf("(");
     String signature = methodSelect.substring(offset);
     methodSelect = methodSelect.substring(0, offset);
+    String clsCurrent = classSelect; // the default if no class specified
     methodLoaded = "";
+    int linesRead = 0;
     logger.clear();
     bytecode = new ArrayList<>();
 
     String[] lines = content.split(NEWLINE);
     for (String entry : lines) {
+      ++curLine;
       entry = entry.replace("\t", " ").trim();
 
+      // modify this entry - it indicates the static initializer method
+      if (entry.equals("static {};")) {
+        entry = "<clinit>()";
+      }
+      
       // skip past these keywords
       if (entry.startsWith("public ") || entry.startsWith("private ")) {
         entry = entry.substring(entry.indexOf(" ") + 1).trim();
@@ -171,77 +186,140 @@ public class BytecodeViewer {
         entry = entry.substring(entry.indexOf(" ") + 1).trim();
       }
 
-      // ignore these entries
-      if (entry.startsWith("class ") || entry.startsWith("Code:")) {
-        continue;
+      String keyword = entry.trim();
+      offset = keyword.indexOf(" ");
+      if (offset > 0) {
+        keyword = keyword.substring(0, offset);
+      }
+      switch (keyword) {
+        case "class": // ignore this for now
+          parseMode = ParseMode.NONE;
+          clsCurrent = entry.substring("class".length() + 1);
+          offset = clsCurrent.indexOf("{");
+          if (offset > 0) {
+            clsCurrent = clsCurrent.substring(0, offset);
+          }
+          clsCurrent = clsCurrent.trim();
+          continue;
+        case "LineNumberTable:":
+LauncherMain.printCommandMessage("Line: " + curLine + " - LineNumberTable");
+          parseMode = ParseMode.LINENUM_TBL;
+          continue;
+        case "LocalVariableTable:":
+LauncherMain.printCommandMessage("Line: " + curLine + " - LocalVariableTable");
+          parseMode = ParseMode.LOCALVAR_TBL;
+          continue;
+        case "descriptor:":
+LauncherMain.printCommandMessage("Line: " + curLine + " - descriptor");
+          parseMode = ParseMode.DESCRIPTION;
+          break; // this is a single-line entry and we need to parse the data before continuing
+        case "Code:":
+LauncherMain.printCommandMessage("Line: " + curLine + " - Code");
+          parseMode = ParseMode.OPCODE;
+          linesRead = 0;
+          continue;
+        default:
+          break;
       }
 
-      if (!methodLoaded.isEmpty() && entry.startsWith("descriptor:")) {
-        // compare descriptor value with our method signature
-        entry = entry.substring(entry.indexOf(" ") + 1).trim();
-        if (entry.equals(signature)) {
-          // print the method name as the 1st line
-          printBytecodeMethod(methodLoaded);
-          valid = true;
-          LauncherMain.printCommandMessage("- signature match: " + entry);
-        } else {
-          LauncherMain.printCommandMessage("- no match: " + entry);
-          methodLoaded = "";
-        }
-        continue;
-      }
-      
-      // if the correct method was found, start checking for opcodes
-      if (valid) {
-        // check for valid opcode definition
-        offset = getOpcodeOffset(entry, lastoffset);
-        if (offset < 0) {
-          // non-opcode line:
-          // if we haven't found bytecodes yet, keep checking
-          if (bytecode.isEmpty()) {
+      switch(parseMode) {
+        case LINENUM_TBL:
+          if (keyword.equals("line")) {
             continue;
           }
-          // else, we are done (assumes once we start the opcode phase, all entries are opcodes
-          // until the end of the method.)
-          return;
-        }
-
-        // process the bytecode instruction (save info in array for reference & display text in panel)
-        lastoffset = offset;
-        entry = entry.substring(entry.indexOf(": ") + 1).trim();
-        formatBytecode(offset, entry);
-        
-      } else if (methodLoaded.isEmpty()) {
-        // searching for specified method within the class
-        // check for start of selected method (method must contain the parameter list)
-        if (entry.contains("(") && entry.contains(")")) {
-          // extract the word that contains the param list
-          String methName = "";
-          String array[] = entry.split("\\s+");
-          for (String word : array) {
-            if (word.contains("(") && word.contains(")")) {
-              methName = word;
+          // else, we are no longer processing line numbers, revert to unknown state
+          parseMode = ParseMode.NONE;
+          break;
+        case LOCALVAR_TBL:
+          // thins line we can ignore
+          if (entry.startsWith("Start  Length")) {
+            continue;
+          }
+          // TODO: check if starts with numeric. if so, we can parse these
+          // for now, we just look for a blank line to exit, since they seem to end that way
+          if (!keyword.isEmpty()) {
+            // TODO; parse the local info
+            continue;
+          }
+          parseMode = ParseMode.NONE;
+          break;
+        case DESCRIPTION:
+          if (!methodLoaded.isEmpty()) {
+            // compare descriptor value with our method signature
+            entry = entry.substring(entry.indexOf(" ") + 1).trim();
+            if (entry.equals(signature)) {
+              // print the method name as the 1st line
+              printBytecodeMethod(methodLoaded);
+              valid = true;
+              LauncherMain.printCommandMessage("Line: " + curLine + " - signature match: " + entry);
+            } else {
+              LauncherMain.printCommandMessage("Line: " + curLine + " - no match: " + entry);
             }
           }
-          if (methName.isEmpty()) {
-            continue;
+          continue;
+        case OPCODE:
+          // check if we are at the correct method
+          if (valid) {
+            offset = getOpcodeOffset(entry, lastoffset);
+            if (offset >= 0) {
+              // process the bytecode instruction (save info in array for reference & display text in panel)
+              ++linesRead;
+              lastoffset = offset;
+              entry = entry.substring(entry.indexOf(": ") + 1).trim();
+              formatBytecode(offset, entry);
+            }
           }
-          // extract the method name from the entry (the <init> method will also include the class)
-          if (methName.startsWith(classSelect)) {
-            methName = methName.substring(classSelect.length());
-          }
-          // ignore the argument list, since it's not in the proper form.
-          // instead, we will look for the description: entry on the following line that is valid.
-          methName = methName.substring(0, methName.indexOf("("));
-          if (methName.isEmpty()) { // if no name - it must be the <init> contructor method
-            methName = "<init>";
-          }
-          // method entry found, let's see if it's the one we want
-          if (methodSelect.equals(methName)) {
-            methodLoaded = classSelect + "." + methodSelect + signature;
-            LauncherMain.printCommandMessage("Method found: " + classSelect + "." + methName);
-          }
-        }
+          continue;
+        default:
+          break;
+      }
+      
+      // otherwise, let's check if it is a method definition
+      // check for start of selected method (method must contain the parameter list)
+      // first, eliminate the comment section, which may contain () and method names
+      offset = entry.indexOf("//");
+      if (offset > 0) {
+        entry = entry.substring(0, offset);
+      }
+      offset = entry.indexOf("(");
+      if (offset <= 0 || !entry.contains(")")) {
+        continue;
+      }
+
+      // now remove the argument list, so the string will end with the method name
+      // and eliminate any words preceeding it, so we just have the method name.
+      String methName = entry.substring(0, offset);
+      offset = methName.lastIndexOf(" ");
+      if (offset > 0) {
+        methName = methName.substring(offset + 1);
+      }
+      
+      if (methName.isEmpty()) {
+        continue; // method name not found - I guess we were wrong about this being method
+      }
+
+      // entry has paranthesis, must be a method name
+      parseMode = ParseMode.METHOD;
+          
+      // seperate the name into class and method names
+      String clsName = clsCurrent; // if no class specified, use the current class definition
+      if (methName.equals(clsName)) { // the <init> method will have no name, just a class
+        methName = "<init>";
+      }
+      offset = methName.lastIndexOf(".");
+      if (offset > 0) {
+        clsName = methName.substring(0, offset);
+        methName = methName.substring(offset + 1);
+      }
+      
+      // method entry found, let's see if it's the one we want
+      LauncherMain.printCommandMessage("Line: " + curLine + " - Method: " + clsName + "." + methName);
+      if (methodSelect.equals(methName) && classSelect.equals(clsName)) {
+        methodLoaded = classSelect + "." + methodSelect + signature;
+        LauncherMain.printCommandMessage("Line: " + curLine + " - Method match");
+      } else if (valid) {
+        LauncherMain.printCommandMessage("Line: " + curLine + " - opcode lines read: " + linesRead);
+        return;
       }
     }
   }

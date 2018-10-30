@@ -131,7 +131,7 @@ public class Logger {
   }
   
   public final void printLine(String message) {
-    printField("NOFMT", message + NEWLINE);
+    printField(null, message + NEWLINE);
   }
   
   public final void printFieldAlignLeft(String type, String message, int fieldlen) {
@@ -151,18 +151,26 @@ public class Logger {
   public final void printField(String type, String message) {
     if (message != null && !message.isEmpty()) {
       // set default values (if type was not found)
-      TextColor color = TextColor.DkGrey; //TextColor.Black;
-      FontType ftype = FontType.Italic; //FontType.Normal;
+      TextColor color = TextColor.Black;
+      FontType ftype = FontType.Normal;
       int size = DEFAULT_POINT;
       String font = DEFAULT_FONT;
 
+      if (type == null) {
+        type = "";
+      } else {
+        type = type.trim();
+      }
+      
       // get the color and font for the specified type
-      FontInfo fontinfo = messageTypeTbl.get(type.trim());
-      if (fontinfo != null) {
-        color = fontinfo.color;
-        ftype = fontinfo.fonttype;
-        font  = fontinfo.font;
-        size  = fontinfo.size;
+      if (!type.isEmpty() && messageTypeTbl.containsKey(type)) {
+        FontInfo fontinfo = messageTypeTbl.get(type);
+        if (fontinfo != null) {
+          color = fontinfo.color;
+          ftype = fontinfo.fonttype;
+          font  = fontinfo.font;
+          size  = fontinfo.size;
+        }
       }
 
       appendToPane(message, color, font, size, ftype);

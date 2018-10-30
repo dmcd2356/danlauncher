@@ -47,7 +47,6 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import javax.swing.BorderFactory;
 import javax.swing.DefaultListModel;
-import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JFileChooser;
 import javax.swing.JLabel;
@@ -61,6 +60,7 @@ import javax.swing.Timer;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import javax.swing.filechooser.FileNameExtensionFilter;
+import org.apache.commons.io.FileUtils;
 
 /**
  *
@@ -70,8 +70,12 @@ public final class LauncherMain {
 
   private static final String NEWLINE = System.getProperty("line.separator");
   private static final PrintStream STANDARD_OUT = System.out;
-  private static final PrintStream STANDARD_ERR = System.err;         
-  //private static final String CLASSFILE_STORAGE = ""; // application/";
+  private static final PrintStream STANDARD_ERR = System.err;
+  
+  // locations to store output files created in the project dir
+  private static final String PROJ_CONFIG = ".danlauncher";
+  private static final String CLASSFILE_STORAGE = "classes";
+  private static final String JAVAPFILE_STORAGE = "javap";
 
   // default location for jre for running instrumented project
   private static final String JAVA_HOME = "/usr/lib/jvm/java-8-oracle"; // /usr/lib/jvm/java-8-openjdk-amd64";
@@ -207,7 +211,7 @@ public final class LauncherMain {
     mainClassInitializing = false;
 
     // check for the global danlauncher properties file and init default values if not found
-    systemProps = new PropertiesFile(HOMEPATH + "/.danlauncher", "SYSTEM_PROPERTIES");
+    systemProps = new PropertiesFile(HOMEPATH + "/" + PROJ_CONFIG, "SYSTEM_PROPERTIES");
     String projectPath = systemProps.getPropertiesItem(SystemProperties.PROJECT_PATH.toString(), HOMEPATH);
     String maxLogLength = systemProps.getPropertiesItem(SystemProperties.MAX_LOG_LENGTH.toString(), "500000");
     debugPort = systemProps.getPropertiesItem(SystemProperties.DEBUG_PORT.toString(), "5000");
@@ -1318,18 +1322,14 @@ public final class LauncherMain {
       String classpath = DSEPATH + "danalyzer/dist/danalyzer.jar";
       classpath += ":" + DSEPATH + "danalyzer/lib/commons-io-2.5.jar";
       classpath += ":" + DSEPATH + "danalyzer/lib/asm-all-5.2.jar";
-//      classpath += ":" + DSEPATH + "danalyzer/lib/com.microsoft.z3.jar";
       classpath += ":/*:/lib/*";
 
-      // remove any existing class files in the location of the jar file
-      File applPath = new File(projectPathName);  // + CLASSFILE_STORAGE
-      if (applPath.isDirectory()) {
-        for(String fname: applPath.list()){
-          if (fname.endsWith(".class")) {
-            File currentFile = new File(applPath.getPath(), fname);
-            currentFile.delete();
-          }
-        }
+      // remove any existing class and javap files in the location of the jar file
+      try {
+        FileUtils.deleteDirectory(new File(projectPathName + CLASSFILE_STORAGE));
+        FileUtils.deleteDirectory(new File(projectPathName + JAVAPFILE_STORAGE));
+      } catch (IOException ex) {
+        printCommandError(ex.getMessage());
       }
       
       // determine if jar file needs instrumenting
@@ -1447,7 +1447,6 @@ public final class LauncherMain {
     String classpath = instrJarFile
               + ":" + DSEPATH + "danalyzer/lib/commons-io-2.5.jar"
               + ":" + DSEPATH + "danalyzer/lib/asm-all-5.2.jar"
-//              + ":" + DSEPATH + "danalyzer/lib/com.microsoft.z3.jar"
               + ":" + mongolib
               + ":" + localpath;
 
@@ -1498,7 +1497,7 @@ public final class LauncherMain {
     }
 
     // decompile the selected class file
-    String[] command = { "javap", "-p", "-c", "-s", "-l", classSelect + ".class" };
+    String[] command = { "javap", "-p", "-c", "-s", "-l", CLASSFILE_STORAGE + "/" + classSelect + ".class" };
     int retcode = commandLauncher.start(command, projectPathName);
     if (retcode == 0) {
       String content = commandLauncher.getResponse();
@@ -1510,7 +1509,7 @@ public final class LauncherMain {
       }
 
       // save the file in with the class
-      saveTextFile(projectPathName + classSelect + ".txt", content);
+      saveProjectTextFile(JAVAPFILE_STORAGE + "/" + classSelect + ".txt", content);
       
       // swich tab to show bytecode
       setTabSelect(PanelTabs.BYTECODE);
@@ -1609,8 +1608,8 @@ public final class LauncherMain {
       String fullname = file.getName();
 
       if (fullname.equals(relpathname + className)) {
-        String fullpath = jarpathname + relpathname;
-//        String fullpath = jarpathname + CLASSFILE_STORAGE + relpathname;
+//        String fullpath = jarpathname + relpathname;
+        String fullpath = jarpathname + CLASSFILE_STORAGE + "/" + relpathname;
         File fout = new File(fullpath + className);
         // skip if file already exists
         if (fout.isFile()) {
@@ -1710,15 +1709,30 @@ public final class LauncherMain {
       file.renameTo(new File(projectPathName + "danfig.save"));
       
       // create the new file
-      saveTextFile(projectPathName + "danfig", content);
+      saveProjectTextFile("danfig", content);
     }
   }
 
-  private static void saveTextFile(String filename, String content) {
-    File file = new File(filename);
+  private static void saveProjectTextFile(String filename, String content) {
+    String path = projectPathName;
+    
+    // make sure all dir paths exist
+    int offset = filename.lastIndexOf("/");
+    if (offset > 0) {
+      String newpathname = filename.substring(0, offset);
+      File newpath = new File(projectPathName + newpathname);
+      if (!newpath.isDirectory()) {
+        newpath.mkdirs();
+      }
+    }
+    
+    // delete file if it already exists
+    File file = new File(projectPathName + filename);
     if (file.isFile()) {
       file.delete();
     }
+    
+    // create a new file and copy text contents to it
     BufferedWriter bw = null;
     try {
       FileWriter fw = new FileWriter(file);
