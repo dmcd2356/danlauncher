@@ -39,7 +39,7 @@ public class BytecodeViewer {
   // types of messages
   private static enum MsgType { ERROR, METHOD, TEXT, PARAM, COMMENT, BRANCH, INVOKE, LOAD, STORE, OTHER }
   
-  private static enum ParseMode { NONE, METHOD, DESCRIPTION, OPCODE, LINENUM_TBL, LOCALVAR_TBL }
+  private static enum ParseMode { NONE, CLASS, METHOD, DESCRIPTION, OPCODE, LINENUM_TBL, LOCALVAR_TBL, EXCEPTION_TBL }
   
   private static JTextPane       panel;
   private static Logger          logger;
@@ -143,6 +143,7 @@ public class BytecodeViewer {
     // make sure we use dotted format for class name as that is what javap uses
     classSelect = classSelect.replaceAll("/", ".");
     LauncherMain.printCommandMessage("parseJavap: " + classSelect + "." + methodSelect);
+    
     // javap uses the dot format for the class name, so convert it
     classSelect = classSelect.replace("/", ".");
     int lastoffset = -1;
@@ -193,29 +194,27 @@ public class BytecodeViewer {
       }
       switch (keyword) {
         case "class": // ignore this for now
-          parseMode = ParseMode.NONE;
-          clsCurrent = entry.substring("class".length() + 1);
-          offset = clsCurrent.indexOf("{");
-          if (offset > 0) {
-            clsCurrent = clsCurrent.substring(0, offset);
-          }
-          clsCurrent = clsCurrent.trim();
-          continue;
+          parseMode = ParseMode.CLASS;
+          break; // handle the data on this line below
         case "LineNumberTable:":
-LauncherMain.printCommandMessage("Line: " + curLine + " - LineNumberTable");
           parseMode = ParseMode.LINENUM_TBL;
+          LauncherMain.printCommandMessage("Line: " + curLine + " - LineNumberTable");
           continue;
         case "LocalVariableTable:":
-LauncherMain.printCommandMessage("Line: " + curLine + " - LocalVariableTable");
           parseMode = ParseMode.LOCALVAR_TBL;
+          LauncherMain.printCommandMessage("Line: " + curLine + " - LocalVariableTable");
+          continue;
+        case "Exception table:":
+          parseMode = ParseMode.EXCEPTION_TBL;
+          LauncherMain.printCommandMessage("Line: " + curLine + " - Exception table");
           continue;
         case "descriptor:":
-LauncherMain.printCommandMessage("Line: " + curLine + " - descriptor");
           parseMode = ParseMode.DESCRIPTION;
-          break; // this is a single-line entry and we need to parse the data before continuing
+          LauncherMain.printCommandMessage("Line: " + curLine + " - descriptor");
+          break; // handle the data on this line below
         case "Code:":
-LauncherMain.printCommandMessage("Line: " + curLine + " - Code");
           parseMode = ParseMode.OPCODE;
+          LauncherMain.printCommandMessage("Line: " + curLine + " - Code");
           linesRead = 0;
           continue;
         default:
@@ -223,6 +222,17 @@ LauncherMain.printCommandMessage("Line: " + curLine + " - Code");
       }
 
       switch(parseMode) {
+        case CLASS:
+          // get the first word that follows "class"
+          clsCurrent = entry.substring("class".length() + 1);
+          offset = clsCurrent.indexOf(" ");
+          if (offset > 0) {
+            clsCurrent = clsCurrent.substring(0, offset);
+          }
+          clsCurrent = clsCurrent.trim();
+          LauncherMain.printCommandMessage("Line: " + curLine + " - Class = " + clsCurrent);
+          parseMode = ParseMode.NONE;
+          continue;
         case LINENUM_TBL:
           if (keyword.equals("line")) {
             continue;
@@ -231,16 +241,38 @@ LauncherMain.printCommandMessage("Line: " + curLine + " - Code");
           parseMode = ParseMode.NONE;
           break;
         case LOCALVAR_TBL:
-          // thins line we can ignore
-          if (entry.startsWith("Start  Length")) {
+          // this line we can ignore
+          if (entry.equals("Start  Length  Slot  Name   Signature")) {
+            // Start        (int) = bytecode offset to start of scope for parameter
+            // Length       (int) = number of bytecode bytes in which it has scope
+            // slot         (int) = parameter index
+            // Name      (String) = parameter name
+            // Signature (String) = data type
             continue;
           }
-          // TODO: check if starts with numeric. if so, we can parse these
-          // for now, we just look for a blank line to exit, since they seem to end that way
-          if (!keyword.isEmpty()) {
-            // TODO; parse the local info
+          // if starts with numeric, we have a valid table entry
+          try {
+            int val = Integer.parseUnsignedInt(keyword);
+            // TODO; parse the local variable info
+            continue;
+          } catch (NumberFormatException ex) { }
+          parseMode = ParseMode.NONE;
+          break;
+        case EXCEPTION_TBL:
+          // this line we can ignore
+          if (entry.equals("from    to  target type")) {
             continue;
           }
+          // if starts with numeric, we have a valid table entry
+          try {
+            int val = Integer.parseUnsignedInt(keyword);
+            // TODO: don't know if we want to use this info for showing exception jump points in the listing
+            // from    (int) = bytecode offset to start of scope for exception
+            // to      (int) = bytecode offset to end of scope for exception
+            // target  (int) = bytecode offset to start of exception handler
+            // type (String) = the exception that causes the jump
+            continue;
+          } catch (NumberFormatException ex) { }
           parseMode = ParseMode.NONE;
           break;
         case DESCRIPTION:
@@ -256,6 +288,7 @@ LauncherMain.printCommandMessage("Line: " + curLine + " - Code");
               LauncherMain.printCommandMessage("Line: " + curLine + " - no match: " + entry);
             }
           }
+          parseMode = ParseMode.NONE;
           continue;
         case OPCODE:
           // check if we are at the correct method

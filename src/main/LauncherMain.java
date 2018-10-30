@@ -53,6 +53,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
+import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
@@ -130,7 +131,6 @@ public final class LauncherMain {
   private static String          debugPort;
   private static int             tabIndex = 0;
   private static ThreadLauncher  threadLauncher;
-  private static CommandLauncher commandLauncher;
   private static DatabaseTable   dbtable;
   private static String          inputAttempt = "";
   private static DefaultListModel solutionList;
@@ -230,9 +230,6 @@ public final class LauncherMain {
 
     // this creates a command launcher that can run on a separate thread
     threadLauncher = new ThreadLauncher((JTextArea) getTabPanel(PanelTabs.COMMAND));
-
-    // this creates a command launcher that runs on the current thread
-    commandLauncher = new CommandLauncher(commandLogger);
 
     // create a timer for reading and displaying the messages received (from either network or file)
     inputListener = new DebugInputListener();
@@ -515,6 +512,7 @@ public final class LauncherMain {
           printCommandMessage("Killing job " + threadInfo.jobid + ": pid " + threadInfo.pid);
 
           String[] command = { "kill", "-15", threadInfo.pid.toString() };
+          CommandLauncher commandLauncher = new CommandLauncher(commandLogger);
           commandLauncher.start(command, null);
         }
       }
@@ -535,16 +533,26 @@ public final class LauncherMain {
     bytecodeLogger = new BytecodeViewer(PanelTabs.BYTECODE.toString());
 
     // add the tabbed message panels for bytecode output, command output, and debug output
+    JTextArea paramListText = new JTextArea();
+    JTextArea symListText = new JTextArea();
+    JScrollPane paramListPane = new JScrollPane(paramListText);
+    JScrollPane symbolListPane = new JScrollPane(symListText);
+    JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, paramListPane, symbolListPane);
+    splitPane.setOneTouchExpandable(true);
+    splitPane.setDividerLocation(400);
+    
     addPanelToTab(PanelTabs.COMMAND , new JTextArea());
     addPanelToTab(PanelTabs.DATABASE, new JTable());
     addPanelToTab(PanelTabs.BYTECODE, bytecodeLogger.getTextPane());
-    addPanelToTab(PanelTabs.PARAMS  , new JTextArea());
+//    addPanelToTab(PanelTabs.PARAMS  , new JTextArea());
+    addPanelToTab(PanelTabs.PARAMS  , splitPane);
     addPanelToTab(PanelTabs.LOG     , debugLogger.getTextPane());
     addPanelToTab(PanelTabs.GRAPH   , new JPanel());
 
     // create the message logging for the text panels
     commandLogger  = createTextLogger(PanelTabs.COMMAND , null);
-    paramLogger    = createTextLogger(PanelTabs.PARAMS  , null);
+//    paramLogger    = createTextLogger(PanelTabs.PARAMS  , null);
+    paramLogger = new Logger(symListText, PanelTabs.PARAMS.toString(), null);
 
     // init the CallGraph panel
     CallGraph.initCallGraph((JPanel) getTabPanel(PanelTabs.GRAPH));
@@ -737,6 +745,48 @@ public final class LauncherMain {
     mainFrame.getButton("BTN_GRF_SETUP").setEnabled(true);
   }
   
+  private Logger createTextLogger(PanelTabs tabname, HashMap<String, FontInfo> fontmap) {
+    return new Logger(getTabPanel(tabname), tabname.toString(), fontmap);
+  }
+  
+  private void addPanelToTab(PanelTabs tabname, Component panel) {
+    // make sure we don't already have the entry
+    if (tabbedPanels.containsKey(tabname)) {
+      System.err.println("ERROR: '" + tabname + "' panel already defined in tabs");
+      System.exit(1);
+    }
+    
+    // add the textPane to a scrollPane
+    JScrollPane scrollPanel;
+    scrollPanel = new JScrollPane(panel);
+    scrollPanel.setBorder(BorderFactory.createTitledBorder(""));
+    
+    // now add the scroll pane to the tabbed pane
+    tabPanel.addTab(tabname.toString(), scrollPanel);
+    tabSelect.put(tabname, tabIndex++);
+    
+    // save access to panel by name
+    tabbedPanels.put(tabname, panel);
+  }
+  
+  private static Component getTabPanel(PanelTabs tabname) {
+    if (!tabbedPanels.containsKey(tabname)) {
+      System.err.println("ERROR: '" + tabname + "' panel not found in tabs");
+      System.exit(1);
+    }
+    return tabbedPanels.get(tabname);
+  }
+  
+  private static void setTabSelect(PanelTabs tabname) {
+    Integer index = tabSelect.get(tabname);
+    if (index == null) {
+      System.err.println("ERROR: '" + tabname + "' panel not found in tabs");
+      System.exit(1);
+    }
+
+    tabPanel.setSelectedIndex(index);
+  }
+  
   private static void setHighlightMode(GraphHighlight mode) {
     JRadioButton threadSelBtn = graphSetupFrame.getRadiobutton("RB_THREAD");
     JRadioButton timeSelBtn   = graphSetupFrame.getRadiobutton("RB_ELAPSED");
@@ -842,44 +892,6 @@ public final class LauncherMain {
     }
   }
   
-  private static Component getTabPanel(PanelTabs tabname) {
-    if (!tabbedPanels.containsKey(tabname)) {
-      System.err.println("ERROR: '" + tabname + "' panel not found in tabs");
-      System.exit(1);
-    }
-    return tabbedPanels.get(tabname);
-  }
-  
-  private static void setTabSelect(PanelTabs tabname) {
-    Integer index = tabSelect.get(tabname);
-    if (index == null) {
-      System.err.println("ERROR: '" + tabname + "' panel not found in tabs");
-      System.exit(1);
-    }
-
-    tabPanel.setSelectedIndex(index);
-  }
-  
-  private void addPanelToTab(PanelTabs tabname, Component panel) {
-    // make sure we don't already have the entry
-    if (tabbedPanels.containsKey(tabname)) {
-      System.err.println("ERROR: '" + tabname + "' panel already defined in tabs");
-      System.exit(1);
-    }
-    
-    // add the textPane to a scrollPane
-    JScrollPane scrollPanel;
-    scrollPanel = new JScrollPane(panel);
-    scrollPanel.setBorder(BorderFactory.createTitledBorder(""));
-    
-    // now add the scroll pane to the tabbed pane
-    tabPanel.addTab(tabname.toString(), scrollPanel);
-    tabSelect.put(tabname, tabIndex++);
-    
-    // save access to panel by name
-    tabbedPanels.put(tabname, panel);
-  }
-  
   private static void startDebugPort(String projectPath) {
     int port = 5000; // init to default value
     if (debugPort != null && !debugPort.isEmpty()) {
@@ -950,10 +962,6 @@ public final class LauncherMain {
         graphTimer.stop();
       }
     }
-  }
-  
-  private Logger createTextLogger(PanelTabs tabname, HashMap<String, FontInfo> fontmap) {
-    return new Logger(getTabPanel(tabname), tabname.toString(), fontmap);
   }
   
   public static boolean isElapsedModeReset() {
@@ -1346,6 +1354,8 @@ public final class LauncherMain {
         printCommandMessage("Stripping debug info from uninstrumented jar file");
         String outputName = baseName + "-strip.jar";
         String[] command2 = { "pack200", "-r", "-G", projectPathName + outputName, projectPathName + projectName };
+        // this creates a command launcher that runs on the current thread
+        CommandLauncher commandLauncher = new CommandLauncher(commandLogger);
         retcode = commandLauncher.start(command2, projectPathName);
         if (retcode == 0) {
           printStatusMessage("Debug stripping was successful");
@@ -1498,6 +1508,8 @@ public final class LauncherMain {
 
     // decompile the selected class file
     String[] command = { "javap", "-p", "-c", "-s", "-l", CLASSFILE_STORAGE + "/" + classSelect + ".class" };
+    // this creates a command launcher that runs on the current thread
+    CommandLauncher commandLauncher = new CommandLauncher(commandLogger);
     int retcode = commandLauncher.start(command, projectPathName);
     if (retcode == 0) {
       String content = commandLauncher.getResponse();
