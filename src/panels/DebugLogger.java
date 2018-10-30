@@ -73,6 +73,10 @@ public class DebugLogger {
     return panel;
   }
   
+  public int getThreadCount() {
+    return threadCount;
+  }
+  
   public void setMaxBufferSize(int bufSize) {
     logger.setMaxBufferSize(bufSize);
   }
@@ -225,6 +229,7 @@ public class DebugLogger {
         String icount = splited[0].trim();
         String method = splited[1].trim();
         CallGraph.methodEnter(tid, tstamp, icount, method, linecount);
+        LauncherMain.callGraphValid();
         break;
       case "RETURN":
         CallGraph.methodExit(tid, tstamp, content);

@@ -51,21 +51,21 @@ public class GuiControls {
   // types of controls for user-entry
   public enum InputControl { Label, TextField, CheckBox, RadioButton, ComboBox, Spinner, Button }
   
-  private static JFrame         mainFrame = null;
-  private static GridBagLayout  mainLayout = null;
-  private static Dimension      framesize = null;
-  private static final HashMap<String, JPanel>        gPanel = new HashMap();
-  private static final HashMap<String, JScrollPane>   gScrollPanel = new HashMap();
-  private static final HashMap<String, JTabbedPane>   gTabbedPanel = new HashMap();
-  private static final HashMap<String, JTextPane>     gTextPane = new HashMap();
-  private static final HashMap<String, JList>         gList = new HashMap();
-  private static final HashMap<String, JLabel>        gLabel = new HashMap();
-  private static final HashMap<String, JButton>       gButton = new HashMap();
-  private static final HashMap<String, JCheckBox>     gCheckbox = new HashMap();
-  private static final HashMap<String, JComboBox>     gCombobox = new HashMap();
-  private static final HashMap<String, JTextField>    gTextField = new HashMap();
-  private static final HashMap<String, JRadioButton>  gRadiobutton = new HashMap();
-  private static final HashMap<String, JSpinner>      gSpinner = new HashMap();
+  private JFrame         mainFrame = null;
+  private GridBagLayout  mainLayout = null;
+  private Dimension      framesize = null;
+  private final HashMap<String, JPanel>        gPanel = new HashMap();
+  private final HashMap<String, JScrollPane>   gScrollPanel = new HashMap();
+  private final HashMap<String, JTabbedPane>   gTabbedPanel = new HashMap();
+  private final HashMap<String, JTextPane>     gTextPane = new HashMap();
+  private final HashMap<String, JList>         gList = new HashMap();
+  private final HashMap<String, JLabel>        gLabel = new HashMap();
+  private final HashMap<String, JButton>       gButton = new HashMap();
+  private final HashMap<String, JCheckBox>     gCheckbox = new HashMap();
+  private final HashMap<String, JComboBox>     gCombobox = new HashMap();
+  private final HashMap<String, JTextField>    gTextField = new HashMap();
+  private final HashMap<String, JRadioButton>  gRadiobutton = new HashMap();
+  private final HashMap<String, JSpinner>      gSpinner = new HashMap();
   
   public GuiControls() {
   }
@@ -86,7 +86,7 @@ public class GuiControls {
     mainFrame.setLayout(mainLayout);
   }
   
-  public static void newFrame(String title, double portion) {
+  public void newFrame(String title, double portion) {
     if (mainFrame != null) {
       return;
     }
@@ -110,7 +110,7 @@ public class GuiControls {
     mainFrame.setLayout(mainLayout);
   }
 
-  public static void newFrame(String title, int height, int width, FrameSize size) {
+  public void newFrame(String title, int height, int width, FrameSize size) {
     if (mainFrame != null) {
       return;
     }
@@ -139,7 +139,7 @@ public class GuiControls {
     mainFrame.setLayout(mainLayout);
   }
   
-  public static void display() {
+  public void display() {
     if (mainFrame != null) {
       mainFrame.pack();
       mainFrame.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
@@ -148,20 +148,26 @@ public class GuiControls {
     }
   }
 
-  public static void update() {
+  public void hide() {
+    if (mainFrame != null) {
+      mainFrame.setVisible(false);
+    }
+  }
+
+  public void update() {
     if (mainFrame != null) {
       mainFrame.repaint();
     }
   }
   
-  public static void repack() {
+  public void repack() {
     if (mainFrame != null) {
       mainFrame.pack();
       mainFrame.setSize(framesize);
     }
   }
   
-  public static void close() {
+  public void close() {
     gPanel.clear();
     gScrollPanel.clear();
     gTabbedPanel.clear();
@@ -181,99 +187,99 @@ public class GuiControls {
     }
   }
   
-  public static JFrame getFrame() {
+  public JFrame getFrame() {
     return mainFrame;
   }
 
-  public static boolean isValidFrame() {
+  public boolean isValidFrame() {
     return mainFrame != null;
   }
 
-  public static JPanel getPanel(String name) {
+  public JPanel getPanel(String name) {
     if (gPanel == null) {
       return null;
     }
     return gPanel.get(name);
   }
 
-  public static JScrollPane getScrollPanel(String name) {
+  public JScrollPane getScrollPanel(String name) {
     if (gScrollPanel == null) {
       return null;
     }
     return gScrollPanel.get(name);
   }
 
-  public static JTabbedPane getTabbedPanel(String name) {
+  public JTabbedPane getTabbedPanel(String name) {
     if (gTabbedPanel == null) {
       return null;
     }
     return gTabbedPanel.get(name);
   }
 
-  public static JTextPane getTextPane(String name) {
+  public JTextPane getTextPane(String name) {
     if (gTextPane == null) {
       return null;
     }
     return gTextPane.get(name);
   }
 
-  public static JList getList(String name) {
+  public JList getList(String name) {
     if (gList == null) {
       return null;
     }
     return gList.get(name);
   }
 
-  public static JLabel getLabel(String name) {
+  public JLabel getLabel(String name) {
     if (gLabel == null) {
       return null;
     }
     return gLabel.get(name);
   }
 
-  public static JButton getButton(String name) {
+  public JButton getButton(String name) {
     if (gButton == null) {
       return null;
     }
     return gButton.get(name);
   }
 
-  public static JCheckBox getCheckbox(String name) {
+  public JCheckBox getCheckbox(String name) {
     if (gCheckbox == null) {
       return null;
     }
     return gCheckbox.get(name);
   }
 
-  public static JComboBox getCombobox(String name) {
+  public JComboBox getCombobox(String name) {
     if (gCombobox == null) {
       return null;
     }
     return gCombobox.get(name);
   }
 
-  public static JTextField getTextField(String name) {
+  public JTextField getTextField(String name) {
     if (gTextField == null) {
       return null;
     }
     return gTextField.get(name);
   }
 
-  public static JRadioButton getRadiobutton(String name) {
+  public JRadioButton getRadiobutton(String name) {
     if (gRadiobutton == null) {
       return null;
     }
     return gRadiobutton.get(name);
   }
 
-  public static JSpinner getSpinner(String name) {
+  public JSpinner getSpinner(String name) {
     if (gSpinner == null) {
       return null;
     }
     return gSpinner.get(name);
   }
 
-  public static Component getInputDevice(String name, InputControl type) {
+  public Component getInputDevice(String name, InputControl type) {
     switch(type) {
       case Label:
         return getLabel(name);
@@ -294,7 +300,7 @@ public class GuiControls {
     return null;
   }
   
-  public static String getInputControl(String name, InputControl type) {
+  public String getInputControl(String name, InputControl type) {
     // get the selected device
     Component control = getInputDevice(name, type);
     if (control == null) {
@@ -322,7 +328,7 @@ public class GuiControls {
     return "";
   }
   
-  public static void setInputControl(String name, InputControl type, String value) {
+  public void setInputControl(String name, InputControl type, String value) {
     // get the selected device
     Component control = getInputDevice(name, type);
     if (control == null) {
@@ -368,7 +374,7 @@ public class GuiControls {
    * @param width   - minimum width of panel
    * @return the panel
    */
-  public static JPanel setPanelSize(String panelname, int height, int width) {
+  public JPanel setPanelSize(String panelname, int height, int width) {
     // limit height and width to max of screen dimensions
     height = (height > SCREEN_SIZE.height) ? SCREEN_SIZE.height : height;
     width  = (width  > SCREEN_SIZE.width)  ? SCREEN_SIZE.width  : width;
@@ -386,7 +392,7 @@ public class GuiControls {
    * 
    * @return the constraints
    */
-  private static GridBagConstraints setGbagConstraintsPanel() {
+  private GridBagConstraints setGbagConstraintsPanel() {
     GridBagConstraints c = new GridBagConstraints();
     c.insets = new Insets(GAPSIZE, GAPSIZE, GAPSIZE, GAPSIZE);
 
@@ -405,7 +411,7 @@ public class GuiControls {
    * @param end - true if this is the last (or only) entry on the line
    * @return the constraints
    */
-  private static GridBagConstraints setGbagConstraints(Orient pos, boolean end) {
+  private GridBagConstraints setGbagConstraints(Orient pos, boolean end) {
     GridBagConstraints c = new GridBagConstraints();
     c.insets = new Insets(GAPSIZE, GAPSIZE, GAPSIZE, GAPSIZE);
 
@@ -447,7 +453,7 @@ public class GuiControls {
    * @param title     - name of label to add
    * @return the constraints
    */
-  private static GridBagConstraints setGbagInsertLabel(JPanel panel, GridBagLayout gridbag,
+  private GridBagConstraints setGbagInsertLabel(JPanel panel, GridBagLayout gridbag,
                              Orient pos, boolean end, boolean fullline, String name, String title) {
     GridBagConstraints c = new GridBagConstraints();
     c.insets = new Insets(GAPSIZE, GAPSIZE, GAPSIZE, GAPSIZE);
@@ -490,7 +496,7 @@ public class GuiControls {
     return c;
   }
 
-  private static JPanel getSelectedPanel(String panelname) {
+  private JPanel getSelectedPanel(String panelname) {
     // get container panel if specified
     JPanel panel = null;
     if (panelname != null && !panelname.isEmpty()) {
@@ -508,7 +514,7 @@ public class GuiControls {
    * 
    * @param component - component to place the main frame
    */
-  public static void addToPanelFrame(JComponent component) {
+  public void addToPanelFrame(JComponent component) {
     if (mainFrame == null || mainLayout == null) {
       return;
     }
@@ -522,7 +528,7 @@ public class GuiControls {
    * 
    * @param panelname - the name of the jPanel container to place the component in (null if use main frame)
    */
-  public static void makeLineGap(String panelname) {
+  public void makeLineGap(String panelname) {
     if (mainFrame == null || mainLayout == null) {
       return;
     }
@@ -548,7 +554,7 @@ public class GuiControls {
    * @param panelname - the name of the jPanel container to place the component in (null if use main frame)
    * @param width - width in pixels for the gap (the width of the dummy label)
    */
-  public static void makeGap(String panelname, int width) {
+  public void makeGap(String panelname, int width) {
     if (mainFrame == null || mainLayout == null) {
       return;
     }
@@ -580,7 +586,7 @@ public class GuiControls {
    * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
    * @param end     - true if this is last widget in the line
    */
-  public static void makeLabel(String panelname, String name, String title, Orient pos, boolean end) {
+  public void makeLabel(String panelname, String name, String title, Orient pos, boolean end) {
     if (mainFrame == null || mainLayout == null) {
       return;
     }
@@ -619,7 +625,7 @@ public class GuiControls {
    * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
    * @param end     - true if this is last widget in the line
    */
-  public static void makePlaceholder(String panelname, Orient pos, boolean end) {
+  public void makePlaceholder(String panelname, Orient pos, boolean end) {
     makeLabel(panelname, "", "    ", pos, end);
   }
   
@@ -633,7 +639,7 @@ public class GuiControls {
    * @param end     - true if this is last widget in the line
    * @return the button widget
    */
-  public static JButton makeButton(String panelname, String name, String title, Orient pos, boolean end) {
+  public JButton makeButton(String panelname, String name, String title, Orient pos, boolean end) {
     if (mainFrame == null || mainLayout == null) {
       return null;
     }
@@ -680,7 +686,7 @@ public class GuiControls {
    * @param value   - 0 to have checkbox initially unselected, any other value for selected
    * @return the checkbox widget
    */
-  public static JCheckBox makeCheckbox(String panelname, String name, String title, Orient pos,
+  public JCheckBox makeCheckbox(String panelname, String name, String title, Orient pos,
               boolean end, int value) {
     if (mainFrame == null || mainLayout == null) {
       return null;
@@ -732,7 +738,7 @@ public class GuiControls {
    * @param writable - true if field is writable by user, false if display only
    * @return the checkbox widget
    */
-  public static JTextField makeTextField(String panelname, String name, String title, Orient pos,
+  public JTextField makeTextField(String panelname, String name, String title, Orient pos,
                 boolean end, String value, int length, boolean writable) {
     
     if (mainFrame == null || mainLayout == null) {
@@ -794,7 +800,7 @@ public class GuiControls {
    * @param value   - 0 to have checkbox initially unselected, any other value for selected
    * @return the checkbox widget
    */
-  public static JRadioButton makeRadiobutton(String panelname, String name, String title, Orient pos,
+  public JRadioButton makeRadiobutton(String panelname, String name, String title, Orient pos,
               boolean end, int value) {
     if (mainFrame == null || mainLayout == null) {
       return null;
@@ -842,7 +848,7 @@ public class GuiControls {
    * @param end     - true if this is last widget in the line
    * @return the combo widget
    */
-  public static JComboBox makeCombobox(String panelname, String name, String title, Orient pos, boolean end) {
+  public JComboBox makeCombobox(String panelname, String name, String title, Orient pos, boolean end) {
     if (mainFrame == null || mainLayout == null) {
       return null;
     }
@@ -896,7 +902,7 @@ public class GuiControls {
    * @param curval  - the current value for the spinner
    * @return the spinner widget
    */
-  public static JSpinner makeSpinner(String panelname, String name, String title, Orient pos, boolean end,
+  public JSpinner makeSpinner(String panelname, String name, String title, Orient pos, boolean end,
           int minval, int maxval, int step, int curval) {
     if (mainFrame == null || mainLayout == null) {
       return null;
@@ -947,7 +953,7 @@ public class GuiControls {
    * @param end     - true if this is last widget in the line
    * @return the panel
    */
-  public static JPanel makePanel(String panelname, String name, String title, Orient pos, boolean end) {
+  public JPanel makePanel(String panelname, String name, String title, Orient pos, boolean end) {
     if (mainFrame == null || mainLayout == null) {
       return null;
     }
@@ -1003,7 +1009,7 @@ public class GuiControls {
    * @param width   - desired width of panel
    * @return the panel
    */
-  public static JPanel makePanel(String panelname, String name, String title, Orient pos, boolean end, int height, int width) {
+  public JPanel makePanel(String panelname, String name, String title, Orient pos, boolean end, int height, int width) {
     JPanel panel = makePanel(panelname, name, title, pos, end);
     if (panel != null) {
       // limit height and width to max of screen dimensions
@@ -1028,7 +1034,7 @@ public class GuiControls {
    * @param end     - true if this is last widget in the line
    * @return the panel
    */
-  public static JTabbedPane makeTabbedPanel(String panelname, String name, String title, Orient pos, boolean end) {
+  public JTabbedPane makeTabbedPanel(String panelname, String name, String title, Orient pos, boolean end) {
     if (mainFrame == null || mainLayout == null) {
       return null;
     }
@@ -1079,7 +1085,7 @@ public class GuiControls {
    * @param list    - the list of entries to associate with the panel
    * @return the JList corresponding to the list passed
    */
-  public static JList makeScrollList(String panelname, String name, String title, DefaultListModel list) {
+  public JList makeScrollList(String panelname, String name, String title, DefaultListModel list) {
     if (mainFrame == null || mainLayout == null) {
       return null;
     }
@@ -1140,7 +1146,7 @@ public class GuiControls {
    * @param title     - the name to display as a label preceeding the widget
    * @return the text panel contained in the scroll panel
    */
-  public static JTextPane makeScrollText(String panelname, String name, String title) {
+  public JTextPane makeScrollText(String panelname, String name, String title) {
     if (mainFrame == null || mainLayout == null) {
       return null;
     }
@@ -1191,7 +1197,7 @@ public class GuiControls {
    * @param list    - the list of entries to associate with the panel
    * @return the JScrollPane created
    */
-  public static JScrollPane makeRawScrollList(String name, String title, DefaultListModel list) {
+  public JScrollPane makeRawScrollList(String name, String title, DefaultListModel list) {
     // create the scroll panel and title
     JScrollPane spanel = new JScrollPane();
     spanel.setBorder(BorderFactory.createTitledBorder(title));

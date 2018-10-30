@@ -21,6 +21,7 @@ import logging.FontInfo;
 import logging.FontInfo.FontType;
 import logging.FontInfo.TextColor;
 import logging.Logger;
+import main.LauncherMain;
 
 /**
  *
@@ -43,6 +44,7 @@ public class BytecodeViewer {
   private static HashMap<String, FontInfo> fontmap = new HashMap<>();
   private static ArrayList<BytecodeInfo> bytecode = new ArrayList<>();
   private static String          methodLoaded = "";
+  private static boolean         valid;
 
   public BytecodeViewer(String name) {
     String fonttype = "Courier";
@@ -57,6 +59,8 @@ public class BytecodeViewer {
     FontInfo.setTypeColor (fontmap, MsgType.STORE.toString(),   TextColor.Blue,   FontType.Normal, 14, fonttype);
     FontInfo.setTypeColor (fontmap, MsgType.OTHER.toString(),   TextColor.Black,  FontType.Normal, 14, fonttype);
 
+    valid = false;
+    
     // create the text panel and assign it to the logger
     panel = new JTextPane();
     logger = new Logger((Component) panel, name, fontmap);
@@ -68,6 +72,10 @@ public class BytecodeViewer {
   
   public JTextPane getTextPane() {
     return panel;
+  }
+  
+  public boolean isValidBytecode() {
+    return valid;
   }
   
   public boolean isMethodDisplayed(String classSelect, String methodSelect) {
@@ -138,10 +146,15 @@ public class BytecodeViewer {
     if (methodLoaded.equals(classSelect + "." + methodSelect) && !bytecode.isEmpty()) {
       // make sure highlighting is desabled for the text, and we're good to exit
       highlightClear();
+      valid = true;
       return;
     }
 
     // else we need to start with a clean slate
+    valid = false;
+    int offset = methodSelect.indexOf("(");
+    String signature = methodSelect.substring(offset);
+    methodSelect = methodSelect.substring(0, offset);
     methodLoaded = "";
     logger.clear();
     bytecode = new ArrayList<>();
@@ -149,20 +162,39 @@ public class BytecodeViewer {
     String[] lines = content.split(NEWLINE);
     for (String entry : lines) {
       entry = entry.replace("\t", " ").trim();
-        
-      // ignore these entries for now
-      if (entry.startsWith("public class ") ||
-          entry.startsWith("private class ") ||
-          entry.startsWith("class ") ||
-          entry.startsWith("descriptor:") ||
-          entry.startsWith("Code:")) {
+
+      // skip past these keywords
+      if (entry.startsWith("public ") || entry.startsWith("private ")) {
+        entry = entry.substring(entry.indexOf(" ") + 1).trim();
+      }
+      if (entry.startsWith("static ")) {
+        entry = entry.substring(entry.indexOf(" ") + 1).trim();
+      }
+
+      // ignore these entries
+      if (entry.startsWith("class ") || entry.startsWith("Code:")) {
         continue;
       }
 
-      // if the method was found, start checking for opcodes
-      if (methodLoaded.equals(classSelect + "." + methodSelect)) {
+      if (!methodLoaded.isEmpty() && entry.startsWith("descriptor:")) {
+        // compare descriptor value with our method signature
+        entry = entry.substring(entry.indexOf(" ") + 1).trim();
+        if (entry.equals(signature)) {
+          // print the method name as the 1st line
+          printBytecodeMethod(methodLoaded);
+          valid = true;
+          LauncherMain.printCommandMessage("- signature match: " + entry);
+        } else {
+          LauncherMain.printCommandMessage("- no match: " + entry);
+          methodLoaded = "";
+        }
+        continue;
+      }
+      
+      // if the correct method was found, start checking for opcodes
+      if (valid) {
         // check for valid opcode definition
-        int offset = getOpcodeOffset(entry, lastoffset);
+        offset = getOpcodeOffset(entry, lastoffset);
         if (offset < 0) {
           // non-opcode line:
           // if we haven't found bytecodes yet, keep checking
@@ -179,7 +211,7 @@ public class BytecodeViewer {
         entry = entry.substring(entry.indexOf(": ") + 1).trim();
         formatBytecode(offset, entry);
         
-      } else {
+      } else if (methodLoaded.isEmpty()) {
         // searching for specified method within the class
         // check for start of selected method (method must contain the parameter list)
         if (entry.contains("(") && entry.contains(")")) {
@@ -198,20 +230,16 @@ public class BytecodeViewer {
           if (methName.startsWith(classSelect)) {
             methName = methName.substring(classSelect.length());
           }
-          // ignore the return value - it's not part of the signature
-          methName = methName.substring(0, methName.indexOf(")"));
-          // TODO: for now, we just look for method name, not signature because javap uses
-          // nomenclature like 'int' and 'long' instead of 'I' and 'J', making comparisons
-          // a little tougher. This will be a problem for classes that hane multiple signatures
-          // of the same class name.
+          // ignore the argument list, since it's not in the proper form.
+          // instead, we will look for the description: entry on the following line that is valid.
           methName = methName.substring(0, methName.indexOf("("));
           if (methName.isEmpty()) { // if no name - it must be the <init> contructor method
             methName = "<init>";
           }
           // method entry found, let's see if it's the one we want
-          if (methodSelect.startsWith(methName)) {
-            methodLoaded = classSelect + "." + methodSelect;
-            printBytecodeMethod(methodLoaded);
+          if (methodSelect.equals(methName)) {
+            methodLoaded = classSelect + "." + methodSelect + signature;
+            LauncherMain.printCommandMessage("Method found: " + classSelect + "." + methName);
           }
         }
       }

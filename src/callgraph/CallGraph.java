@@ -214,7 +214,7 @@ public class CallGraph {
   private static void drawCG(List<MethodInfo> methList) {
     CallGraph.callGraph = new BaseGraph<>();
 
-System.out.println("drawCG: Methods = " + methList.size());
+    System.out.println("drawCG: Methods = " + methList.size());
     // add vertexes to graph
     for(MethodInfo mthNode : methList) {
       CallGraph.callGraph.addVertex(mthNode, mthNode.getCGName());
@@ -432,7 +432,8 @@ System.out.println("drawCG: Methods = " + methList.size());
         }
       }
 
-      JOptionPane.showMessageDialog (null,
+      String[] selection = {"Yes", "No" };
+      int which = JOptionPane.showOptionDialog(graphPanel,
           "Thread: " + ((selected.getThread().isEmpty()) ?
               "<no info>" : selected.getThread().toString()) + NEWLINE +
           "Method: " + selected.getFullName() + NEWLINE +
@@ -446,9 +447,25 @@ System.out.println("drawCG: Methods = " + methList.size());
           (selected.getExecption(tid) <= 1 ?
               "" : "exception @ line: " + selected.getExecption(tid) + NEWLINE) +
           (selected.getError(tid) <= 1 ?
-              "" : "error @ line: " + selected.getError(tid) + NEWLINE),
-          "Method Info",
-          JOptionPane.INFORMATION_MESSAGE);
+              "" : "error @ line: " + selected.getError(tid)) + NEWLINE + NEWLINE +
+          "Show Bytecode for selected method?",
+          "Method Info", // title of pane
+          JOptionPane.YES_NO_CANCEL_OPTION, // DEFAULT_OPTION,
+          JOptionPane.QUESTION_MESSAGE, // PLAIN_MESSAGE
+          null, // icon
+          selection, selection[1]);
+
+      if (which >= 0) {
+        switch (selection[which]) {
+          case "Yes":
+            String cls = selected.getClassName();
+            String meth = selected.getMethodName();
+            LauncherMain.generateBytecode(cls, meth);
+            break;
+          default:
+            break;
+        }
+      }
     }
   }
   

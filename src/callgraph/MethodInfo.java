@@ -132,6 +132,10 @@ public class MethodInfo {
     return className.isEmpty() ? methName : className + NEWLINE + methName;
   }
   
+  public String getClassName() {
+    return fullName.substring(0, fullName.lastIndexOf("."));
+  }
+
   public String getMethodName() {
     return methName;
   }
