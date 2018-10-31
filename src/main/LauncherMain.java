@@ -5,9 +5,6 @@
  */
 package main;
 
-import callgraph.CallGraph;
-import util.CommandLauncher;
-import util.ThreadLauncher;
 import gui.GuiControls;
 import gui.GuiControls.FrameSize;
 import gui.GuiControls.InputControl;
@@ -16,6 +13,13 @@ import logging.Logger;
 import panels.BytecodeViewer;
 import panels.DatabaseTable;
 import panels.DebugLogger;
+import panels.ParamTable;
+import panels.SymbolTable;
+import callgraph.CallGraph;
+import util.CommandLauncher;
+import util.ThreadLauncher;
+
+import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -57,6 +61,7 @@ import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
+import javax.swing.JTextPane;
 import javax.swing.Timer;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
@@ -118,7 +123,6 @@ public final class LauncherMain {
   private static JComboBox       classCombo;
   private static JComboBox       methodCombo;
   private static Logger          commandLogger;
-  private static Logger          paramLogger;
   private static BytecodeViewer  bytecodeLogger;
   private static DebugLogger     debugLogger;
   private static Timer           debugMsgTimer;
@@ -132,6 +136,8 @@ public final class LauncherMain {
   private static int             tabIndex = 0;
   private static ThreadLauncher  threadLauncher;
   private static DatabaseTable   dbtable;
+  private static ParamTable      localVarTbl;
+  private static SymbolTable     symbolTbl;
   private static String          inputAttempt = "";
   private static DefaultListModel solutionList;
   private static Visitor         makeConnection;
@@ -299,7 +305,8 @@ public final class LauncherMain {
     mainFrame.makeButton    (panel, "BTN_SEND"     , "Post Data"   , LEFT, false);
     mainFrame.makeTextField (panel, "TXT_INPUT"    , ""            , LEFT, true, "", 40, true);
     mainFrame.makeTextField (panel, "TXT_PORT"     , "Server Port" , LEFT, true, "8080", 8, true);
-    mainFrame.makeButton    (panel, "BTN_SOLVER"   , "Run Solver"  , LEFT, true);
+    mainFrame.makeButton    (panel, "BTN_SOLVER"   , "Run Solver"  , LEFT, false);
+    mainFrame.makeButton    (panel, "BTN_NEWDANFIG", "New danfig"  , LEFT, true);
     mainFrame.makeButton    (panel, "BTN_DB_CLEAR" , "Clear DB"    , LEFT, false);
     mainFrame.makeButton    (panel, "BTN_LOG_CLEAR", "Clear Log"   , LEFT, true);
     mainFrame.makeButton    (panel, "BTN_GRF_SETUP", "Graph Setup" , LEFT, true);
@@ -321,6 +328,7 @@ public final class LauncherMain {
     mainFrame.getButton("BTN_STOPTEST").setEnabled(false);
     mainFrame.getButton("BTN_LOG_CLEAR").setEnabled(false);
     mainFrame.getButton("BTN_DB_CLEAR").setEnabled(false);
+    mainFrame.getButton("BTN_NEWDANFIG").setEnabled(false);
     mainFrame.getTextField("TXT_ARGLIST").setEnabled(false);
     mainFrame.getTextField("TXT_INPUT").setEnabled(false);
     mainFrame.getButton("BTN_SEND").setEnabled(false);
@@ -390,6 +398,7 @@ public final class LauncherMain {
         mainFrame.getButton("BTN_SOLVER").setEnabled(true);
         mainFrame.getButton("BTN_LOG_CLEAR").setEnabled(true);
         mainFrame.getButton("BTN_DB_CLEAR").setEnabled(true);
+        mainFrame.getButton("BTN_NEWDANFIG").setEnabled(true);
         mainFrame.getTextField("TXT_ARGLIST").setEnabled(true);
         mainFrame.getTextField("TXT_INPUT").setEnabled(true);
 
@@ -503,6 +512,12 @@ public final class LauncherMain {
         setThreadEnabled(false);
       }
     });
+    (mainFrame.getButton("BTN_NEWDANFIG")).addActionListener(new ActionListener() {
+      @Override
+      public void actionPerformed(java.awt.event.ActionEvent evt) {
+        updateSymbolicList();
+      }
+    });
     (mainFrame.getButton("BTN_STOPTEST")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
@@ -532,31 +547,48 @@ public final class LauncherMain {
     debugLogger = new DebugLogger(PanelTabs.LOG.toString());
     bytecodeLogger = new BytecodeViewer(PanelTabs.BYTECODE.toString());
 
-    // add the tabbed message panels for bytecode output, command output, and debug output
-    JTextArea paramListText = new JTextArea();
-    JTextArea symListText = new JTextArea();
-    JScrollPane paramListPane = new JScrollPane(paramListText);
-    JScrollPane symbolListPane = new JScrollPane(symListText);
-    JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, paramListPane, symbolListPane);
-    splitPane.setOneTouchExpandable(true);
-    splitPane.setDividerLocation(400);
+    // create a split panel for sharing the local variables and symbolic parameters in a tab
+    JTable paramList = new JTable();        // the bytecode param list
+    JTable sybolList = new JTable();        // the symbolic parameter list
+    String splitName = "SPLIT_PANE1";
+    JSplitPane splitPane1 = mainFrame.makeSplitPane(splitName, false, 0.5);
+    mainFrame.addSplitComponent(splitName, 0, "TBL_PARAMLIST", paramList, true);
+    mainFrame.addSplitComponent(splitName, 1, "TBL_SYMBOLICS", sybolList, true);
+//    paramList.setBorder(new TitledBorder("Local variables"));
+//    sybolList.setBorder(new TitledBorder("Symbolics defined"));
+
+    // wrap the bytecode logger in another pane to prevent line wrapping on a JTextPane
+    JTextPane bytecodePane = bytecodeLogger.getTextPane();
+    JPanel noWrapBytecodePanel = new JPanel(new BorderLayout());
+    noWrapBytecodePanel.add(bytecodePane);
+
+    // we're going to combine the BYTECODE entry with the parameter/symbolics split panel
+    splitName = "SPLIT_MAIN";
+    JSplitPane splitMain = mainFrame.makeSplitPane(splitName, true, 0.5);
+    mainFrame.addSplitComponent(splitName, 0, "BYTECODE"  , noWrapBytecodePanel, true);
+    mainFrame.addSplitComponent(splitName, 1, "PNL_PARAMS", splitPane1, false);
     
-    addPanelToTab(PanelTabs.COMMAND , new JTextArea());
-    addPanelToTab(PanelTabs.DATABASE, new JTable());
-    addPanelToTab(PanelTabs.BYTECODE, bytecodeLogger.getTextPane());
-//    addPanelToTab(PanelTabs.PARAMS  , new JTextArea());
-    addPanelToTab(PanelTabs.PARAMS  , splitPane);
-    addPanelToTab(PanelTabs.LOG     , debugLogger.getTextPane());
-    addPanelToTab(PanelTabs.GRAPH   , new JPanel());
+    // add the tabbed message panels
+    addPanelToTab(PanelTabs.COMMAND , new JTextArea(), true);
+    addPanelToTab(PanelTabs.DATABASE, new JTable(), true);
+    addPanelToTab(PanelTabs.BYTECODE, splitMain, false);
+    addPanelToTab(PanelTabs.LOG     , debugLogger.getTextPane(), true);
+    addPanelToTab(PanelTabs.GRAPH   , new JPanel(), true);
 
     // create the message logging for the text panels
     commandLogger  = createTextLogger(PanelTabs.COMMAND , null);
-//    paramLogger    = createTextLogger(PanelTabs.PARAMS  , null);
-    paramLogger = new Logger(symListText, PanelTabs.PARAMS.toString(), null);
 
+    // update divider locations in split frame now that it has been placed (and the dimensions are set)
+    mainFrame.setSplitDivider("SPLIT_MAIN", 0.6);
+    mainFrame.setSplitDivider("SPLIT_PANE1", 0.6);
+    
     // init the CallGraph panel
     CallGraph.initCallGraph((JPanel) getTabPanel(PanelTabs.GRAPH));
 
+    // init the local variable and symbolic list tables
+    localVarTbl = new ParamTable(paramList);
+    symbolTbl = new SymbolTable(sybolList);
+            
     // init the database table panel
     dbtable = new DatabaseTable((JTable) getTabPanel(LauncherMain.PanelTabs.DATABASE));
   }
@@ -749,7 +781,7 @@ public final class LauncherMain {
     return new Logger(getTabPanel(tabname), tabname.toString(), fontmap);
   }
   
-  private void addPanelToTab(PanelTabs tabname, Component panel) {
+  private void addPanelToTab(PanelTabs tabname, Component panel, boolean scrollable) {
     // make sure we don't already have the entry
     if (tabbedPanels.containsKey(tabname)) {
       System.err.println("ERROR: '" + tabname + "' panel already defined in tabs");
@@ -757,18 +789,23 @@ public final class LauncherMain {
     }
     
     // add the textPane to a scrollPane
-    JScrollPane scrollPanel;
-    scrollPanel = new JScrollPane(panel);
-    scrollPanel.setBorder(BorderFactory.createTitledBorder(""));
-    
-    // now add the scroll pane to the tabbed pane
-    tabPanel.addTab(tabname.toString(), scrollPanel);
-    tabSelect.put(tabname, tabIndex++);
+    if (scrollable) {
+      JScrollPane scrollPanel;
+      scrollPanel = new JScrollPane(panel);
+      scrollPanel.setBorder(BorderFactory.createTitledBorder(""));
+
+      // now add the scroll pane to the tabbed pane
+      tabPanel.addTab(tabname.toString(), scrollPanel);
+    } else {
+      // or add the original pane to the tabbed pane
+      tabPanel.addTab(tabname.toString(), panel);
+    }
     
     // save access to panel by name
+    tabSelect.put(tabname, tabIndex++);
     tabbedPanels.put(tabname, panel);
   }
-  
+
   private static Component getTabPanel(PanelTabs tabname) {
     if (!tabbedPanels.containsKey(tabname)) {
       System.err.println("ERROR: '" + tabname + "' panel not found in tabs");
@@ -1034,7 +1071,19 @@ public final class LauncherMain {
     // reset the elapsed time
 //    resetElapsedTime();
   }
+  
+  public static void addLocalVariable(String name, String type, String slot, String start, String end) {
+    localVarTbl.addEntry(name, type, slot, start, end);
+  }
 
+  public static void addSymbVariable(String meth, String name, String type, String slot, String start, String end) {
+    symbolTbl.addEntry(meth, name, type, slot, start, end);
+  }
+
+  public static Integer byteOffsetToLineNumber(int offset) {
+    return bytecodeLogger.byteOffsetToLineNumber(offset);
+  }
+  
   /**
    * finds the classes in a jar file & sets the Class ComboBox to these values.
    */
@@ -1212,10 +1261,6 @@ public final class LauncherMain {
     printCommandError(message);
   }
   
-  private static void printParameter(String message) {
-    paramLogger.printLine(message);
-  }
-  
   public static void printCommandMessage(String message) {
     commandLogger.printLine(message);
   }
@@ -1323,6 +1368,9 @@ public final class LauncherMain {
         return;
       }
     
+      // clear out the symbolic parameter list
+      symbolTbl.clear();
+
       // read the symbolic parameter definitions from danfig file (if present)
       readSymbolicList();
   
@@ -1506,6 +1554,9 @@ public final class LauncherMain {
       return;
     }
 
+    // clear out the local variable list
+    localVarTbl.clear(classSelect + "." + methodSelect);
+
     // decompile the selected class file
     String[] command = { "javap", "-p", "-c", "-s", "-l", CLASSFILE_STORAGE + "/" + classSelect + ".class" };
     // this creates a command launcher that runs on the current thread
@@ -1648,10 +1699,10 @@ public final class LauncherMain {
     printStatusError("'" + className + "' not found in " + jarfile.getAbsoluteFile());
   }
   
-  private static void readSymbolicList() {
+  private static String initDanfigInfo() {
     // initialize replacement config info
     String content = "#! DANALYZER SYMBOLIC EXPRESSION LIST" + NEWLINE;
-    content += "# DO_NOT_CHANGE" + NEWLINE;
+    content += "# DANLAUNCHER_VERSION" + NEWLINE;
     content += "IPAddress: localhost" + NEWLINE;
     content += "DebugPort: " + debugPort + NEWLINE;
     content += "DebugMode: TCPPORT" + NEWLINE;
@@ -1662,9 +1713,15 @@ public final class LauncherMain {
     content += "TriggerOnError: 0" + NEWLINE;
     content += "TriggerOnException: 0" + NEWLINE;
     content += NEWLINE;
+    return content;
+  }
+  
+  private static void readSymbolicList() {
 
     boolean needChange = false;
     boolean noChange = false;
+    
+    String content = initDanfigInfo();
     
     File file = new File(projectPathName + "danfig");
     if (!file.isFile()) {
@@ -1676,13 +1733,12 @@ public final class LauncherMain {
         FileReader fileReader = new FileReader(file);
         BufferedReader bufferedReader = new BufferedReader(fileReader);
         String line;
-        int count = 0;
         dbtable.initSymbolic();
         printCommandMessage("Symbolic parameters:");
         while ((line = bufferedReader.readLine()) != null) {
           line = line.trim();
-          if (line.startsWith("# DO_NOT_CHANGE")) {
-            printCommandMessage("Will not update danfig file");
+          if (line.startsWith("# DANLAUNCHER_VERSION")) {
+            printCommandMessage("danfig file was generated by danlauncher");
             noChange = true;
           } else if (line.startsWith("Symbolic:")) {
 //            line = line.substring("Symbolic:".length()).trim();
@@ -1692,7 +1748,7 @@ public final class LauncherMain {
               return;
             }
             String symname = word[1].trim() + "_" + word[0].trim().replace(".","/");
-            printParameter("P" + count++ + ": " + symname);
+            addSymbVariable(word[0].trim().replace(".","/"), "---", "---", word[1].trim(), "0", "0");
             printCommandMessage(" - " + symname);
 
             // add entry to list 
@@ -1723,6 +1779,18 @@ public final class LauncherMain {
       // create the new file
       saveProjectTextFile("danfig", content);
     }
+  }
+
+  private static void updateSymbolicList() {
+    // init the background stuff
+    String content = initDanfigInfo();
+    
+    // now add in the latest and greatest symbolic defs
+    content += symbolTbl.getSymbolicList();
+
+    // now save to the file
+    printCommandMessage("Updating danfig file");
+    saveProjectTextFile("danfig", content);
   }
 
   private static void saveProjectTextFile(String filename, String content) {

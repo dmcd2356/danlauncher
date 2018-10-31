@@ -87,6 +87,20 @@ public class BytecodeViewer {
     }
     return false;
   }
+
+  public Integer byteOffsetToLineNumber(int offset) {
+    Integer line = 0;
+    for (BytecodeInfo bc : bytecode) {
+      if (offset == bc.offset) {
+        return line;
+      }
+      if (offset < bc.offset) {
+        return line - 1;
+      }
+      ++line;
+    }
+    return null;
+  }
   
   public void highlightClear() {
     System.out.println("BytecodeLogger: highlightClear");
@@ -251,10 +265,16 @@ public class BytecodeViewer {
             continue;
           }
           // if starts with numeric, we have a valid table entry
+          // add them to the local variable table display
           try {
-            int val = Integer.parseUnsignedInt(keyword);
-            // TODO; parse the local variable info
-            continue;
+            String[] words = entry.split("\\s+");
+            if (words.length >= 5) {
+              int start = Integer.parseUnsignedInt(words[0]);
+              int len   = Integer.parseUnsignedInt(words[1]);
+              int slot  = Integer.parseUnsignedInt(words[2]);
+              LauncherMain.addLocalVariable(words[3], words[4], words[2], words[0], "" + (start + len - 1));
+              continue;
+            }
           } catch (NumberFormatException ex) { }
           parseMode = ParseMode.NONE;
           break;

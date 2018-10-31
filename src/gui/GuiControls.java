@@ -27,12 +27,14 @@ import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
+import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.JTextPane;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.WindowConstants;
+import javax.swing.border.TitledBorder;
 
 /**
  *
@@ -66,6 +68,19 @@ public class GuiControls {
   private final HashMap<String, JTextField>    gTextField = new HashMap();
   private final HashMap<String, JRadioButton>  gRadiobutton = new HashMap();
   private final HashMap<String, JSpinner>      gSpinner = new HashMap();
+  private final HashMap<String, SplitInfo>     gSplitPane = new HashMap();
+  
+  private class SplitInfo {
+    public String           name;
+    public JSplitPane       pane;
+    public boolean          horiz;
+    public SplitComponent[] comp = { new SplitComponent(), new SplitComponent() };
+
+    public class SplitComponent {
+      public String    name;
+      public Component panel;
+    }
+  }
   
   public GuiControls() {
   }
@@ -137,6 +152,10 @@ public class GuiControls {
     mainLayout = new GridBagLayout();
     mainFrame.setFont(new Font("SansSerif", Font.PLAIN, 14));
     mainFrame.setLayout(mainLayout);
+  }
+  
+  public Dimension getFrameSize() {
+    return mainFrame.getSize();
   }
   
   public void display() {
@@ -1215,6 +1234,98 @@ public class GuiControls {
     return spanel;
   }
 
+  public JSplitPane makeSplitPane(String name, boolean horiz, double divider) {
+    // make sure split pane not already defined
+    if (gSplitPane.containsKey(name)) {
+      System.err.println("ERROR: Split pane already has entry: " + name);
+      System.exit(1);
+    }
+    
+    // create the pane
+    int type;
+    if (horiz) {
+      type = JSplitPane.HORIZONTAL_SPLIT;
+    } else {
+      type = JSplitPane.VERTICAL_SPLIT;
+    }
+    JSplitPane splitPane = new JSplitPane(type);
+    splitPane.setOneTouchExpandable(true);
+    splitPane.setDividerLocation(divider);
+
+    // add entry to map
+    SplitInfo splitInfo = new SplitInfo();
+    splitInfo.name = name;
+    splitInfo.pane = splitPane;
+    splitInfo.horiz = horiz;
+    gSplitPane.put(name, splitInfo);
+    return splitPane;
+  }
+
+  public void setSplitDivider(String splitname, double ratio) {
+    // make sure split panel exists
+    if (!gSplitPane.containsKey(splitname)) {
+      System.err.println("ERROR: Split pane not found: " + splitname);
+      System.exit(1);
+    }
+    
+    if (ratio >= 1.0 || ratio <= 0.0) {
+      System.err.println("ERROR: Invalid ratio for split divider: " + ratio + " (setting to 0.5)");
+      ratio = 0.5;
+    }
+
+    SplitInfo splitInfo = gSplitPane.get(splitname);
+    splitInfo.pane.setDividerLocation(ratio);
+  }
+
+  public void addSplitComponent(String splitname, int index, String compname, Component panel, boolean scrollable) {
+    // make sure split panel exists
+    if (!gSplitPane.containsKey(splitname)) {
+      System.err.println("ERROR: Split pane not found: " + splitname);
+      System.exit(1);
+    }
+    
+    // make sure component isn't already defined
+    SplitInfo splitInfo = gSplitPane.get(splitname);
+    index = index == 0 ? 0 : 1;
+    SplitInfo.SplitComponent comp = splitInfo.comp[index];
+    if (comp.panel != null) {
+      System.err.println("ERROR: Split pane component already defined: " + index);
+      System.exit(1);
+    }
+
+    // if scrollable, make a scroll pane and insert component in it
+    if (scrollable) {
+      panel = new JScrollPane(panel);
+    }
+    
+    // add component to split pane
+    splitInfo.pane.add(panel, index);
+
+    // update component info in map
+    comp.name = compname;
+    comp.panel = panel;
+  }
+
+
+  public Component getSplitComponent(String splitname, int index, String compname) {
+    // make sure split panel exists
+    if (!gSplitPane.containsKey(splitname)) {
+      System.err.println("ERROR: Split pane not found: " + splitname);
+      System.exit(1);
+    }
+    
+    // make sure component is defined
+    SplitInfo splitInfo = gSplitPane.get(splitname);
+    index = index == 0 ? 0 : 1;
+    SplitInfo.SplitComponent comp = splitInfo.comp[index];
+    if (comp.panel == null) {
+      System.err.println("ERROR: Split pane component not defined: " + index);
+      System.exit(1);
+    }
+    
+    return comp.panel;
+  }
+  
   public static JFrame makeFrameWithText(String title, String text, int height, int width) {
     // define size of panel
     Dimension dim = new Dimension(height, width);
