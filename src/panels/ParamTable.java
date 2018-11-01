@@ -41,7 +41,7 @@ public class ParamTable {
   private static int      colSortSelection;
   private static int      rowSelection;
   private static JTable   table;
-  private static ArrayList<TableListInfo> paramList = new ArrayList<>();
+  private static final ArrayList<TableListInfo> paramList = new ArrayList<>();
   private static String   methodname;
 
   
@@ -126,6 +126,8 @@ public class ParamTable {
     
   public void clear(String fullmeth) {
     paramList.clear();
+    DefaultTableModel model = (DefaultTableModel) table.getModel();
+    model.setRowCount(0); // this clears all the entries from the table
     methodname = fullmeth;
   }
   

@@ -137,6 +137,8 @@ public class SymbolTable {
     
   public void clear() {
     paramList.clear();
+    DefaultTableModel model = (DefaultTableModel) table.getModel();
+    model.setRowCount(0); // this clears all the entries from the table
   }
   
   public void exit() {
