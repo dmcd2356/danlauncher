@@ -5,14 +5,19 @@
  */
 package panels;
 
+import callgraph.BaseGraph;
+import com.mxgraph.swing.mxGraphComponent;
+import com.mxgraph.view.mxGraph;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Graphics;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.HashMap;
+import javax.swing.JPanel;
 import javax.swing.JTextPane;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.DefaultHighlighter;
@@ -37,9 +42,13 @@ public class BytecodeViewer {
   private static final int HIGHLIGHT_ALL    = 0xFFFF;
   
   // types of messages
-  private static enum MsgType { ERROR, METHOD, TEXT, PARAM, COMMENT, BRANCH, INVOKE, LOAD, STORE, OTHER }
+  private static enum MsgType { ERROR, METHOD, TEXT, PARAM, COMMENT, BRANCH_SYM, INVOKE, LOAD, STORE, OTHER }
   
+  // states for parseJavap
   private static enum ParseMode { NONE, CLASS, METHOD, DESCRIPTION, OPCODE, LINENUM_TBL, LOCALVAR_TBL, EXCEPTION_TBL }
+  
+  // types of opcode instructions that we handle
+  private static enum OpcodeType { BRANCH_SYM, BRANCH, GOTO, INVOKE, RETURN, OTHER }
   
   private static JTextPane       panel;
   private static Logger          logger;
@@ -49,18 +58,22 @@ public class BytecodeViewer {
   private static ParseMode       parseMode;
   private static boolean         valid;
 
+  private static JPanel graphPanel = null;
+  private static mxGraphComponent graphComponent = null;
+  private static BaseGraph<BytecodeInfo> flowGraph = new BaseGraph<>();
+  
   public BytecodeViewer(String name) {
     String fonttype = "Courier";
-    FontInfo.setTypeColor (fontmap, MsgType.ERROR.toString(),   TextColor.Red,    FontType.Bold  , 14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.METHOD.toString(),  TextColor.Violet, FontType.Italic, 16, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.TEXT.toString(),    TextColor.Black,  FontType.Italic, 14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.PARAM.toString(),   TextColor.Brown,  FontType.Normal, 14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.COMMENT.toString(), TextColor.Green,  FontType.Italic, 14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.BRANCH.toString(),  TextColor.DkVio,  FontType.Bold  , 14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.INVOKE.toString(),  TextColor.Gold,   FontType.Bold  , 14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.LOAD.toString(),    TextColor.Green,  FontType.Normal, 14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.STORE.toString(),   TextColor.Blue,   FontType.Normal, 14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.OTHER.toString(),   TextColor.Black,  FontType.Normal, 14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.ERROR.toString(),      TextColor.Red,    FontType.Bold  , 14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.METHOD.toString(),     TextColor.Violet, FontType.Italic, 16, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.TEXT.toString(),       TextColor.Black,  FontType.Italic, 14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.PARAM.toString(),      TextColor.Brown,  FontType.Normal, 14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.COMMENT.toString(),    TextColor.Green,  FontType.Italic, 14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.BRANCH_SYM.toString(), TextColor.DkVio,  FontType.Bold  , 14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.INVOKE.toString(),     TextColor.Gold,   FontType.Bold  , 14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.LOAD.toString(),       TextColor.Green,  FontType.Normal, 14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.STORE.toString(),      TextColor.Blue,   FontType.Normal, 14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.OTHER.toString(),      TextColor.Black,  FontType.Normal, 14, fonttype);
 
     valid = false;
     
@@ -88,7 +101,7 @@ public class BytecodeViewer {
     return false;
   }
 
-  public Integer byteOffsetToLineNumber(int offset) {
+  public static Integer byteOffsetToLineNumber(int offset) {
     Integer line = 0;
     for (BytecodeInfo bc : bytecode) {
       if (offset == bc.offset) {
@@ -120,7 +133,7 @@ public class BytecodeViewer {
       return;
     }
     BytecodeInfo bc = bytecode.get(line);
-    if (!bc.isbranch) {
+    if (bc.optype != OpcodeType.BRANCH_SYM) {
       System.err.println("highlightBranch: " + line + " not branch opcode: " + bc.opcode);
       return;
     }
@@ -377,12 +390,123 @@ public class BytecodeViewer {
     }
   }
 
+  public void initGraph(JPanel panel) {
+    graphPanel = panel;
+  }
+  
+  public void clearGraph() {
+    graphPanel.removeAll();
+    Graphics graphics = graphPanel.getGraphics();
+    if (graphics != null) {
+      graphPanel.update(graphics);
+    }
+    graphComponent = null;
+    flowGraph = new BaseGraph<>();
+  }
+
+  public void updateCallGraph() {
+    // exit if the graphics panel has not been established
+    if (graphPanel == null) {
+      return;
+    }
+    
+    // if no graph has been composed yet, set it up now
+    mxGraph graph = flowGraph.getGraph();
+    if (graphComponent == null) {
+      graphComponent = new mxGraphComponent(graph);
+      graphComponent.setConnectable(false);
+        
+      // add listener to show details of selected element
+      graphComponent.getGraphControl().addMouseListener(new MouseAdapter() {
+          @Override
+          public void mouseReleased(MouseEvent e) {
+//            displaySelectedMethodInfo(e.getX(), e.getY());
+          }
+        });
+        graphPanel.add(graphComponent);
+      }
+
+      // update the contents of the graph component
+      Graphics graphics = graphPanel.getGraphics();
+      if (graphics != null) {
+        graphPanel.update(graphics);
+      }
+      
+      // update the graph layout
+      flowGraph.layoutGraph();
+  }
+
+  public void drawGraph() {
+    System.out.println("drawGraph: Bytecode entries = " + bytecode.size());
+
+    // first, find all branch locations so we make sure not to eliminate them from a BLOCK.
+    // this is because we combine consecutive OTHER opcodes into a single BLOCK, but if a branch
+    // jumped somewhere in the middle of the block we would be able to reach it.
+    ArrayList<Integer> branchpoints = new ArrayList<>();
+    for(BytecodeInfo opcode : bytecode) {
+      if (opcode.optype == OpcodeType.BRANCH ||
+          opcode.optype == OpcodeType.BRANCH_SYM ||
+          opcode.optype == OpcodeType.GOTO) {
+        // let's assume param is a numeric, since it should be for a branch
+        branchpoints.add(Integer.parseUnsignedInt(opcode.param));
+      }
+    }
+    
+    // now add vertexes to graph
+    BytecodeInfo last = null;
+    for(BytecodeInfo opcode : bytecode) {
+      if (opcode.optype != OpcodeType.OTHER) {
+        // if it's not an OTHER opcode, always display it and if this is not the 1st opcode and
+        // the previous opcode was not a GOTO, connect to the previous block
+        flowGraph.addVertex(opcode, opcode.offset + NEWLINE + opcode.opcode.toUpperCase());
+        if (last != null && last.optype != OpcodeType.GOTO) {
+          flowGraph.addEdge(last, opcode, null);
+        }
+        // add color highlighting
+        switch(opcode.optype) {
+          case BRANCH_SYM:
+            flowGraph.colorVertex(opcode, "CC00EE"); // supposed to be violet
+            break;
+          case INVOKE:
+            flowGraph.colorVertex(opcode, "DDAA00"); // supposed to be gold
+            break;
+          default:
+            break;
+        }
+        last = opcode;
+      } else if (last == null || last.optype != OpcodeType.OTHER || branchpoints.contains(opcode.offset)) {
+        // the case of the OTHER opcode type: we want to display the block if it is the 1st opcode,
+        // or if the previous opcode was not an OTHER, or if we branch to this block.
+        // combine successive OTHER opcodes into single BLOCK entry unless there is a branch to it
+        flowGraph.addVertex(opcode, opcode.offset + NEWLINE + "BLOCK");
+        if (last != null && last.optype != OpcodeType.GOTO) {
+          flowGraph.addEdge(last, opcode, null);
+        }
+        last = opcode;
+      }
+    }
+    
+    // now connect the branch instructions to their offspring
+    for (BytecodeInfo opcode : bytecode) {
+      // for each branch instruction...
+      if (opcode.optype == OpcodeType.BRANCH ||
+          opcode.optype == OpcodeType.BRANCH_SYM ||
+          opcode.optype == OpcodeType.GOTO) {
+        // find location of the branch
+        int branchix = Integer.parseUnsignedInt(opcode.param); // let's assume it is a numeric
+        int line = byteOffsetToLineNumber(branchix);
+        BytecodeInfo branchloc = bytecode.get(line);
+        flowGraph.addEdge(opcode, branchloc, null);
+      }
+    }
+  }
+  
   private class BytecodeInfo {
     public int     offset;      // byte offset of entry within the method
     public String  opcode;      // opcode
     public String  param;       // param entry(s)
     public String  comment;     // comment
-    public boolean isbranch;    // true if opcode is a branch
+    public OpcodeType optype;   // the type of opcode
     public int     ixStart;     // char offset in text of start of line
     public int     ixEnd;       // char offset in text of end of line
     public int     mark;        // highlight bits
@@ -393,23 +517,56 @@ public class BytecodeViewer {
     logger.printField("METHOD", methodName + NEWLINE + NEWLINE);
   }
   
-  private static boolean isBranchOpcode(String opcode) {
-    return opcode.startsWith("if_")  ||
-           opcode.startsWith("ifeq") ||
-           opcode.startsWith("ifne") ||
-           opcode.startsWith("ifgt") ||
-           opcode.startsWith("ifge") ||
-           opcode.startsWith("iflt") ||
-           opcode.startsWith("ifle");
+  private static OpcodeType getOpcodeType(String opcode) {
+    // determine the opcode type
+    OpcodeType type = OpcodeType.OTHER; // the default type
+    switch (opcode.toUpperCase()) {
+      case "IF_ICMPEQ":
+      case "IF_ICMPNE":
+      case "IF_ICMPGT":
+      case "IF_ICMPLE":
+      case "IF_ICMPLT":
+      case "IF_ICMPGE":
+      case "IFEQ":
+      case "IFNE":
+      case "IFGT":
+      case "IFLE":
+      case "IFLT":
+      case "IFGE":
+        type = OpcodeType.BRANCH_SYM;
+        break;
+      case "IF_ACMPEQ":
+      case "IF_ACMPNE":
+      case "IFNULL":
+      case "IFNONNULL":
+        type = OpcodeType.BRANCH;
+        break;
+      case "GOTO":
+        type = OpcodeType.GOTO;
+        break;
+      case "INVOKESTATIC":
+      case "INVOKEVIRTUAL":
+      case "INVOKESPECIAL":
+      case "INVOKEINTERFACE":
+      case "INVOKEDYNAMIC":
+        type = OpcodeType.INVOKE;
+        break;
+      case "IRETURN":
+      case "LRETURN":
+      case "FRETURN":
+      case "DRETURN":
+      case "ARETURN":
+      case "RETURN":
+        type = OpcodeType.RETURN;
+        break;
+      default:
+        break;
+    }
+    return type;
   }
   
   private static void printBytecodeOpcode(int line, String opcode, String param, String comment) {
-    String type = "OTHER";
-    if (opcode.startsWith("invoke")) {
-      type = "INVOKE";
-    } else if (isBranchOpcode(opcode)) {
-      type = "BRANCH";
-    }
+    String type = getOpcodeType(opcode).toString();
 
     logger.printFieldAlignRight("TEXT", "" + line, 5);
     logger.printFieldAlignLeft(type, ":  " + opcode, 16);
@@ -579,7 +736,7 @@ public class BytecodeViewer {
       bc.opcode   = opcode;
       bc.param    = param;
       bc.comment  = comment;
-      bc.isbranch = isBranchOpcode(opcode);
+      bc.optype   = getOpcodeType(opcode);
       bc.ixStart  = startix;
       bc.ixEnd    = panel.getText().length() - 1;
       bc.mark     = 0;

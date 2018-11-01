@@ -256,51 +256,41 @@ public class ParamTable {
    * action event when the mouse is clicked in the table.
    */
   private void tableMouseClicked(java.awt.event.MouseEvent evt) {                                            
-//    bPauseCloudUpdate = true;
     int row = table.rowAtPoint(evt.getPoint());
-    int col = table.columnAtPoint(evt.getPoint());
-    String colname = getColumnName(col);
+    //int col = table.columnAtPoint(evt.getPoint());
+    //String colname = getColumnName(col);
+    // no column-specific actions here - the user is simply selecting a row to add to symbolics
 
-    switch(colname) {
-      case "Name":
-      case "Type":
-      case "Slot":
-      case "Start":
-      case "End":
-        // ask user if he wants to copy the variable to the symbolic list
-        String[] selection = {"Yes", "No" };
-        int which = JOptionPane.showOptionDialog(null,
-          "Add Bytecode local variable to symbolic parameter list?",
-          "Method Info", // title of pane
-          JOptionPane.YES_NO_CANCEL_OPTION, // DEFAULT_OPTION,
-          JOptionPane.QUESTION_MESSAGE, // PLAIN_MESSAGE
-          null, // icon
-          selection, selection[1]);
+    // ask user if he wants to copy the variable to the symbolic list
+    String[] selection = {"Yes", "No" };
+    int which = JOptionPane.showOptionDialog(null,
+      "Add Bytecode local variable to symbolic parameter list?",
+      "Method Info", // title of pane
+      JOptionPane.YES_NO_CANCEL_OPTION, // DEFAULT_OPTION,
+      JOptionPane.QUESTION_MESSAGE, // PLAIN_MESSAGE
+      null, // icon
+      selection, selection[1]);
 
-        if (which >= 0 && selection[which].equals("Yes")) {
-          String name  = (String)table.getValueAt(row, getColumnIndex("Name"));
-          String type  = (String)table.getValueAt(row, getColumnIndex("Type"));
-          String slot  = (String)table.getValueAt(row, getColumnIndex("Slot"));
-          int start = 0;
-          int end = 0;
-          try {
-            start = Integer.parseUnsignedInt((String)table.getValueAt(row, getColumnIndex("Start")));
-            end   = Integer.parseUnsignedInt((String)table.getValueAt(row, getColumnIndex("End")));
-          } catch (NumberFormatException ex) {
-            System.err.println("ERROR: Invalid format for start and end values: " + start + ", " + end);
-            return;
-          }
-          Integer linestart = LauncherMain.byteOffsetToLineNumber(start);
-          Integer lineend   = LauncherMain.byteOffsetToLineNumber(end);
-          if (linestart == null || lineend == null) {
-            System.err.println("ERROR: No line found for start and end values: " + start + ", " + end);
-          } else {
-            LauncherMain.addSymbVariable(methodname, name, type, slot, linestart.toString(), lineend.toString());
-          }
-        }
-        break;
-      default:
-        break;
+    if (which >= 0 && selection[which].equals("Yes")) {
+      String name  = (String)table.getValueAt(row, getColumnIndex("Name"));
+      String type  = (String)table.getValueAt(row, getColumnIndex("Type"));
+      String slot  = (String)table.getValueAt(row, getColumnIndex("Slot"));
+      int start = 0;
+      int end = 0;
+      try {
+        start = Integer.parseUnsignedInt((String)table.getValueAt(row, getColumnIndex("Start")));
+        end   = Integer.parseUnsignedInt((String)table.getValueAt(row, getColumnIndex("End")));
+      } catch (NumberFormatException ex) {
+        System.err.println("ERROR: Invalid format for start and end values: " + start + ", " + end);
+        return;
+      }
+      Integer linestart = LauncherMain.byteOffsetToLineNumber(start);
+      Integer lineend   = LauncherMain.byteOffsetToLineNumber(end);
+      if (linestart == null || lineend == null) {
+        System.err.println("ERROR: No line found for start and end values: " + start + ", " + end);
+      } else {
+        LauncherMain.addSymbVariable(methodname, name, type, slot, linestart.toString(), lineend.toString());
+      }
     }
   }                                           
 

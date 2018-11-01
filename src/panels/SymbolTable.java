@@ -277,40 +277,29 @@ public class SymbolTable {
    * action event when the mouse is clicked in the table.
    */
   private void tableMouseClicked(java.awt.event.MouseEvent evt) {                                            
-//    bPauseCloudUpdate = true;
     int row = table.rowAtPoint(evt.getPoint());
-    int col = table.columnAtPoint(evt.getPoint());
-    String colname = getColumnName(col);
+    //int col = table.columnAtPoint(evt.getPoint());
+    //String colname = getColumnName(col);
+    // no column-specific actions here - the user is simply selecting a row for deletion
 
-    switch(colname) {
-      case "Method":
-      case "Name":
-      case "Type":
-      case "Slot":
-      case "Start":
-      case "End":
-        // ask user if he wants to remove the variable from the symbolic list
-        String[] selection = {"Remove All", "Yes", "No" };
-        int which = JOptionPane.showOptionDialog(null,
-          "Remove symbolic variable from symbolic parameter list?",
-          "Method Info", // title of pane
-          JOptionPane.YES_NO_CANCEL_OPTION, // DEFAULT_OPTION,
-          JOptionPane.QUESTION_MESSAGE, // PLAIN_MESSAGE
-          null, // icon
-          selection, selection[1]);
+    // ask user if he wants to remove the variable from the symbolic list
+    String[] selection = {"Remove All", "Yes", "No" };
+    int which = JOptionPane.showOptionDialog(null,
+      "Remove symbolic variable from symbolic parameter list?",
+      "Method Info", // title of pane
+      JOptionPane.YES_NO_CANCEL_OPTION, // DEFAULT_OPTION,
+      JOptionPane.QUESTION_MESSAGE, // PLAIN_MESSAGE
+      null, // icon
+      selection, selection[1]);
 
-        if (which >= 0 && !selection[which].equals("No")) {
-          if (selection[which].equals("Yes")) {
-            // remove selected symbolic parameter
-            paramList.remove(row);
-          } else {
-            // remove all symbolic parameters
-            paramList.clear();
-          }
-        }
-        break;
-      default:
-        break;
+    if (which >= 0 && !selection[which].equals("No")) {
+      if (selection[which].equals("Yes")) {
+        // remove selected symbolic parameter
+        paramList.remove(row);
+      } else {
+        // remove all symbolic parameters
+        paramList.clear();
+      }
     }
   }                                           
 
