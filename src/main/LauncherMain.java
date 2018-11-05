@@ -148,8 +148,9 @@ public final class LauncherMain {
   private static String          javaHome;
   private static boolean         mainClassInitializing;
   
-  private static ArrayList<String>  classList;
-  private static HashMap<String, ArrayList<String>>  clsMethMap; // maps the list of methods to each class
+  private static ArrayList<String> fullMethList = new ArrayList<>();
+  private static ArrayList<String> classList = new ArrayList<>();
+  private static HashMap<String, ArrayList<String>>  clsMethMap = new HashMap<>(); // maps the list of methods to each class
   private static final HashMap<PanelTabs, Integer>   tabSelect = new HashMap<>();
   private static final HashMap<String, FontInfo>     bytecodeFontTbl = new HashMap<>();
   private static final HashMap<String, FontInfo>     debugFontTbl = new HashMap<>();
@@ -200,12 +201,12 @@ public final class LauncherMain {
       @Override
       public void showConnection(String connection) {
         clientPort = connection;
-        printCommandMessage("connected to  " + LauncherMain.clientPort);
+        printCommandMessage("connected to  " + clientPort);
       }
 
       @Override
       public void resetConnection() {
-        printCommandMessage("connected to  " + LauncherMain.clientPort + "  (CONNECTION CLOSED)");
+        printCommandMessage("connected to  " + clientPort + "  (CONNECTION CLOSED)");
       }
     };
 
@@ -359,7 +360,7 @@ public final class LauncherMain {
         System.exit(0);
       }
     });
-    LauncherMain.tabPanel.addChangeListener(new ChangeListener() {
+    tabPanel.addChangeListener(new ChangeListener() {
       @Override
       public void stateChanged(ChangeEvent e) {
         // if we switched to the graph display tab, update the graph
@@ -592,7 +593,7 @@ public final class LauncherMain {
     symbolTbl = new SymbolTable(sybolList);
             
     // init the database table panel
-    dbtable = new DatabaseTable((JTable) getTabPanel(LauncherMain.PanelTabs.DATABASE));
+    dbtable = new DatabaseTable((JTable) getTabPanel(PanelTabs.DATABASE));
   }
 
   private static void createGraphSetupPanel() {
@@ -774,6 +775,10 @@ public final class LauncherMain {
     });
 }
 
+  public static boolean isInstrumentedMethod(String methName) {
+    return fullMethList.contains(methName);
+  }
+  
   public static void callGraphValid() {
     graphSetupFrame.getButton("BTN_SAVEGRAPH").setEnabled(true);
     mainFrame.getButton("BTN_GRF_SETUP").setEnabled(true);
@@ -814,6 +819,20 @@ public final class LauncherMain {
       System.exit(1);
     }
     return tabbedPanels.get(tabname);
+  }
+
+  private static PanelTabs getTabSelect() {
+    if (tabPanel == null || tabSelect.isEmpty()) {
+      return null;
+    }
+
+    int curTab = tabPanel.getSelectedIndex();
+    for (HashMap.Entry pair : tabSelect.entrySet()) {
+      if ((Integer) pair.getValue() == curTab) {
+        return (PanelTabs) pair.getKey();
+      }
+    }
+    return null;
   }
   
   private static void setTabSelect(PanelTabs tabname) {
@@ -1004,7 +1023,7 @@ public final class LauncherMain {
   }
   
   public static boolean isElapsedModeReset() {
-    return LauncherMain.elapsedMode == LauncherMain.ElapsedMode.RESET;
+    return elapsedMode == ElapsedMode.RESET;
   }
   
   public static void setThreadEnabled(boolean enabled) {
@@ -1067,7 +1086,7 @@ public final class LauncherMain {
     // clear the graphics panel
     CallGraph.clearGraphAndMethodList();
     if (isTabSelection_GRAPH()) {
-      CallGraph.updateCallGraph(LauncherMain.GraphHighlight.NONE, false);
+      CallGraph.updateCallGraph(GraphHighlight.NONE, false);
     }
           
     // reset the elapsed time
@@ -1086,14 +1105,15 @@ public final class LauncherMain {
     return bytecodeLogger.byteOffsetToLineNumber(offset);
   }
   
+  
   /**
    * finds the classes in a jar file & sets the Class ComboBox to these values.
    */
   private static void setupClassList (String pathname) {
     // init the class list
-    LauncherMain.clsMethMap = new HashMap<>();
-    LauncherMain.classList = new ArrayList<>();
-    ArrayList<String> fullMethList = new ArrayList<>();
+    clsMethMap = new HashMap<>();
+    classList = new ArrayList<>();
+    fullMethList = new ArrayList<>();
 
     // read the list of methods from the "methodlist.txt" file created by Instrumentor
     try {
@@ -1127,7 +1147,7 @@ public final class LauncherMain {
         String methName = fullMethodName.substring(methOffset + 1);
         // if new class was found and a method list was valid, save the class and classMap
         if (!curClass.equals(className) && !methList.isEmpty()) {
-          LauncherMain.classList.add(curClass);
+          classList.add(curClass);
           clsMethMap.put(curClass, methList);
           methList = new ArrayList<>();
         }
@@ -1140,13 +1160,13 @@ public final class LauncherMain {
 
     // save the remaining class
     if (!methList.isEmpty()) {
-      LauncherMain.classList.add(curClass);
+      classList.add(curClass);
       clsMethMap.put(curClass, methList);
     }
 
     // setup the class and method selections
     setClassSelections();
-    System.out.println(LauncherMain.classList.size() + " classes and " +
+    System.out.println(classList.size() + " classes and " +
         fullMethList.size() + " methods found");
   }
 
@@ -1157,12 +1177,12 @@ public final class LauncherMain {
     
     classCombo.removeAllItems();
     mainClassCombo.removeAllItems();
-    for (int ix = 0; ix < LauncherMain.classList.size(); ix++) {
-      String cls = LauncherMain.classList.get(ix);
+    for (int ix = 0; ix < classList.size(); ix++) {
+      String cls = classList.get(ix);
       classCombo.addItem(cls);
 
       // now get the methods for the class and check if it has a "main"
-      ArrayList<String> methodSelection = LauncherMain.clsMethMap.get(cls);
+      ArrayList<String> methodSelection = clsMethMap.get(cls);
       if (methodSelection != null && methodSelection.contains("main([Ljava/lang/String;)V")) {
         mainClassCombo.addItem(cls);
       }
@@ -1203,7 +1223,7 @@ public final class LauncherMain {
     }
 
     // get the list of methods for the selected class from the hash map
-    ArrayList<String> methodSelection = LauncherMain.clsMethMap.get(clsname);
+    ArrayList<String> methodSelection = clsMethMap.get(clsname);
     if (methodSelection != null) {
       // now get the methods for the class and place in the method selection combobox
       for (String method : methodSelection) {
@@ -1218,20 +1238,20 @@ public final class LauncherMain {
   }
   
   private static void startElapsedTime() {
-    LauncherMain.elapsedStart = System.currentTimeMillis();
-    LauncherMain.elapsedMode = ElapsedMode.RUN;
+    elapsedStart = System.currentTimeMillis();
+    elapsedMode = ElapsedMode.RUN;
 //    GuiPanel.GuiControls.getTextField("FIELD_ELAPSED").setText("00:00");
   }
   
   private static void resetElapsedTime() {
-    LauncherMain.elapsedStart = 0;
-    LauncherMain.elapsedMode = ElapsedMode.RESET;
+    elapsedStart = 0;
+    elapsedMode = ElapsedMode.RESET;
 //    GuiPanel.GuiControls.getTextField("FIELD_ELAPSED").setText("00:00");
   }
   
   private static void updateElapsedTime() {
-    if (LauncherMain.elapsedMode == ElapsedMode.RUN) {
-      long elapsed = System.currentTimeMillis() - LauncherMain.elapsedStart;
+    if (elapsedMode == ElapsedMode.RUN) {
+      long elapsed = System.currentTimeMillis() - elapsedStart;
       if (elapsed > 0) {
         Integer msec = (int)(elapsed % 1000);
         elapsed = elapsed / 1000;
@@ -1345,14 +1365,14 @@ public final class LauncherMain {
     printStatusClear();
 
     FileNameExtensionFilter filter = new FileNameExtensionFilter("Jar Files", "jar");
-    LauncherMain.fileSelector.setFileFilter(filter);
-    //GuiPanel.fileSelector.setSelectedFile(new File("TestMain.jar"));
-    LauncherMain.fileSelector.setMultiSelectionEnabled(false);
-    LauncherMain.fileSelector.setApproveButtonText("Load");
-    int retVal = LauncherMain.fileSelector.showOpenDialog(mainFrame.getFrame());
+    fileSelector.setFileFilter(filter);
+    //fileSelector.setSelectedFile(new File("TestMain.jar"));
+    fileSelector.setMultiSelectionEnabled(false);
+    fileSelector.setApproveButtonText("Load");
+    int retVal = fileSelector.showOpenDialog(mainFrame.getFrame());
     if (retVal == JFileChooser.APPROVE_OPTION) {
       // read the file
-      File file = LauncherMain.fileSelector.getSelectedFile();
+      File file = fileSelector.getSelectedFile();
       projectName = file.getName();
       projectPathName = file.getParentFile().getAbsolutePath() + "/";
       
@@ -1530,6 +1550,9 @@ public final class LauncherMain {
   public static void generateBytecode(String classSelect, String methodSelect) {
     printStatusClear();
 
+    // get the current tab selection
+    PanelTabs selected = getTabSelect();
+
     // check if bytecode for this method already displayed
     if (bytecodeLogger.isMethodDisplayed(classSelect, methodSelect)) {
       printStatusMessage("Bytecode already loaded");
@@ -1538,7 +1561,9 @@ public final class LauncherMain {
       bytecodeLogger.highlightClear();
       
       // swich tab to show bytecode
-      setTabSelect(PanelTabs.BYTECODE);
+      if (selected != PanelTabs.BYTECODE && selected != PanelTabs.BYTEFLOW) {
+        setTabSelect(PanelTabs.BYTECODE);
+      }
       return;
     }
     
@@ -1580,7 +1605,9 @@ public final class LauncherMain {
       saveProjectTextFile(JAVAPFILE_STORAGE + "/" + classSelect + ".txt", content);
       
       // swich tab to show bytecode
-      setTabSelect(PanelTabs.BYTECODE);
+      if (selected != PanelTabs.BYTECODE && selected != PanelTabs.BYTEFLOW) {
+        setTabSelect(PanelTabs.BYTECODE);
+      }
     } else {
       printStatusError("running javap on file: " + classSelect + ".class");
     }
