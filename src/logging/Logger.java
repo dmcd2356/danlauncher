@@ -40,7 +40,7 @@ public class Logger {
   private static String   pnlname;
   private JTextPane       textPane = null;
   private JTextArea       textArea = null;
-  private static final HashMap<String, FontInfo> messageTypeTbl = new HashMap<>();
+  private final HashMap<String, FontInfo> messageTypeTbl = new HashMap<>();
 
   public Logger (Component pane, String name, HashMap<String, FontInfo> map) {
     pnlname = name;

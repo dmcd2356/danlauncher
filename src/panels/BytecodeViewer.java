@@ -44,19 +44,20 @@ public class BytecodeViewer {
   private static final int HIGHLIGHT_ALL    = 0xFFFF;
   
   // types of messages
-  private static enum MsgType { ERROR, METHOD, TEXT, PARAM, COMMENT, BRANCH_SYM, BRANCH,
+  private static enum MsgType { ERROR, METHOD, TEXT, PARAM, COMMENT, SYMBRA, BRANCH,
                                 SWITCH, GOTO,  INVOKE, RETURN, LOAD, STORE, OTHER }
   
   // states for parseJavap
   private static enum ParseMode { NONE, CLASS, METHOD, DESCRIPTION, OPCODE, LINENUM_TBL, LOCALVAR_TBL, EXCEPTION_TBL }
   
   // types of opcode instructions that we handle
-  private static enum OpcodeType { NONE, BRANCH_SYM, BRANCH, SWITCH, GOTO, INVOKE, RETURN, OTHER }
+  private static enum OpcodeType { SYMBRA, BRANCH, SWITCH, GOTO, INVOKE, RETURN, OTHER }
   
   private static JTextPane       panel;
   private static Logger          logger;
   private static HashMap<String, FontInfo> fontmap = new HashMap<>();
   private static ArrayList<BytecodeInfo> bytecode = new ArrayList<>();
+  private static HashMap<Integer, Integer> boff2Line = new HashMap<>(); // byte offset to line number reference
   private static String          methodLoaded = "";
   private static ParseMode       parseMode;
   private static boolean         valid;
@@ -64,7 +65,7 @@ public class BytecodeViewer {
 
   private static JPanel graphPanel = null;
   private static mxGraphComponent graphComponent = null;
-  private static BaseGraph<BytecodeInfo> flowGraph = new BaseGraph<>();
+  private static BaseGraph<FlowInfo> flowGraph = new BaseGraph<>();
   
   public BytecodeViewer(String name) {
     String fonttype = "Courier";
@@ -73,7 +74,7 @@ public class BytecodeViewer {
     FontInfo.setTypeColor (fontmap, MsgType.TEXT.toString(),       TextColor.Black,  FontType.Italic, 14, fonttype);
     FontInfo.setTypeColor (fontmap, MsgType.PARAM.toString(),      TextColor.Brown,  FontType.Normal, 14, fonttype);
     FontInfo.setTypeColor (fontmap, MsgType.COMMENT.toString(),    TextColor.Green,  FontType.Italic, 14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.BRANCH_SYM.toString(), TextColor.DkVio,  FontType.Bold  , 14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.SYMBRA.toString(),     TextColor.DkVio,  FontType.Bold  , 14, fonttype);
     FontInfo.setTypeColor (fontmap, MsgType.INVOKE.toString(),     TextColor.Gold,   FontType.Bold  , 14, fonttype);
     FontInfo.setTypeColor (fontmap, MsgType.SWITCH.toString(),     TextColor.Blue,   FontType.Normal, 14, fonttype);
 
@@ -110,6 +111,11 @@ public class BytecodeViewer {
   }
 
   public static Integer byteOffsetToLineNumber(int offset) {
+    // check for exact match
+    if (boff2Line.containsKey(offset)) {
+      return boff2Line.get(offset);
+    }
+    
     Integer line = 0;
     for (BytecodeInfo bc : bytecode) {
       if (offset == bc.offset) {
@@ -141,7 +147,7 @@ public class BytecodeViewer {
       return;
     }
     BytecodeInfo bc = bytecode.get(line);
-    if (bc.optype != OpcodeType.BRANCH_SYM) {
+    if (bc.optype != OpcodeType.SYMBRA) {
       System.err.println("highlightBranch: " + line + " not branch opcode: " + bc.opcode);
       return;
     }
@@ -207,6 +213,7 @@ public class BytecodeViewer {
     String switchInProcess = "";
     logger.clear();
     bytecode = new ArrayList<>();
+    boff2Line = new HashMap<>();
 
     String[] lines = content.split(NEWLINE);
     for (String entry : lines) {
@@ -385,10 +392,10 @@ public class BytecodeViewer {
             offset = getOpcodeOffset(entry, lastoffset);
             if (offset >= 0) {
               // process the bytecode instruction (save info in array for reference & display text in panel)
-              ++linesRead;
               lastoffset = offset;
               entry = entry.substring(entry.indexOf(": ") + 1).trim();
-              formatBytecode(offset, entry);
+              formatBytecode(linesRead, offset, entry);
+              ++linesRead;
             }
           }
           continue;
@@ -509,116 +516,148 @@ public class BytecodeViewer {
       flowGraph.layoutGraph();
   }
 
+  private static enum FlowType { Entry, Exception, Call, SymBranch, Switch, Branch, Return, Block }
+  
+  private class FlowInfo {
+    public FlowType type;       // type of block
+    public int      line;       // bytecode line number corresponding to entry
+    public int      offset;     // byte offset of opcode
+    public String   opcode;     // opcode
+    public String   color;      // color to display
+    public String   title;      // title for the block
+    ArrayList<Integer> nextloc = new ArrayList<>(); // list of offsets to branch to
+    
+    public FlowInfo(int count, BytecodeInfo bc) {
+      opcode = bc.opcode.toUpperCase();
+      offset = bc.offset;
+      line = count;
+
+      int branchix;
+      switch (bc.optype) {
+        case INVOKE:
+          // extract just the class and method names from the full method name
+          String methname = bc.callMeth.substring(0, bc.callMeth.indexOf("("));
+          int stroff = methname.lastIndexOf("/");
+          if (stroff > 0) {
+            methname = methname.substring(stroff + 1);
+          }
+          stroff = methname.indexOf(".");
+          String clsname = methname.substring(0, stroff);
+          methname = methname.substring(stroff + 1);
+
+          type = FlowType.Call;
+          color = "DDAA00"; // gold
+          title = clsname + NEWLINE + methname;
+          break;
+
+        case SYMBRA:
+          branchix = Integer.parseUnsignedInt(bc.param); // let's assume it is a numeric
+
+          type = FlowType.SymBranch;
+          color = "CC00EE"; // violet
+          title = bc.offset + NEWLINE + bc.opcode.toUpperCase();
+          nextloc.add(branchix);
+          break;
+
+        case BRANCH:
+        case GOTO:
+          branchix = Integer.parseUnsignedInt(bc.param); // let's assume it is a numeric
+
+          type = FlowType.Branch;
+          color = "";
+          title = bc.offset + NEWLINE + bc.opcode.toUpperCase();
+          nextloc.add(branchix);
+          break;
+
+        case SWITCH:
+          type = FlowType.Switch;
+          color = "0077FF"; // blue
+          title = bc.offset + NEWLINE + bc.opcode.toUpperCase();
+          for (HashMap.Entry pair : bc.switchinfo.entrySet()) {
+            nextloc.add((Integer) pair.getValue());
+          }
+          break;
+          
+        case RETURN:
+          type = FlowType.Return;
+          color = "";
+          title = bc.offset + NEWLINE + bc.opcode.toUpperCase();
+          // there is no branch from here
+          break;
+
+        case OTHER:
+          type = FlowType.Block;
+          color = "";
+          title = bc.offset + NEWLINE + "BLOCK";
+          break;
+
+        default:
+          // indicate error
+          System.err.println("Unhandled OpcodeType: " + bc.optype.toString());
+          break;
+      }
+    }
+
+    // this one for defining entry point
+    public FlowInfo() {
+      type = FlowType.Entry;
+      opcode = "";
+      offset = -1; // this indicates it is not an opcode
+      title = "ENTRY";
+      color = "FFCCCC"; // pink
+    }
+
+    // this one for defining exceptions
+    public FlowInfo(String extype, int branchoff) {
+      type = FlowType.Exception;
+      opcode = "";
+      offset = -1; // this indicates it is not an opcode
+      title = "EXCEPTION" + NEWLINE + extype;
+      color = "FFCCCC"; // pink
+      nextloc.add(branchoff);
+    }
+    
+  }
+  
   public void drawGraph() {
     System.out.println("drawGraph: Bytecode entries = " + bytecode.size());
-
-    // first, find all branch locations so we make sure not to eliminate them from a BLOCK.
-    // this is because we combine consecutive OTHER opcodes into a single BLOCK, but if a branch
-    // jumped somewhere in the middle of the block we would be able to reach it.
-    ArrayList<Integer> branchpoints = new ArrayList<>();
-    for(BytecodeInfo opcode : bytecode) {
-      switch (opcode.optype) {
-        case BRANCH:
-        case BRANCH_SYM:
-        case GOTO:
-          // let's assume param is a numeric, since it should be for a branch
-          branchpoints.add(Integer.parseUnsignedInt(opcode.param));
-          break;
-        case SWITCH:
-          for (HashMap.Entry pair : opcode.switchinfo.entrySet()) {
-            branchpoints.add((Integer) pair.getValue());
-          }
-          break;
-        default:
-          break;
-      }
-    }
     
-    // start with an ENTRY node
-    BytecodeInfo last = new BytecodeInfo();
-    last.opcode = "ENTRY";
-    last.optype = OpcodeType.NONE;
-    flowGraph.addVertex(last, "ENTRY");
-    flowGraph.colorVertex(last, "FFCCCC");   // entry points are pink  
+    // create an array of FlowInfo entities that correspond to blocks to display
+    ArrayList<FlowInfo> flowBlocks = new ArrayList<>();
+    HashMap<Integer, FlowInfo> branchMap = new HashMap<>();
 
-    // add exception entry point blocks
-    ArrayList<BytecodeInfo> exblocks = new ArrayList<>();
+    // start with an initial ENTRY block and add EXCEPTION entry points (if any)
+    FlowInfo lastBlock = new FlowInfo();
+    flowBlocks.add(lastBlock);
     for (HashMap.Entry pair : exceptions.entrySet()) {
-      BytecodeInfo ex = new BytecodeInfo();
-      ex.opcode = "EXCEPTION";
-      ex.optype = OpcodeType.NONE;
-      ex.offset = (Integer) pair.getKey();
-      exblocks.add(ex);
-      flowGraph.addVertex(ex, "EXCEPTION" + NEWLINE + pair.getValue());
-      flowGraph.colorVertex(ex, "FFCCCC"); // entry points are pink
+      flowBlocks.add(new FlowInfo((String) pair.getValue(), (Integer) pair.getKey()));
     }
 
-    // now add vertexes to graph
-//    BytecodeInfo last = null;
-    for(BytecodeInfo opcode : bytecode) {
-      if (opcode.optype != OpcodeType.OTHER) {
-        String title = opcode.opcode.toUpperCase();
-        if (opcode.optype == OpcodeType.INVOKE) {
-          String methname = opcode.callMeth.substring(0, opcode.callMeth.indexOf("("));
-          int offset = methname.lastIndexOf("/");
-          if (offset > 0) {
-            methname = methname.substring(offset + 1);
-          }
-          offset = methname.indexOf(".");
-          String clsname = methname.substring(0, offset);
-          methname = methname.substring(offset + 1);
-          title = clsname + NEWLINE + methname;
-        }
-        // if it's not an OTHER opcode, always display it and if this is not the 1st opcode and
-        // the previous opcode was not a GOTO, connect to the previous block
-        flowGraph.addVertex(opcode, opcode.offset + NEWLINE + title);
-        if (last.optype != OpcodeType.GOTO) {
-          flowGraph.addEdge(last, opcode, null);
-        }
-        // add color highlighting
-        switch(opcode.optype) {
-          case BRANCH_SYM:
-            flowGraph.colorVertex(opcode, "CC00EE"); // supposed to be violet
-            break;
-          case INVOKE:
-            flowGraph.colorVertex(opcode, "DDAA00"); // supposed to be gold
-            break;
-          default:
-            break;
-        }
-        last = opcode;
-      } else if (last.optype != OpcodeType.OTHER || branchpoints.contains(opcode.offset)) {
-        // the case of the OTHER opcode type: we want to display the block if it is the 1st opcode,
-        // or if the previous opcode was not an OTHER, or if we branch to this block.
-        // combine successive OTHER opcodes into single BLOCK entry unless there is a branch to it
-        flowGraph.addVertex(opcode, opcode.offset + NEWLINE + "BLOCK");
-        if (last.optype != OpcodeType.GOTO) {
-          flowGraph.addEdge(last, opcode, null);
-        }
-        last = opcode;
-      }
+    // now add the opcode blocks
+    int line = 0;
+    for(BytecodeInfo bc : bytecode) {
+      FlowInfo entry = new FlowInfo(line, bc);
+      flowBlocks.add(entry);
+      ++line;
     }
     
-    // now connect the branch instructions to their offspring
-    for (BytecodeInfo opcode : bytecode) {
-      // for each branch instruction...
-      switch (opcode.optype) {
-        case BRANCH:
-        case BRANCH_SYM:
-        case GOTO:
-          // find location of the branch
-          int branchix = Integer.parseUnsignedInt(opcode.param); // let's assume it is a numeric
-          int line = byteOffsetToLineNumber(branchix);
-          flowGraph.addEdge(opcode, bytecode.get(line), null);
+    // find all branch points that we need to keep
+    ArrayList<Integer> branchpoints = new ArrayList<>();
+    for(FlowInfo flow : flowBlocks) {
+      int branchloc;
+      switch (flow.type) {
+        case Branch:
+        case SymBranch:
+          branchloc = flow.nextloc.get(0);
+          if (!branchpoints.contains(branchloc)) {
+            branchpoints.add(branchloc);
+          }
           break;
-        case SWITCH:
-          // to make sure we don't add multiple lines if multiple conditions branch to same location...
-          ArrayList<Integer> branchlocs = new ArrayList<>();
-          for (HashMap.Entry pair : opcode.switchinfo.entrySet()) {
-            line = byteOffsetToLineNumber((Integer) pair.getValue());
-            if (!branchlocs.contains(line)) {
-              flowGraph.addEdge(opcode, bytecode.get(line), null);
-              branchlocs.add(line);
+        case Switch:
+          for (int ix = 0; ix < flow.nextloc.size(); ix++) {
+            branchloc = flow.nextloc.get(ix);
+            if (!branchpoints.contains(branchloc)) {
+              branchpoints.add(branchloc);
             }
           }
           break;
@@ -627,17 +666,93 @@ public class BytecodeViewer {
       }
     }
 
-    // and connect any exception points
-    for (BytecodeInfo ex : exblocks) {
-      Integer line = byteOffsetToLineNumber(ex.offset);
-      if (line != null) {
-        BytecodeInfo branchloc = bytecode.get(line);
-        flowGraph.addEdge(ex, branchloc, null);
+//    // let's get a list of the GOTO blocks and where they are re-directed to, so we can replace them
+//    HashMap<Integer, Integer> gotoMap = new HashMap<>();
+//    for(FlowInfo flow : flowBlocks) {
+//      if (flow.opcode.equals("GOTO")) {
+//        gotoMap.put(flow.offset, flow.nextloc.get(0));
+//      }
+//    }
+    
+    // make a copy of the list so we can do some node trimming
+    // Here we eliminate all BLOCKs whose predecessor was also a BLOCK if it is not a branchpoint.
+    ArrayList<FlowInfo> essentialList = new ArrayList<>();
+    FlowInfo last = null;
+    for(FlowInfo flow : flowBlocks) {
+      if (last == null || last.type != FlowType.Block || flow.type != FlowType.Block ||
+                          branchpoints.contains(flow.offset)) {
+        essentialList.add(flow);
+        branchMap.put(flow.offset, flow); // map the line number to the flow entry
+        last = flow;
+      }
+    }
+
+    // now create graph nodes for all blocks
+    for(FlowInfo flow : essentialList) {
+      if (!flow.opcode.equals("GOTO")) {
+        flowGraph.addVertex(flow, flow.title);
+        if (!flow.color.isEmpty()) {
+          flowGraph.colorVertex(flow, flow.color);
+        }
+      }
+    }
+    
+    // now connect the blocks
+    int nextloc = 0;
+    for (int index = 0; index < essentialList.size(); index++) {
+      FlowInfo flow = essentialList.get(index);
+      
+      if (flow.type != FlowType.Return) { // skip any RETURN type block
+        // first, let's find the next valid opcode block
+        FlowInfo nextflow = essentialList.get(index + 1);
+        while (nextflow != null && nextflow.opcode.equals("GOTO")) {
+          nextloc = nextflow.nextloc.get(0);
+          nextflow = branchMap.get(nextloc);
+        }
+        if (nextflow == null) {
+          System.out.println("Failed Connection: " + flow.offset + "_" + flow.opcode + " to offset " + nextloc);
+          continue;
+        }
+          
+        // all other opcodes except for SWITCH and GOTO will always have a connection to
+        // the next opcode (this will be for one case of the branch conditions).
+        if (!flow.opcode.equals("GOTO") && flow.type != FlowType.Switch) {
+          flowGraph.addEdge(flow, nextflow, null);
+//          if (flow.opcode.isEmpty()) {
+//            System.out.println("Connected: " + flow.title + " to " + nextflow.offset + "_" + nextflow.opcode);
+//          } else {
+//            System.out.println("Connected: " + flow.offset + "_" + flow.opcode + " to " +
+//                  nextflow.offset + "_" + nextflow.opcode);
+//          }
+        }
+
+        // go through all connections
+        ArrayList<Integer> connected = new ArrayList<>();
+        for (int ix = 0; ix < flow.nextloc.size(); ix++) {
+          nextloc = flow.nextloc.get(ix);
+          nextflow = branchMap.get(nextloc);
+          while (nextflow != null && nextflow.opcode.equals("GOTO")) {
+            nextflow = branchMap.get(nextflow.nextloc.get(0));
+          }
+          if (nextflow == null) {
+            System.out.println("Failed Connection: " + flow.offset + "_" + flow.opcode + " to offset " + nextloc);
+            continue;
+          }
+          // skip if this block has already been connected to the branch location
+          // (this can happen on switch statement that has multiple conditions that branch to same location)
+          if (!connected.contains(nextloc)) {
+            flowGraph.addEdge(flow, nextflow, null);
+            connected.add(nextloc);
+//            System.out.println("Connected: " + flow.offset + "_" + flow.opcode + " to " +
+//                    nextflow.offset + "_" + nextflow.opcode);
+          }
+        }
       }
     }
   }
-
+  
   private class BytecodeInfo {
+    public int     line;        // line number in method (assumes 1 opcode per line)
     public int     offset;      // byte offset of entry within the method
     public String  opcode;      // opcode
     public String  param;       // param entry(s)
@@ -647,7 +762,11 @@ public class BytecodeViewer {
     public int     ixEnd;       // char offset in text of end of line
     public int     mark;        // highlight bits
     public String  callMeth;    // for INVOKEs, the method being called
-    public HashMap<String, Integer> switchinfo = new HashMap<>(); // for SWITCHs
+    public HashMap<String, Integer> switchinfo; // for SWITCHs
+    
+    public BytecodeInfo() {
+      switchinfo = new HashMap<>();
+    }
   }
   
   private static void printBytecodeMethod(String methodName) {
@@ -667,6 +786,7 @@ public class BytecodeViewer {
     // determine the opcode type
     OpcodeType type = OpcodeType.OTHER; // the default type
     switch (opcode.toUpperCase()) {
+      // Symbollic branches (these branch instructions check for symbolic values)
       case "IF_ICMPEQ":
       case "IF_ICMPNE":
       case "IF_ICMPGT":
@@ -679,21 +799,25 @@ public class BytecodeViewer {
       case "IFLE":
       case "IFLT":
       case "IFGE":
-        type = OpcodeType.BRANCH_SYM;
+        type = OpcodeType.SYMBRA;
         break;
+      // Other branches (do NOT check for symbolic types)
       case "IF_ACMPEQ":
       case "IF_ACMPNE":
       case "IFNULL":
       case "IFNONNULL":
         type = OpcodeType.BRANCH;
         break;
+      // switch instructions that may take several different paths (do NOT check for symbolic types)
       case "TABLESWITCH":
       case "LOOKUPSWITCH":
         type = OpcodeType.SWITCH;
         break;
+      // a simple non-conditional redirect to another byte offset
       case "GOTO":
         type = OpcodeType.GOTO;
         break;
+      // method calls
       case "INVOKESTATIC":
       case "INVOKEVIRTUAL":
       case "INVOKESPECIAL":
@@ -701,6 +825,7 @@ public class BytecodeViewer {
       case "INVOKEDYNAMIC":
         type = OpcodeType.INVOKE;
         break;
+      // return to previous stack frame
       case "IRETURN":
       case "LRETURN":
       case "FRETURN":
@@ -843,10 +968,11 @@ public class BytecodeViewer {
   /**
    * outputs the bytecode message to the status display.
    * 
+   * @param lineCount - line offset in method (actually the opcode index in the method, starting at 0)
    * @param boffset - byte offset of the instruction
    * @param entry  - the line read from javap
    */
-  private void formatBytecode(int boffset, String entry) {
+  private void formatBytecode(int lineCount, int boffset, String entry) {
     if (entry != null && !entry.isEmpty()) {
       String opcode = entry;
       String param = "";
@@ -908,6 +1034,7 @@ public class BytecodeViewer {
 
       // add entry to array
       BytecodeInfo bc = new BytecodeInfo();
+      bc.line     = lineCount;
       bc.offset   = boffset;
       bc.opcode   = opcode;
       bc.param    = param;
@@ -918,6 +1045,9 @@ public class BytecodeViewer {
       bc.mark     = 0;
       bc.callMeth = callMethod;
 
+      // now make a reference of the byte offset to the line number
+      boff2Line.put(boffset, lineCount);
+      
       // for switch statements, let's gather up the conditions and the corresponding branch locations
       bc.switchinfo = new HashMap<>();
       String[] entries = switchList.split(",");

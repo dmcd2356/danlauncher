@@ -27,7 +27,7 @@ public class DebugLogger {
 
   // types of messages
   private enum MsgType { TSTAMP, NORMAL, INFO, WARN, ERROR, DUMP, START, ENTRY, AGENT, THREAD,
-        CALL, RETURN, UNINST, STATS, STACK, STACKS, STACKI, LOCAL, LOCALS, SOLVE, PATH }
+        CALL, RETURN, UNINST, STATS, STACK, STACKS, STACKI, LOCAL, LOCALS, SOLVE, BRANCH }
 
   private static JTextPane       panel;
   private static Logger          logger;
@@ -61,7 +61,7 @@ public class DebugLogger {
     FontInfo.setTypeColor (fontmap, MsgType.STACKI.toString(), TextColor.Blue,   FontType.Bold,   14, fonttype);
     FontInfo.setTypeColor (fontmap, MsgType.LOCAL.toString(),  TextColor.Green,  FontType.Normal, 14, fonttype);
     FontInfo.setTypeColor (fontmap, MsgType.LOCALS.toString(), TextColor.Green,  FontType.Italic, 14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.PATH.toString(),   TextColor.DkVio,  FontType.BoldItalic, 14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.BRANCH.toString(), TextColor.DkVio,  FontType.BoldItalic, 14, fonttype);
     FontInfo.setTypeColor (fontmap, MsgType.SOLVE.toString(),  TextColor.DkVio,  FontType.Bold,   14, fonttype);
 
     // create the text panel and assign it to the logger
