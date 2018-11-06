@@ -229,7 +229,6 @@ public class DebugLogger {
         String icount = splited[0].trim();
         String method = splited[1].trim();
         CallGraph.methodEnter(tid, tstamp, icount, method, linecount);
-        LauncherMain.callGraphValid();
         break;
       case "RETURN":
         CallGraph.methodExit(tid, tstamp, content);
