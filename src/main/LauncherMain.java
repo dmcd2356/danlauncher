@@ -585,7 +585,6 @@ public final class LauncherMain {
       // enable/disable "send to port" controls accordingly
       mainFrame.getButton("BTN_SEND").setEnabled(isServerType);
       mainFrame.getTextField("TXT_PORT").setEnabled(isServerType);
-      mainFrame.getLabel("TXT_PORT").setEnabled(isServerType);
 
       if (projectProps != null) {
         projectProps.setPropertiesItem(ProjectProperties.IS_SERVER_TYPE.toString(),
@@ -713,6 +712,8 @@ public final class LauncherMain {
     graphSetupFrame.makePanel (panel, "PNL_ADJUST"   , ""                  , LEFT, true);
 
     panel = "PNL_ADJUST";
+    graphSetupFrame.makeLabel (panel, "LBL_THREADS"  , "Threads: 0"        , LEFT, true);
+    graphSetupFrame.makeLineGap(panel);
     graphSetupFrame.makePanel (panel, "PNL_THREAD"   , "Thread Select"     , LEFT, true);
     graphSetupFrame.makeLineGap(panel);
     graphSetupFrame.makePanel (panel, "PNL_RANGE"    , "Highlight Range"   , LEFT, true);
@@ -2039,7 +2040,11 @@ public final class LauncherMain {
       if (udpThread != null) {
         String message = udpThread.getNextMessage();
         if (message != null) {
-          DebugLogger.processMessage(message);
+          debugLogger.processMessage(message);
+          
+          // update the thread count display
+          int threads = debugLogger.getThreadCount();
+          graphSetupFrame.getLabel("LBL_THREADS").setText("Threads: " + threads);
         }
       }
     }

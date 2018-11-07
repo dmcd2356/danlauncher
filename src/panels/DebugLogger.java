@@ -84,53 +84,8 @@ public class DebugLogger {
   public void clear() {
     logger.clear();
   }
-  
-  /**
-   * outputs the various types of messages to the status display.
-   * all messages will guarantee the previous line was terminated with a newline,
-   * and will preceed the message with a timestamp value and terminate with a newline.
-   * 
-   * @param linenum  - the line number
-   * @param elapsed  - the elapsed time
-   * @param threadid - the thread id
-   * @param typestr  - the type of message to display (all caps)
-   * @param content  - the message content
-   */
-  private static void printDebug(int linenum, String elapsed, String threadid, String typestr, String content) {
-    if (linenum >= 0 && elapsed != null && typestr != null && content != null && !content.isEmpty()) {
-      // make sure the linenum is 8-digits in length and the type is 6-chars in length
-      String linestr = "00000000" + linenum;
-      linestr = linestr.substring(linestr.length() - 8);
-      typestr = (typestr + "      ").substring(0, 6);
-      if (!threadid.isEmpty()) {
-        threadid = "<" + threadid + ">";
-      }
-      
-      // print message (seperate into multiple lines if ASCII newlines are contained in it)
-      if (!content.contains(NEWLINE)) {
-        logger.printField("INFO", linestr + "  ");
-        logger.printField("INFO", elapsed + " ");
-        logger.printField("INFO", threadid + " ");
-        logger.printField(typestr, typestr + ": " + content + NEWLINE);
-      }
-      else {
-        // seperate into lines and print each independantly
-        String[] msgarray = content.split(NEWLINE);
-        for (String msg : msgarray) {
-          logger.printField("INFO", linestr + "  ");
-          logger.printField("INFO", elapsed + " ");
-          logger.printField("INFO", threadid + " ");
-          logger.printField(typestr, typestr + ": " + msg + NEWLINE);
-        }
-      }
-    }
-  }
 
-  private static void printDebug(String content) {
-    logger.printLine(content);
-  }
-  
-  public static boolean processMessage(String message) {
+  public boolean processMessage(String message) {
     // seperate message into the message type and the message content
     if (message == null) {
       return false;
@@ -252,6 +207,51 @@ public class DebugLogger {
     }
     
     return (linecount == 0);
+  }
+  
+  private static void printDebug(String content) {
+    logger.printLine(content);
+  }
+  
+  /**
+   * outputs the various types of messages to the status display.
+   * all messages will guarantee the previous line was terminated with a newline,
+   * and will preceed the message with a timestamp value and terminate with a newline.
+   * 
+   * @param linenum  - the line number
+   * @param elapsed  - the elapsed time
+   * @param threadid - the thread id
+   * @param typestr  - the type of message to display (all caps)
+   * @param content  - the message content
+   */
+  private static void printDebug(int linenum, String elapsed, String threadid, String typestr, String content) {
+    if (linenum >= 0 && elapsed != null && typestr != null && content != null && !content.isEmpty()) {
+      // make sure the linenum is 8-digits in length and the type is 6-chars in length
+      String linestr = "00000000" + linenum;
+      linestr = linestr.substring(linestr.length() - 8);
+      typestr = (typestr + "      ").substring(0, 6);
+      if (!threadid.isEmpty()) {
+        threadid = "<" + threadid + ">";
+      }
+      
+      // print message (seperate into multiple lines if ASCII newlines are contained in it)
+      if (!content.contains(NEWLINE)) {
+        logger.printField("INFO", linestr + "  ");
+        logger.printField("INFO", elapsed + " ");
+        logger.printField("INFO", threadid + " ");
+        logger.printField(typestr, typestr + ": " + content + NEWLINE);
+      }
+      else {
+        // seperate into lines and print each independantly
+        String[] msgarray = content.split(NEWLINE);
+        for (String msg : msgarray) {
+          logger.printField("INFO", linestr + "  ");
+          logger.printField("INFO", elapsed + " ");
+          logger.printField("INFO", threadid + " ");
+          logger.printField(typestr, typestr + ": " + msg + NEWLINE);
+        }
+      }
+    }
   }
 
 }
