@@ -692,10 +692,9 @@ public final class LauncherMain {
     }
     mainFrame.getButton("BTN_SEND").setEnabled(enable);
     mainFrame.getTextField("TXT_PORT").setEnabled(enable);
-//    mainFrame.getLabel("TXT_PORT").setEnabled(enable);
   }  
 
-  private static void createGraphSetupPanel() {
+  private void createGraphSetupPanel() {
     if (graphSetupFrame.isValidFrame()) {
       return;
     }
@@ -742,125 +741,147 @@ public final class LauncherMain {
     setThreadControls(false);
     
     // setup the control actions
-    graphSetupFrame.getFrame().addWindowListener(new java.awt.event.WindowAdapter() {
-      @Override
-      public void windowClosing(java.awt.event.WindowEvent evt) {
-        graphSetupFrame.hide();
-      }
-    });
-    (graphSetupFrame.getRadiobutton("RB_THREAD")).addActionListener(new ActionListener() {
-      @Override
-      public void actionPerformed(java.awt.event.ActionEvent evt) {
-        setHighlightMode(GraphHighlight.THREAD);
-        
-        // enable the thread controls when this is selected
-        setThreadControls(true);
-      }
-    });
-    (graphSetupFrame.getRadiobutton("RB_ELAPSED")).addActionListener(new ActionListener() {
-      @Override
-      public void actionPerformed(java.awt.event.ActionEvent evt) {
-        setHighlightMode(GraphHighlight.TIME);
-      }
-    });
-    (graphSetupFrame.getRadiobutton("RB_INSTRUCT")).addActionListener(new ActionListener() {
-      @Override
-      public void actionPerformed(java.awt.event.ActionEvent evt) {
-        setHighlightMode(GraphHighlight.INSTRUCTION);
-      }
-    });
-    (graphSetupFrame.getRadiobutton("RB_ITER")).addActionListener(new ActionListener() {
-      @Override
-      public void actionPerformed(java.awt.event.ActionEvent evt) {
-        setHighlightMode(GraphHighlight.ITERATION);
-      }
-    });
-    (graphSetupFrame.getRadiobutton("RB_STATUS")).addActionListener(new ActionListener() {
-      @Override
-      public void actionPerformed(java.awt.event.ActionEvent evt) {
-        setHighlightMode(GraphHighlight.STATUS);
-      }
-    });
-    (graphSetupFrame.getRadiobutton("RB_NONE")).addActionListener(new ActionListener() {
-      @Override
-      public void actionPerformed(java.awt.event.ActionEvent evt) {
-        setHighlightMode(GraphHighlight.NONE);
-      }
-    });
-    (graphSetupFrame.getButton("BTN_TH_UP")).addActionListener(new ActionListener() {
-      @Override
-      public void actionPerformed(java.awt.event.ActionEvent evt) {
-        JLabel label = graphSetupFrame.getLabel("TXT_TH_SEL");
-        int threadCount = debugLogger.getThreadCount();
-        int value = Integer.parseInt(label.getText().trim());
-        if (value < threadCount - 1) {
-          value++;
-          label.setText("" + value);
-          
-          CallGraph.setThreadSelection(value);
-
-          // if CallGraph is selected, update the graph
-          if (isTabSelection(PanelTabs.CALLGRAPH)) {
-            CallGraph.updateCallGraph(GraphHighlight.THREAD, true);
-          }
-        }
-      }
-    });
-    (graphSetupFrame.getButton("BTN_TH_DN")).addActionListener(new ActionListener() {
-      @Override
-      public void actionPerformed(java.awt.event.ActionEvent evt) {
-        JLabel label = graphSetupFrame.getLabel("TXT_TH_SEL");
-        int value = Integer.parseInt(label.getText().trim());
-        if (value > 0) {
-          value--;
-          label.setText("" + value);
-          
-          CallGraph.setThreadSelection(value);
-
-          // if CallGraph is selected, update the graph
-          if (isTabSelection(PanelTabs.CALLGRAPH)) {
-            CallGraph.updateCallGraph(GraphHighlight.THREAD, true);
-          }
-        }
-      }
-    });
-    (graphSetupFrame.getButton("BTN_RG_UP")).addActionListener(new ActionListener() {
-      @Override
-      public void actionPerformed(java.awt.event.ActionEvent evt) {
-        JLabel label = graphSetupFrame.getLabel("TXT_RANGE");
-        int step = Integer.parseInt(label.getText().trim());
-        if (step < 20) {
-          step++;
-          label.setText("" + step);
-          
-          CallGraph.setRangeStepSize(step);
-
-          // if CallGraph is selected, update the graph
-          if (isTabSelection(PanelTabs.CALLGRAPH)) {
-            CallGraph.updateCallGraph(graphMode, true);
-          }
-        }
-      }
-    });
-    (graphSetupFrame.getButton("BTN_RG_DN")).addActionListener(new ActionListener() {
-      @Override
-      public void actionPerformed(java.awt.event.ActionEvent evt) {
-        JLabel label = graphSetupFrame.getLabel("TXT_RANGE");
-        int step = Integer.parseInt(label.getText().trim());
-        if (step > 1) {
-          step--;
-          label.setText("" + step);
-          
-          CallGraph.setRangeStepSize(step);
-
-          // if CallGraph is selected, update the graph
-          if (isTabSelection(PanelTabs.CALLGRAPH)) {
-            CallGraph.updateCallGraph(graphMode, true);
-          }
-        }
-      }
-    });
+    graphSetupFrame.getFrame().addWindowListener(new Window_DebugListener());
+    (graphSetupFrame.getRadiobutton("RB_THREAD")).addActionListener(new Action_GraphModeThread());
+    (graphSetupFrame.getRadiobutton("RB_ELAPSED")).addActionListener(new Action_GraphModeElapsed());
+    (graphSetupFrame.getRadiobutton("RB_INSTRUCT")).addActionListener(new Action_GraphModeInstruction());
+    (graphSetupFrame.getRadiobutton("RB_ITER")).addActionListener(new Action_GraphModeIteration());
+    (graphSetupFrame.getRadiobutton("RB_STATUS")).addActionListener(new Action_GraphModeStatus());
+    (graphSetupFrame.getRadiobutton("RB_NONE")).addActionListener(new Action_GraphModeNone());
+    (graphSetupFrame.getButton("BTN_TH_UP")).addActionListener(new Action_ThreadUp());
+    (graphSetupFrame.getButton("BTN_TH_DN")).addActionListener(new Action_ThreadDown());
+    (graphSetupFrame.getButton("BTN_RG_UP")).addActionListener(new Action_RangeUp());
+    (graphSetupFrame.getButton("BTN_RG_DN")).addActionListener(new Action_RangeDown());
 }
+
+  private class Window_DebugListener extends java.awt.event.WindowAdapter {
+    @Override
+    public void windowClosing(java.awt.event.WindowEvent evt) {
+      graphSetupFrame.hide();
+    }
+  }
+
+  private class Action_GraphModeThread implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      setHighlightMode(GraphHighlight.THREAD);
+        
+      // enable the thread controls when this is selected
+      setThreadControls(true);
+    }
+  }
+
+  private class Action_GraphModeElapsed implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      setHighlightMode(GraphHighlight.TIME);
+    }
+  }
+
+  private class Action_GraphModeInstruction implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      setHighlightMode(GraphHighlight.INSTRUCTION);
+    }
+  }
+
+  private class Action_GraphModeIteration implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      setHighlightMode(GraphHighlight.ITERATION);
+    }
+  }
+
+  private class Action_GraphModeStatus implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      setHighlightMode(GraphHighlight.STATUS);
+    }
+  }
+
+  private class Action_GraphModeNone implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      setHighlightMode(GraphHighlight.NONE);
+    }
+  }
+
+  private class Action_ThreadUp implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      JLabel label = graphSetupFrame.getLabel("TXT_TH_SEL");
+      int threadCount = debugLogger.getThreadCount();
+      int value = Integer.parseInt(label.getText().trim());
+      if (value < threadCount - 1) {
+        value++;
+        label.setText("" + value);
+          
+        CallGraph.setThreadSelection(value);
+
+        // if CallGraph is selected, update the graph
+        if (isTabSelection(PanelTabs.CALLGRAPH)) {
+          CallGraph.updateCallGraph(GraphHighlight.THREAD, true);
+        }
+      }
+    }
+  }
+
+  private class Action_ThreadDown implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      JLabel label = graphSetupFrame.getLabel("TXT_TH_SEL");
+      int value = Integer.parseInt(label.getText().trim());
+      if (value > 0) {
+        value--;
+        label.setText("" + value);
+          
+        CallGraph.setThreadSelection(value);
+
+        // if CallGraph is selected, update the graph
+        if (isTabSelection(PanelTabs.CALLGRAPH)) {
+          CallGraph.updateCallGraph(GraphHighlight.THREAD, true);
+        }
+      }
+    }
+  }
+
+  private class Action_RangeUp implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      JLabel label = graphSetupFrame.getLabel("TXT_RANGE");
+      int step = Integer.parseInt(label.getText().trim());
+      if (step < 20) {
+        step++;
+        label.setText("" + step);
+          
+        CallGraph.setRangeStepSize(step);
+
+        // if CallGraph is selected, update the graph
+        if (isTabSelection(PanelTabs.CALLGRAPH)) {
+          CallGraph.updateCallGraph(graphMode, true);
+        }
+      }
+    }
+  }
+
+  private class Action_RangeDown implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      JLabel label = graphSetupFrame.getLabel("TXT_RANGE");
+      int step = Integer.parseInt(label.getText().trim());
+      if (step > 1) {
+        step--;
+        label.setText("" + step);
+          
+        CallGraph.setRangeStepSize(step);
+
+        // if CallGraph is selected, update the graph
+        if (isTabSelection(PanelTabs.CALLGRAPH)) {
+          CallGraph.updateCallGraph(graphMode, true);
+        }
+      }
+    }
+  }
 
   public static boolean isInstrumentedMethod(String methName) {
     return fullMethList.contains(methName);
