@@ -21,6 +21,7 @@ import util.CommandLauncher;
 import util.ThreadLauncher;
 
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -111,6 +112,7 @@ public final class LauncherMain {
     MAIN_CLASS,       // the Main Class for the application
     APP_SERVER_PORT,  // the server port to send messages to in the application
     IS_SERVER_TYPE,   // whether the application is a stand-alone or server type
+    DEBUG_FLAGS,      // the debug flags enabled
   }
   
   private enum ElapsedMode { OFF, RUN, RESET }
@@ -122,6 +124,7 @@ public final class LauncherMain {
 
   private static final GuiControls mainFrame = new GuiControls();
   private static final GuiControls graphSetupFrame = new GuiControls();
+  private static final GuiControls debugSetupFrame = new GuiControls();
   private static JFileChooser    fileSelector;
   private static JComboBox       mainClassCombo;
   private static JComboBox       classCombo;
@@ -144,6 +147,7 @@ public final class LauncherMain {
   private static SymbolTable     symbolTbl;
   private static SolutionTable   solutionTbl;
   private static String          inputAttempt = "";
+  private static String          debugFlags = "";
   private static Visitor         makeConnection;
   private static String          clientPort = "";
   private static NetworkServer   udpThread = null;
@@ -233,7 +237,7 @@ public final class LauncherMain {
     fileSelector.setCurrentDirectory(new File(projectPath));
 
     // create the main panel and controls
-    createDebugPanel();
+    createMainPanel();
 
     if (debugLogger != null && !maxLogLength.isEmpty()) {
       debugLogger.setMaxBufferSize(Integer.parseUnsignedInt(maxLogLength));
@@ -326,7 +330,7 @@ public final class LauncherMain {
     return bytecodeLogger.byteOffsetToLineNumber(offset);
   }
   
-  public void createDebugPanel() {
+  public void createMainPanel() {
     // if a panel already exists, close the old one
     if (mainFrame.isValidFrame()) {
       mainFrame.close();
@@ -376,6 +380,9 @@ public final class LauncherMain {
     mainFrame.makeTextField (panel, "TXT_INPUT"    , ""            , LEFT, true, "", 40, true);
     mainFrame.makeButton    (panel, "BTN_SOLVER"   , "Solver"      , LEFT, false);
 
+    // set color of STOP button
+    mainFrame.getButton("BTN_STOPTEST").setBackground(Color.pink);
+
     // setup the handlers for the controls
     mainFrame.getCombobox("COMBO_CLASS").addActionListener(new Action_BytecodeClassSelect());
     mainFrame.getCombobox("COMBO_METHOD").addActionListener(new Action_BytecodeMethodSelect());
@@ -393,6 +400,8 @@ public final class LauncherMain {
     JMenuBar menuBar = new JMenuBar();
     JMenu menuProject = new JMenu("Project");
     menuBar.add(menuProject);
+    JMenu menuDebug = new JMenu("Debug");
+    menuBar.add(menuDebug);
     JMenu menuCallgraph = new JMenu("Graphs");
     menuBar.add(menuCallgraph);
     mainFrame.getFrame().setJMenuBar(menuBar);
@@ -430,6 +439,12 @@ public final class LauncherMain {
     menuProject.add(menuItem);
 
     // define entries in Callgraph header
+    menuItem = new JMenuItem("Debug Setup");
+    menuItem.addActionListener(new Action_DebugSetup());
+    menuDebug.add(menuItem);
+    menuDebug.addSeparator();
+
+    // define entries in Callgraph header
     menuItem = new JMenuItem("Callgraph Setup");
     menuItem.addActionListener(new Action_CallgraphSetup());
     menuCallgraph.add(menuItem);
@@ -455,8 +470,9 @@ public final class LauncherMain {
     // initially disable STOP button
     mainFrame.getButton("BTN_STOPTEST").setEnabled(false);
 
-    // create the graph setup frame, but initially hide it
+    // create the the setup frames, but initially hide them
     createGraphSetupPanel();
+    createDebugSelectPanel();
   
     // display the frame
     mainFrame.display();
@@ -612,6 +628,13 @@ public final class LauncherMain {
     @Override
     public void actionPerformed(java.awt.event.ActionEvent evt) {
       graphSetupFrame.display();
+    }
+  }
+
+  private class Action_DebugSetup implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      debugSetupFrame.display();
     }
   }
   
@@ -788,7 +811,7 @@ public final class LauncherMain {
     
     // create the frame
     JFrame frame = graphSetupFrame.newFrame("Graph Setup", 350, 250, FrameSize.FIXEDSIZE);
-    frame.addWindowListener(new Window_DebugListener());
+    frame.addWindowListener(new Window_GraphSetupListener());
   
     panel = null;
     graphSetupFrame.makePanel (panel, "PNL_HIGHLIGHT", "Graph Highlight"   , LEFT, false);
@@ -836,7 +859,7 @@ public final class LauncherMain {
     graphSetupFrame.getButton("BTN_RG_DN").addActionListener(new Action_RangeDown());
 }
 
-  private class Window_DebugListener extends java.awt.event.WindowAdapter {
+  private class Window_GraphSetupListener extends java.awt.event.WindowAdapter {
     @Override
     public void windowClosing(java.awt.event.WindowEvent evt) {
       graphSetupFrame.hide();
@@ -962,6 +985,76 @@ public final class LauncherMain {
           CallGraph.updateCallGraph(graphMode, true);
         }
       }
+    }
+  }
+
+  private void createDebugSelectPanel() {
+    if (debugSetupFrame.isValidFrame()) {
+      return;
+    }
+
+    // get current settings from properties 
+    debugPort = systemProps.getPropertiesItem(SystemProperties.DEBUG_PORT.toString(), "5000");
+    debugFlags = projectProps.getPropertiesItem(ProjectProperties.DEBUG_FLAGS.toString(), "");
+    
+    // these just make the gui entries cleaner
+    String panel;
+    GuiControls.Orient LEFT   = GuiControls.Orient.LEFT;
+    GuiControls.Orient CENTER = GuiControls.Orient.CENTER;
+    GuiControls.Orient RIGHT  = GuiControls.Orient.RIGHT;
+    
+    // create the frame
+    JFrame frame = debugSetupFrame.newFrame("Debug Setup", 350, 250, FrameSize.FIXEDSIZE);
+    frame.addWindowListener(new Window_DebugSetupListener());
+  
+    panel = null;
+
+    // create the entries in the main frame
+    debugSetupFrame.makePanel (panel, "PNL_DBGFLAGS", "Debug Flags" , LEFT  , false);
+    debugSetupFrame.makePanel (panel, "PNL_DEBUGOUT", "Debug Output", RIGHT , true);
+    
+    // now add controls to the sub-panels
+    panel = "PNL_DBGFLAGS";
+    debugSetupFrame.makeCheckbox(panel, "DBG_WARNING" , "Warnings"      , LEFT, false , 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_CALL"    , "Call/Return"   , LEFT, true  , 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_INFO"    , "Info"          , LEFT, false , 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_THREAD"  , "Thread"        , LEFT, true  , 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_COMMAND" , "Commands"      , LEFT, false , 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_STACK"   , "Stack"         , LEFT, true  , 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_AGENT"   , "Agent"         , LEFT, false , 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_LOCALS"  , "Locals"        , LEFT, true  , 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_BRANCH"  , "Branch"        , LEFT, false , 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_SOLVER"  , "Solver"        , LEFT, true  , 0);
+
+    panel = "PNL_DEBUGOUT";
+    debugSetupFrame.makeTextField(panel, "TEXT_PORT"   , "Port"         , LEFT, true, debugPort + "", 8, true);
+  }
+  
+  private class Window_DebugSetupListener extends java.awt.event.WindowAdapter {
+    @Override
+    public void windowClosing(java.awt.event.WindowEvent evt) {
+      // get the current selections
+      debugFlags = "";
+      debugFlags += debugSetupFrame.getCheckbox("DBG_WARNING").isSelected() ? " WARN"    : "";
+      debugFlags += debugSetupFrame.getCheckbox("DBG_CALL"   ).isSelected() ? " CALLS"   :"";
+      debugFlags += debugSetupFrame.getCheckbox("DBG_INFO"   ).isSelected() ? " INFO"    : "";
+      debugFlags += debugSetupFrame.getCheckbox("DBG_THREAD" ).isSelected() ? " THREAD"  : "";
+      debugFlags += debugSetupFrame.getCheckbox("DBG_COMMAND").isSelected() ? " COMMAND" : "";
+      debugFlags += debugSetupFrame.getCheckbox("DBG_STACK"  ).isSelected() ? " STACK"   : "";
+      debugFlags += debugSetupFrame.getCheckbox("DBG_AGENT"  ).isSelected() ? " AGENT"   : "";
+      debugFlags += debugSetupFrame.getCheckbox("DBG_LOCALS" ).isSelected() ? " LOCAL"   : "";
+      debugFlags += debugSetupFrame.getCheckbox("DBG_BRANCH" ).isSelected() ? " BRANCH"  : "";
+      debugFlags += debugSetupFrame.getCheckbox("DBG_SOLVER" ).isSelected() ? " SOLVE"   : "";
+//      System.out.println("debug flags = " + debugFlags);
+
+      // save to properties file
+//      if (props != null) {
+//        String hexval = Integer.toHexString(DebugUtil.getDebugFlags());
+//        props.setPropertiesItem("DebugFlags", hexval);
+//        TriggerSetup.saveToProperties(props);
+//      }
+      
+      debugSetupFrame.hide();
     }
   }
 
@@ -1845,12 +1938,7 @@ public final class LauncherMain {
     content += "IPAddress: localhost" + NEWLINE;
     content += "DebugPort: " + debugPort + NEWLINE;
     content += "DebugMode: TCPPORT" + NEWLINE;
-    content += "DebugFlags: WARN SOLVE BRANCH CALLS" + NEWLINE;
-    content += "TriggerOnCall: 0" + NEWLINE;
-    content += "TriggerOnReturn: 0" + NEWLINE;
-    content += "TriggerOnInstr: 0" + NEWLINE;
-    content += "TriggerOnError: 0" + NEWLINE;
-    content += "TriggerOnException: 0" + NEWLINE;
+    content += "DebugFlags:" + debugFlags + NEWLINE;
     content += NEWLINE;
     return content;
   }
@@ -1858,7 +1946,7 @@ public final class LauncherMain {
   private static void readSymbolicList(String content) {
 
     boolean needChange = false;
-    boolean noChange = false;
+    boolean makeBackup = true;
     
     File file = new File(projectPathName + "danfig");
     if (!file.isFile()) {
@@ -1874,9 +1962,10 @@ public final class LauncherMain {
         printCommandMessage("Symbolic parameters:");
         while ((line = bufferedReader.readLine()) != null) {
           line = line.trim();
+          // determine if this file was created by danlauncher (else, it was a danalyzer original)
           if (line.startsWith("# DANLAUNCHER_VERSION")) {
             printCommandMessage("danfig file was generated by danlauncher");
-            noChange = true;
+            makeBackup = false;
           } else if (line.startsWith("Symbolic:")) {
 //            line = line.substring("Symbolic:".length()).trim();
             String word[] = line.substring("Symbolic:".length()).trim().split(",");
@@ -1907,11 +1996,13 @@ public final class LauncherMain {
     }
 
     // if a change is needed, rename the old file and write the modified file back
-    if (needChange && !noChange) {
+    if (needChange) {
       printCommandMessage("Updating danfig file");
       
-      // rename current file so we can modify it
-      file.renameTo(new File(projectPathName + "danfig.save"));
+      // backup current file if it was not one we made just for danlauncher
+      if (makeBackup) {
+        file.renameTo(new File(projectPathName + "danfig.save"));
+      }
       
       // create the new file
       saveProjectTextFile("danfig", content);
