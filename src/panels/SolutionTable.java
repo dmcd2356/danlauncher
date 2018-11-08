@@ -25,43 +25,46 @@ import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
 import javax.swing.table.TableCellRenderer;
 import javax.swing.table.TableColumnModel;
-import main.LauncherMain;
 
 /**
  *
  * @author dan
  */
-public class ParamTable {
+/**
+ *
+ * @author dan
+ */
+public class SolutionTable {
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
   
+  private static final String NEWLINE = System.getProperty("line.separator");
+
   private static final String[] TABLE_COLUMNS = new String [] {
-    "Name", "Type", "Slot", "Start", "End"
+    "Solution", "Cost"
   };
 
   private static boolean  bSortOrder;
   private static int      colSortSelection;
   private static int      rowSelection;
   private static JTable   table;
-  private static final ArrayList<TableListInfo> paramList = new ArrayList<>();
-  private static String   methodname;
+  private static ArrayList<TableListInfo> paramList = new ArrayList<>();
 
   
   private static class TableListInfo {
-    String  name;
-    String  type;
-    String  slot;
-    String  start;
-    String  end;
+    String  solution;
+    String  cost;
     
-    public TableListInfo(String id, String typ, String slt, String strt, String len) {
-      name  = id   == null ? "" : id;
-      type  = typ  == null ? "" : typ;
-      slot  = slt  == null ? "" : slt;
-      start = strt == null ? "" : strt;
-      end   = len  == null ? "" : len;
+    public TableListInfo(String sol, String cst) {
+      solution = sol == null ? "" : sol;
+      cost     = cst == null ? "" : cst;
     }
   } 
   
-  public ParamTable (JTable tbl) {
+  public SolutionTable (JTable tbl) {
     table = tbl;
     
     // init the params
@@ -71,11 +74,10 @@ public class ParamTable {
     
     table.setModel(new DefaultTableModel(new Object [][]{ }, TABLE_COLUMNS) {
       Class[] types = new Class [] {
-        java.lang.String.class, java.lang.String.class, java.lang.String.class,
         java.lang.String.class, java.lang.String.class,
       };
       boolean[] canEdit = new boolean [] {
-        false, false, false, false, false
+        false, false,
       };
 
       @Override
@@ -124,18 +126,17 @@ public class ParamTable {
     cloudTableHeader.addMouseListener(new HeaderMouseListener());
   }
     
-  public void clear(String fullmeth) {
+  public void clear() {
     paramList.clear();
     DefaultTableModel model = (DefaultTableModel) table.getModel();
     model.setRowCount(0); // this clears all the entries from the table
-    methodname = fullmeth;
   }
   
   public void exit() {
   }
   
-  public void addEntry(String name, String type, String slot, String start, String end) {
-    TableListInfo entry = new TableListInfo(name, type, slot, start, end);
+  public void addEntry(String solution, String cost) {
+    TableListInfo entry = new TableListInfo(solution, cost);
     paramList.add(entry);
     tableSortAndDisplay();
   }
@@ -150,27 +151,18 @@ public class ParamTable {
   private String getColumnParam(int col, TableListInfo tblinfo) {
     switch(getColumnName(col)) {
       default: // fall through...
-      case "Name":
-        return tblinfo.name;
-      case "Type":
-        return tblinfo.type;
-      case "Slot":
-        return tblinfo.slot;
-      case "Start":
-        return tblinfo.start;
-      case "End":
-        return tblinfo.end;
+      case "Solution":
+        return tblinfo.solution;
+      case "Cost":
+        return tblinfo.cost;
     }
   }
   
   // NOTE: the order of the entries should match the order of the columns
   private Object[] makeRow(TableListInfo tableEntry) {
     return new Object[]{
-        tableEntry.name,
-        tableEntry.type,
-        tableEntry.slot,
-        tableEntry.start,
-        tableEntry.end,
+        tableEntry.solution,
+        tableEntry.cost,
     };
   }
   
@@ -261,38 +253,22 @@ public class ParamTable {
     int row = table.rowAtPoint(evt.getPoint());
     //int col = table.columnAtPoint(evt.getPoint());
     //String colname = getColumnName(col);
-    // no column-specific actions here - the user is simply selecting a row to add to symbolics
+    // no column-specific actions here - the user is simply selecting a row for deletion
 
-    // ask user if he wants to copy the variable to the symbolic list
+    // ask user if he wants to remove the variable from the table
     String[] selection = {"Yes", "No" };
     int which = JOptionPane.showOptionDialog(null,
-      "Add Bytecode local variable to symbolic parameter list?",
-      "Add Symbolic Parameter", // title of pane
+      "Remove entry from list?",
+      "Remove entry", // title of pane
       JOptionPane.YES_NO_CANCEL_OPTION, // DEFAULT_OPTION,
       JOptionPane.QUESTION_MESSAGE, // PLAIN_MESSAGE
       null, // icon
       selection, selection[1]);
 
     if (which >= 0 && selection[which].equals("Yes")) {
-      String name  = (String)table.getValueAt(row, getColumnIndex("Name"));
-      String type  = (String)table.getValueAt(row, getColumnIndex("Type"));
-      String slot  = (String)table.getValueAt(row, getColumnIndex("Slot"));
-      int start = 0;
-      int end = 0;
-      try {
-        start = Integer.parseUnsignedInt((String)table.getValueAt(row, getColumnIndex("Start")));
-        end   = Integer.parseUnsignedInt((String)table.getValueAt(row, getColumnIndex("End")));
-      } catch (NumberFormatException ex) {
-        System.err.println("ERROR: Invalid format for start and end values: " + start + ", " + end);
-        return;
-      }
-      Integer linestart = LauncherMain.byteOffsetToLineNumber(start);
-      Integer lineend   = LauncherMain.byteOffsetToLineNumber(end);
-      if (linestart == null || lineend == null) {
-        System.err.println("ERROR: No line found for start and end values: " + start + ", " + end);
-      } else {
-        LauncherMain.addSymbVariable(methodname, name, type, slot, linestart.toString(), lineend.toString());
-      }
+      // remove selected symbolic parameter
+      paramList.remove(row);
+      tableSortAndDisplay();
     }
   }                                           
 

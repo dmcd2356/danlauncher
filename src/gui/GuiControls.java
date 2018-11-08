@@ -29,12 +29,12 @@ import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
 import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
+import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.JTextPane;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.WindowConstants;
-import javax.swing.border.TitledBorder;
 
 /**
  *
@@ -60,6 +60,7 @@ public class GuiControls {
   private final HashMap<String, JScrollPane>   gScrollPanel = new HashMap();
   private final HashMap<String, JTabbedPane>   gTabbedPanel = new HashMap();
   private final HashMap<String, JTextPane>     gTextPane = new HashMap();
+  private final HashMap<String, JTable>        gTable = new HashMap<>();
   private final HashMap<String, JList>         gList = new HashMap();
   private final HashMap<String, JLabel>        gLabel = new HashMap();
   private final HashMap<String, JButton>       gButton = new HashMap();
@@ -101,57 +102,56 @@ public class GuiControls {
     mainFrame.setLayout(mainLayout);
   }
   
-  public void newFrame(String title, double portion) {
-    if (mainFrame != null) {
-      return;
-    }
-    if (portion < 0.2) {
-      portion = 0.2;
-    }
-    if (portion > 1.0) {
-      portion = 1.0;
-    }
-    framesize = new Dimension((int)(portion * (double)SCREEN_SIZE.height),
-                              (int)(portion * (double)SCREEN_SIZE.width));
-    mainFrame = new JFrame(title);
-    mainFrame.setSize(framesize);
-    mainFrame.setMinimumSize(framesize);
-    mainFrame.setMaximumSize(framesize);
-    mainFrame.setResizable(false);
+  public JFrame newFrame(String title, double portion) {
+    if (mainFrame == null) {
+      if (portion < 0.2) {
+        portion = 0.2;
+      }
+      if (portion > 1.0) {
+        portion = 1.0;
+      }
+      framesize = new Dimension((int)(portion * (double)SCREEN_SIZE.height),
+                                (int)(portion * (double)SCREEN_SIZE.width));
+      mainFrame = new JFrame(title);
+      mainFrame.setSize(framesize);
+      mainFrame.setMinimumSize(framesize);
+      mainFrame.setMaximumSize(framesize);
+      mainFrame.setResizable(false);
 
-    // setup the layout for the frame
-    mainLayout = new GridBagLayout();
-    mainFrame.setFont(new Font("SansSerif", Font.PLAIN, 14));
-    mainFrame.setLayout(mainLayout);
+      // setup the layout for the frame
+      mainLayout = new GridBagLayout();
+      mainFrame.setFont(new Font("SansSerif", Font.PLAIN, 14));
+      mainFrame.setLayout(mainLayout);
+    }
+    return mainFrame;
   }
 
-  public void newFrame(String title, int height, int width, FrameSize size) {
-    if (mainFrame != null) {
-      return;
+  public JFrame newFrame(String title, int height, int width, FrameSize size) {
+    if (mainFrame == null) {
+      // limit height and width to max of screen dimensions
+      height = (height > SCREEN_SIZE.height) ? SCREEN_SIZE.height : height;
+      width  = (width  > SCREEN_SIZE.width)  ? SCREEN_SIZE.width  : width;
+
+      framesize = new Dimension(height, width);
+      mainFrame = new JFrame(title);
+      mainFrame.setSize(framesize);
+      mainFrame.setMinimumSize(framesize);
+      switch (size) {
+        case FIXEDSIZE:
+          mainFrame.setMaximumSize(framesize);
+          mainFrame.setResizable(false);
+          break;
+        case FULLSCREEN:
+          mainFrame.setState(Frame.MAXIMIZED_BOTH);
+          break;
+      }
+
+      // setup the layout for the frame
+      mainLayout = new GridBagLayout();
+      mainFrame.setFont(new Font("SansSerif", Font.PLAIN, 14));
+      mainFrame.setLayout(mainLayout);
     }
-
-    // limit height and width to max of screen dimensions
-    height = (height > SCREEN_SIZE.height) ? SCREEN_SIZE.height : height;
-    width  = (width  > SCREEN_SIZE.width)  ? SCREEN_SIZE.width  : width;
-
-    framesize = new Dimension(height, width);
-    mainFrame = new JFrame(title);
-    mainFrame.setSize(framesize);
-    mainFrame.setMinimumSize(framesize);
-    switch (size) {
-      case FIXEDSIZE:
-        mainFrame.setMaximumSize(framesize);
-        mainFrame.setResizable(false);
-        break;
-      case FULLSCREEN:
-        mainFrame.setState(Frame.MAXIMIZED_BOTH);
-        break;
-    }
-
-    // setup the layout for the frame
-    mainLayout = new GridBagLayout();
-    mainFrame.setFont(new Font("SansSerif", Font.PLAIN, 14));
-    mainFrame.setLayout(mainLayout);
+    return mainFrame;
   }
   
   public Dimension getFrameSize() {
@@ -233,6 +233,13 @@ public class GuiControls {
       return null;
     }
     return gTabbedPanel.get(name);
+  }
+
+  public JTable getTable(String name) {
+    if (gTable == null) {
+      return null;
+    }
+    return gTable.get(name);
   }
 
   public JTextPane getTextPane(String name) {
@@ -1046,7 +1053,7 @@ public class GuiControls {
   /**
    * This creates an empty JTabbedPanel and places it in the container.
    * 
-   * @param panelname - the name of the JTabbedPanel container to place the component in (null if use main frame)
+   * @param panelname - the name of the container to place the component in (null if use main frame)
    * @param name    - the name id of the component
    * @param title   - the name to display as a label preceeding the widget (null if no border)
    * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
@@ -1092,6 +1099,52 @@ public class GuiControls {
     return newpanel;
   }
 
+  /**
+   * This creates an empty JTable and places it in the container.
+   * 
+   * @param panelname - the name of the container to place the component in (null if use main frame)
+   * @param name    - the name id of the component
+   * @param title   - the name to display as a title (null if no border)
+   * @return the panel
+   */
+  public JTable makeScrollTable(String panelname, String name, String title) {
+    if (mainFrame == null || mainLayout == null) {
+      return null;
+    }
+    if (gTabbedPanel.containsKey(name)) {
+      System.err.println("'" + name + "' panel already added to container!");
+      System.exit(1);
+    }
+
+    // get the layout for the container
+    GridBagLayout gridbag = mainLayout;
+    JPanel panel = null;
+    if (panelname != null && !panelname.isEmpty()) {
+      panel = getPanel(panelname);
+      if (panel == null) {
+        System.err.println("'" + panelname + "' container panel not found!");
+        System.exit(1);
+      }
+      gridbag = (GridBagLayout) panel.getLayout();
+    }
+
+    // create the table place it in a scroll pane
+    JTable table = new JTable();
+    JScrollPane spanel = new JScrollPane(table);
+    spanel.setBorder(BorderFactory.createTitledBorder(title));
+    gridbag.setConstraints(spanel, setGbagConstraintsPanel());
+
+    // place component in container & add entry to components list
+    if (panel != null) {
+      panel.add(spanel);
+    } else {
+      mainFrame.add(spanel);
+    }
+
+//    gridbag.setConstraints(table, setGbagConstraintsPanel());
+    gTable.put(name, table);
+    return table;
+  }
   
   /**
    * This creates a JScrollPane containing a JList of Strings and places it in the container.

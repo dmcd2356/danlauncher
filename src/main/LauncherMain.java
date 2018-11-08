@@ -15,6 +15,7 @@ import panels.DatabaseTable;
 import panels.DebugLogger;
 import panels.ParamTable;
 import panels.SymbolTable;
+import panels.SolutionTable;
 import callgraph.CallGraph;
 import util.CommandLauncher;
 import util.ThreadLauncher;
@@ -27,7 +28,6 @@ import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
 import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
-import java.awt.event.KeyEvent;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.DataOutputStream;
@@ -48,15 +48,13 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.Enumeration;
 import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import javax.swing.BorderFactory;
-import javax.swing.DefaultListModel;
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JComboBox;
 import javax.swing.JFileChooser;
+import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
@@ -124,7 +122,6 @@ public final class LauncherMain {
 
   private static final GuiControls mainFrame = new GuiControls();
   private static final GuiControls graphSetupFrame = new GuiControls();
-  private static JTabbedPane     tabPanel;
   private static JFileChooser    fileSelector;
   private static JComboBox       mainClassCombo;
   private static JComboBox       classCombo;
@@ -145,8 +142,8 @@ public final class LauncherMain {
   private static DatabaseTable   dbtable;
   private static ParamTable      localVarTbl;
   private static SymbolTable     symbolTbl;
+  private static SolutionTable   solutionTbl;
   private static String          inputAttempt = "";
-  private static DefaultListModel solutionList;
   private static Visitor         makeConnection;
   private static String          clientPort = "";
   private static NetworkServer   udpThread = null;
@@ -154,8 +151,8 @@ public final class LauncherMain {
   private static DebugInputListener inputListener;
   private static String          javaHome;
   private static boolean         mainClassInitializing;
-  private static boolean         isServerType = true;
   private static JCheckBoxMenuItem isServerTypeMenuItem;
+  private static JCheckBoxMenuItem loadDanfigMenuItem;
   
   private static ArrayList<String> fullMethList = new ArrayList<>();
   private static ArrayList<String> classList = new ArrayList<>();
@@ -164,7 +161,6 @@ public final class LauncherMain {
   private static final HashMap<String, FontInfo>     bytecodeFontTbl = new HashMap<>();
   private static final HashMap<String, FontInfo>     debugFontTbl = new HashMap<>();
   private static final HashMap<PanelTabs, Component> tabbedPanels = new HashMap<>();
-  private static final HashMap<String, Long>         solutionMap = new HashMap<>();
   
   // configuration file settings
   private static PropertiesFile  systemProps;   // this is for the generic properties for the user
@@ -257,6 +253,79 @@ public final class LauncherMain {
     elapsedMode = ElapsedMode.RESET;
 }
 
+  public static boolean isInstrumentedMethod(String methName) {
+    return fullMethList.contains(methName);
+  }
+  
+  public static boolean isElapsedModeReset() {
+    return elapsedMode == ElapsedMode.RESET;
+  }
+  
+  public static void setThreadEnabled(boolean enabled) {
+    JRadioButton button = graphSetupFrame.getRadiobutton("RB_THREAD");
+    button.setEnabled(enabled);
+    setThreadControls(button.isSelected());
+  }
+    
+  public static void setThreadControls(boolean enabled) {
+    JLabel label = graphSetupFrame.getLabel ("TXT_TH_SEL");
+    label.setText("0");
+    label.setEnabled(enabled);
+
+    graphSetupFrame.getButton("BTN_TH_UP").setEnabled(enabled);
+    graphSetupFrame.getButton("BTN_TH_DN").setEnabled(enabled);
+  }
+  
+  public static boolean isTabSelection_CALLGRAPH() {
+    return isTabSelection(PanelTabs.CALLGRAPH);
+  }
+
+  public static boolean isTabSelection_DATABASE() {
+    return isTabSelection(PanelTabs.DATABASE);
+  }
+
+  public static void highlightBranch(int start, boolean branch) {
+    bytecodeLogger.highlightBranch(start, branch);
+  }
+  
+  public static void resetLoggedTime() {
+    // this adds log entry to file for demarcation
+    if (udpThread != null) {
+      udpThread.resetInput();
+    }
+    
+    // this resets and starts the timer
+    startElapsedTime();
+  }
+  
+  public static void resetCapturedInput() {
+    // clear the packet buffer and statistics
+    if (udpThread != null) {
+      udpThread.clear();
+    }
+
+    // clear the graphics panel
+    CallGraph.clearGraphAndMethodList();
+    if (isTabSelection_CALLGRAPH()) {
+      CallGraph.updateCallGraph(GraphHighlight.NONE, false);
+    }
+          
+    // reset the elapsed time
+//    resetElapsedTime();
+  }
+  
+  public static void addLocalVariable(String name, String type, String slot, String start, String end) {
+    localVarTbl.addEntry(name, type, slot, start, end);
+  }
+
+  public static void addSymbVariable(String meth, String name, String type, String slot, String start, String end) {
+    symbolTbl.addEntry(meth, name, type, slot, start, end);
+  }
+
+  public static Integer byteOffsetToLineNumber(int offset) {
+    return bytecodeLogger.byteOffsetToLineNumber(offset);
+  }
+  
   public void createDebugPanel() {
     // if a panel already exists, close the old one
     if (mainFrame.isValidFrame()) {
@@ -270,10 +339,11 @@ public final class LauncherMain {
     GuiControls.Orient RIGHT = GuiControls.Orient.RIGHT;
     
     // init the solutions tried to none
-    solutionList = new DefaultListModel();
+//    solutionList = new DefaultListModel();
     
     // create the frame
-    mainFrame.newFrame("danlauncher", 1200, 800, FrameSize.FULLSCREEN);
+    JFrame frame = mainFrame.newFrame("danlauncher", 1200, 800, FrameSize.FULLSCREEN);
+    frame.addWindowListener(new Window_MainListener());
 
     panel = null; // this creates the entries in the main frame
     mainFrame.makePanel      (panel, "PNL_MESSAGES" , "Status"    , LEFT, true);
@@ -286,10 +356,10 @@ public final class LauncherMain {
     panel = "PNL_CONTAINER";
     mainFrame.makePanel     (panel, "PNL_CONTROLS"  , "Controls"  , LEFT, false, 600, 170);
     mainFrame.makePanel     (panel, "PNL_SOLUTIONS" , "Solutions" , LEFT, true, 400, 170);
-    mainFrame.makePanel     (panel, "PNL_BYTECODE"  , "Bytecode"   , LEFT, true);
+    mainFrame.makePanel     (panel, "PNL_BYTECODE"  , "Bytecode"  , LEFT, true);
 
     panel = "PNL_SOLUTIONS";
-    mainFrame.makeScrollList(panel, "LIST_SOLUTIONS", "" , solutionList);
+    mainFrame.makeScrollTable(panel, "TBL_SOLUTIONS", "");
 
     panel = "PNL_BYTECODE";
     mainFrame.makeCombobox  (panel, "COMBO_CLASS"  , "Class"       , LEFT, true);
@@ -306,11 +376,24 @@ public final class LauncherMain {
     mainFrame.makeTextField (panel, "TXT_INPUT"    , ""            , LEFT, true, "", 40, true);
     mainFrame.makeButton    (panel, "BTN_SOLVER"   , "Solver"      , LEFT, false);
 
+    // setup the handlers for the controls
+    mainFrame.getCombobox("COMBO_CLASS").addActionListener(new Action_BytecodeClassSelect());
+    mainFrame.getCombobox("COMBO_METHOD").addActionListener(new Action_BytecodeMethodSelect());
+    mainFrame.getButton("BTN_BYTECODE").addActionListener(new Action_RunBytecode());
+    mainFrame.getButton("BTN_RUNTEST").addActionListener(new Action_RunTest());
+    mainFrame.getButton("BTN_SOLVER").addActionListener(new Action_RunSolver());
+    mainFrame.getButton("BTN_SEND").addActionListener(new Action_SendHttpMessage());
+    mainFrame.getButton("BTN_STOPTEST").addActionListener(new Action_StopExecution());
+    mainFrame.getTextField("TXT_ARGLIST").addActionListener(new Action_UpdateArglist());
+    mainFrame.getTextField("TXT_ARGLIST").addFocusListener(new Focus_UpdateArglist());
+    mainFrame.getTextField("TXT_PORT").addActionListener(new Action_UpdatePort());
+    mainFrame.getTextField("TXT_PORT").addFocusListener(new Focus_UpdatePort());
+
     // add a menu to the frame
     JMenuBar menuBar = new JMenuBar();
     JMenu menuProject = new JMenu("Project");
     menuBar.add(menuProject);
-    JMenu menuCallgraph = new JMenu("Callgraph");
+    JMenu menuCallgraph = new JMenu("Graphs");
     menuBar.add(menuCallgraph);
     mainFrame.getFrame().setJMenuBar(menuBar);
 
@@ -321,12 +404,14 @@ public final class LauncherMain {
     menuProject.addSeparator();
     
     isServerTypeMenuItem = new JCheckBoxMenuItem("Input using Post (server app)");
-    isServerTypeMenuItem.setMnemonic(KeyEvent.VK_P);
-    isServerTypeMenuItem.setDisplayedMnemonicIndex(12);
-    isServerTypeMenuItem.setSelected(isServerType);
+    isServerTypeMenuItem.setSelected(true);
     isServerTypeMenuItem.addItemListener(new ItemListener_EnablePost());
     menuProject.add(isServerTypeMenuItem);
 
+    loadDanfigMenuItem = new JCheckBoxMenuItem("Load symbolics from danfig");
+    loadDanfigMenuItem.setSelected(true);
+    menuProject.add(loadDanfigMenuItem);  // listener not needed
+    
     menuItem = new JMenuItem("Update danfig file");
     menuItem.addActionListener(new Action_UpdateDanfigFile());
     menuProject.add(menuItem);
@@ -340,17 +425,21 @@ public final class LauncherMain {
     menuItem.addActionListener(new Action_ClearLog());
     menuProject.add(menuItem);
 
+    menuItem = new JMenuItem("Clear SOLUTIONS");
+    menuItem.addActionListener(new Action_ClearSolutions());
+    menuProject.add(menuItem);
+
     // define entries in Callgraph header
-    menuItem = new JMenuItem("Setup");
+    menuItem = new JMenuItem("Callgraph Setup");
     menuItem.addActionListener(new Action_CallgraphSetup());
     menuCallgraph.add(menuItem);
     menuCallgraph.addSeparator();
 
-    menuItem = new JMenuItem("Save graph (PNG)");
+    menuItem = new JMenuItem("Save Callgraph (PNG)");
     menuItem.addActionListener(new Action_SaveGraphPNG());
     menuCallgraph.add(menuItem);
 
-    menuItem = new JMenuItem("Save graph (JSON)");
+    menuItem = new JMenuItem("Save Callgraph (JSON)");
     menuItem.addActionListener(new Action_SaveGraphJSON());
     menuCallgraph.add(menuItem);
 
@@ -366,26 +455,9 @@ public final class LauncherMain {
     // initially disable STOP button
     mainFrame.getButton("BTN_STOPTEST").setEnabled(false);
 
-    // save reference to tabbed panel
-    tabPanel = mainFrame.getTabbedPanel("PNL_TABBED");
-
     // create the graph setup frame, but initially hide it
     createGraphSetupPanel();
   
-    // setup the control actions
-    mainFrame.getFrame().addWindowListener(new Window_Listener());
-    classCombo.addActionListener(new Action_BytecodeClassSelect());
-    mainClassCombo.addActionListener(new Action_BytecodeMethodSelect());
-    (mainFrame.getButton("BTN_BYTECODE")).addActionListener(new Action_RunBytecode());
-    (mainFrame.getButton("BTN_RUNTEST")).addActionListener(new Action_RunTest());
-    (mainFrame.getButton("BTN_SOLVER")).addActionListener(new Action_RunSolver());
-    (mainFrame.getButton("BTN_SEND")).addActionListener(new Action_SendHttpMessage());
-    (mainFrame.getButton("BTN_STOPTEST")).addActionListener(new Action_StopExecution());
-    (mainFrame.getTextField("TXT_ARGLIST")).addActionListener(new Action_UpdateArglist());
-    (mainFrame.getTextField("TXT_ARGLIST")).addFocusListener(new Focus_UpdateArglist());
-    (mainFrame.getTextField("TXT_PORT")).addActionListener(new Action_UpdatePort());
-    (mainFrame.getTextField("TXT_PORT")).addFocusListener(new Focus_UpdatePort());
-
     // display the frame
     mainFrame.display();
 
@@ -395,11 +467,11 @@ public final class LauncherMain {
 
     // create a split panel for sharing the local variables and symbolic parameters in a tab
     JTable paramList = new JTable();        // the bytecode param list
-    JTable sybolList = new JTable();        // the symbolic parameter list
+    JTable symbolList = new JTable();       // the symbolic parameter list
     String splitName = "SPLIT_PANE1";
     JSplitPane splitPane1 = mainFrame.makeSplitPane(splitName, false, 0.5);
     mainFrame.addSplitComponent(splitName, 0, "TBL_PARAMLIST", paramList, true);
-    mainFrame.addSplitComponent(splitName, 1, "TBL_SYMBOLICS", sybolList, true);
+    mainFrame.addSplitComponent(splitName, 1, "TBL_SYMBOLICS", symbolList, true);
 //    paramList.setBorder(new TitledBorder("Local variables"));
 //    sybolList.setBorder(new TitledBorder("Symbolics defined"));
 
@@ -415,12 +487,13 @@ public final class LauncherMain {
     mainFrame.addSplitComponent(splitName, 1, "PNL_PARAMS", splitPane1, false);
     
     // add the tabbed message panels and a listener to detect when a tab has been selected
-    addPanelToTab(PanelTabs.COMMAND  , new JTextArea(), true);
-    addPanelToTab(PanelTabs.DATABASE , new JTable(), true);
-    addPanelToTab(PanelTabs.BYTECODE , splitMain, false);
-    addPanelToTab(PanelTabs.BYTEFLOW , new JPanel(), true);
-    addPanelToTab(PanelTabs.LOG      , debugLogger.getTextPane(), true);
-    addPanelToTab(PanelTabs.CALLGRAPH, new JPanel(), true);
+    JTabbedPane tabPanel = mainFrame.getTabbedPanel("PNL_TABBED");
+    addPanelToTab(tabPanel, PanelTabs.COMMAND  , new JTextArea(), true);
+    addPanelToTab(tabPanel, PanelTabs.DATABASE , new JTable(), true);
+    addPanelToTab(tabPanel, PanelTabs.BYTECODE , splitMain, false);
+    addPanelToTab(tabPanel, PanelTabs.BYTEFLOW , new JPanel(), true);
+    addPanelToTab(tabPanel, PanelTabs.LOG      , debugLogger.getTextPane(), true);
+    addPanelToTab(tabPanel, PanelTabs.CALLGRAPH, new JPanel(), true);
     tabPanel.addChangeListener(new Change_TabPanelSelect());
 
     // create the message logging for the text panels
@@ -436,13 +509,14 @@ public final class LauncherMain {
 
     // init the local variable and symbolic list tables
     localVarTbl = new ParamTable(paramList);
-    symbolTbl = new SymbolTable(sybolList);
+    symbolTbl   = new SymbolTable(symbolList);
+    solutionTbl = new SolutionTable(mainFrame.getTable("TBL_SOLUTIONS"));
             
     // init the database table panel
     dbtable = new DatabaseTable((JTable) getTabPanel(PanelTabs.DATABASE));
   }
 
-  private class Window_Listener extends java.awt.event.WindowAdapter {
+  private class Window_MainListener extends java.awt.event.WindowAdapter {
     @Override
     public void windowClosing(java.awt.event.WindowEvent evt) {
       enableUpdateTimers(false);
@@ -526,6 +600,14 @@ public final class LauncherMain {
     }
   }
   
+  private class Action_ClearSolutions implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      // clear out the debug logger
+      solutionTbl.clear();
+    }
+  }
+
   private class Action_CallgraphSetup implements ActionListener {
     @Override
     public void actionPerformed(java.awt.event.ActionEvent evt) {
@@ -580,7 +662,7 @@ public final class LauncherMain {
   private class ItemListener_EnablePost implements ItemListener {
     @Override
     public void itemStateChanged(ItemEvent ie) {
-      isServerType = ie.getStateChange() == ItemEvent.SELECTED;
+      boolean isServerType = ie.getStateChange() == ItemEvent.SELECTED;
       
       // enable/disable "send to port" controls accordingly
       mainFrame.getButton("BTN_SEND").setEnabled(isServerType);
@@ -687,7 +769,7 @@ public final class LauncherMain {
 
     // only enable these if the "Post message" is also enabled
     if (enable) {
-      enable = isServerType;
+      enable = isServerTypeMenuItem.isSelected();
     }
     mainFrame.getButton("BTN_SEND").setEnabled(enable);
     mainFrame.getTextField("TXT_PORT").setEnabled(enable);
@@ -705,14 +787,15 @@ public final class LauncherMain {
     GuiControls.Orient RIGHT  = GuiControls.Orient.RIGHT;
     
     // create the frame
-    graphSetupFrame.newFrame("Graph Setup", 350, 250, FrameSize.FIXEDSIZE);
+    JFrame frame = graphSetupFrame.newFrame("Graph Setup", 350, 250, FrameSize.FIXEDSIZE);
+    frame.addWindowListener(new Window_DebugListener());
   
     panel = null;
     graphSetupFrame.makePanel (panel, "PNL_HIGHLIGHT", "Graph Highlight"   , LEFT, false);
     graphSetupFrame.makePanel (panel, "PNL_ADJUST"   , ""                  , LEFT, true);
 
     panel = "PNL_ADJUST";
-    graphSetupFrame.makeLabel (panel, "LBL_THREADS"  , "Threads: 0"        , LEFT, true);
+    graphSetupFrame.makeLabel (panel, "LBL_THREADS"  , "Threads: 0"        , CENTER, true);
     graphSetupFrame.makeLineGap(panel);
     graphSetupFrame.makePanel (panel, "PNL_THREAD"   , "Thread Select"     , LEFT, true);
     graphSetupFrame.makeLineGap(panel);
@@ -727,7 +810,6 @@ public final class LauncherMain {
     graphSetupFrame.makeRadiobutton(panel, "RB_NONE"      , "Off"             , LEFT, true, 1);
 
     panel = "PNL_THREAD";
-    //graphSetupFrame.makeCheckbox   (panel, "CB_SHOW_ALL", "Show all threads", LEFT, true, 1);
     graphSetupFrame.makeLabel      (panel, "TXT_TH_SEL" , "0"  , LEFT, false);
     graphSetupFrame.makeButton     (panel, "BTN_TH_UP"  , "UP" , LEFT, false);
     graphSetupFrame.makeButton     (panel, "BTN_TH_DN"  , "DN" , LEFT, true);
@@ -742,17 +824,16 @@ public final class LauncherMain {
     setThreadControls(false);
     
     // setup the control actions
-    graphSetupFrame.getFrame().addWindowListener(new Window_DebugListener());
-    (graphSetupFrame.getRadiobutton("RB_THREAD")).addActionListener(new Action_GraphModeThread());
-    (graphSetupFrame.getRadiobutton("RB_ELAPSED")).addActionListener(new Action_GraphModeElapsed());
-    (graphSetupFrame.getRadiobutton("RB_INSTRUCT")).addActionListener(new Action_GraphModeInstruction());
-    (graphSetupFrame.getRadiobutton("RB_ITER")).addActionListener(new Action_GraphModeIteration());
-    (graphSetupFrame.getRadiobutton("RB_STATUS")).addActionListener(new Action_GraphModeStatus());
-    (graphSetupFrame.getRadiobutton("RB_NONE")).addActionListener(new Action_GraphModeNone());
-    (graphSetupFrame.getButton("BTN_TH_UP")).addActionListener(new Action_ThreadUp());
-    (graphSetupFrame.getButton("BTN_TH_DN")).addActionListener(new Action_ThreadDown());
-    (graphSetupFrame.getButton("BTN_RG_UP")).addActionListener(new Action_RangeUp());
-    (graphSetupFrame.getButton("BTN_RG_DN")).addActionListener(new Action_RangeDown());
+    graphSetupFrame.getRadiobutton("RB_THREAD"  ).addActionListener(new Action_GraphModeThread());
+    graphSetupFrame.getRadiobutton("RB_ELAPSED" ).addActionListener(new Action_GraphModeElapsed());
+    graphSetupFrame.getRadiobutton("RB_INSTRUCT").addActionListener(new Action_GraphModeInstruction());
+    graphSetupFrame.getRadiobutton("RB_ITER"    ).addActionListener(new Action_GraphModeIteration());
+    graphSetupFrame.getRadiobutton("RB_STATUS"  ).addActionListener(new Action_GraphModeStatus());
+    graphSetupFrame.getRadiobutton("RB_NONE"    ).addActionListener(new Action_GraphModeNone());
+    graphSetupFrame.getButton("BTN_TH_UP").addActionListener(new Action_ThreadUp());
+    graphSetupFrame.getButton("BTN_TH_DN").addActionListener(new Action_ThreadDown());
+    graphSetupFrame.getButton("BTN_RG_UP").addActionListener(new Action_RangeUp());
+    graphSetupFrame.getButton("BTN_RG_DN").addActionListener(new Action_RangeDown());
 }
 
   private class Window_DebugListener extends java.awt.event.WindowAdapter {
@@ -884,15 +965,11 @@ public final class LauncherMain {
     }
   }
 
-  public static boolean isInstrumentedMethod(String methName) {
-    return fullMethList.contains(methName);
-  }
-  
   private Logger createTextLogger(PanelTabs tabname, HashMap<String, FontInfo> fontmap) {
     return new Logger(getTabPanel(tabname), tabname.toString(), fontmap);
   }
   
-  private void addPanelToTab(PanelTabs tabname, Component panel, boolean scrollable) {
+  private void addPanelToTab(JTabbedPane tabpane, PanelTabs tabname, Component panel, boolean scrollable) {
     // make sure we don't already have the entry
     if (tabbedPanels.containsKey(tabname)) {
       System.err.println("ERROR: '" + tabname + "' panel already defined in tabs");
@@ -906,10 +983,10 @@ public final class LauncherMain {
       scrollPanel.setBorder(BorderFactory.createTitledBorder(""));
 
       // now add the scroll pane to the tabbed pane
-      tabPanel.addTab(tabname.toString(), scrollPanel);
+      tabpane.addTab(tabname.toString(), scrollPanel);
     } else {
       // or add the original pane to the tabbed pane
-      tabPanel.addTab(tabname.toString(), panel);
+      tabpane.addTab(tabname.toString(), panel);
     }
     
     // save access to panel by name
@@ -926,6 +1003,7 @@ public final class LauncherMain {
   }
 
   private static PanelTabs getTabSelect() {
+    JTabbedPane tabPanel = mainFrame.getTabbedPanel("PNL_TABBED");
     if (tabPanel == null || tabSelect.isEmpty()) {
       return null;
     }
@@ -946,9 +1024,25 @@ public final class LauncherMain {
       System.exit(1);
     }
 
+    JTabbedPane tabPanel = mainFrame.getTabbedPanel("PNL_TABBED");
     tabPanel.setSelectedIndex(index);
   }
   
+  private static boolean isTabSelection(PanelTabs select) {
+    JTabbedPane tabPanel = mainFrame.getTabbedPanel("PNL_TABBED");
+    if (tabPanel == null || tabSelect.isEmpty()) {
+      return false;
+    }
+    if (!tabSelect.containsKey(select)) {
+      System.err.println("Tab selection '" + select + "' not found!");
+      return false;
+    }
+
+    int graphTab = tabSelect.get(select);
+    int curTab = tabPanel.getSelectedIndex();
+    return curTab == graphTab;
+  }
+
   private static void setHighlightMode(GraphHighlight mode) {
     JRadioButton threadSelBtn = graphSetupFrame.getRadiobutton("RB_THREAD");
     JRadioButton timeSelBtn   = graphSetupFrame.getRadiobutton("RB_ELAPSED");
@@ -1130,90 +1224,6 @@ public final class LauncherMain {
       }
     }
   }
-  
-  public static boolean isElapsedModeReset() {
-    return elapsedMode == ElapsedMode.RESET;
-  }
-  
-  public static void setThreadEnabled(boolean enabled) {
-    JRadioButton button = graphSetupFrame.getRadiobutton("RB_THREAD");
-    button.setEnabled(enabled);
-    setThreadControls(button.isSelected());
-  }
-    
-  public static void setThreadControls(boolean enabled) {
-    JLabel label = graphSetupFrame.getLabel ("TXT_TH_SEL");
-    label.setText("0");
-    label.setEnabled(enabled);
-
-    graphSetupFrame.getButton("BTN_TH_UP").setEnabled(enabled);
-    graphSetupFrame.getButton("BTN_TH_DN").setEnabled(enabled);
-  }
-  
-  public static boolean isTabSelection_CALLGRAPH() {
-    return isTabSelection(PanelTabs.CALLGRAPH);
-  }
-
-  public static boolean isTabSelection_DATABASE() {
-    return isTabSelection(PanelTabs.DATABASE);
-  }
-
-  private static boolean isTabSelection(PanelTabs select) {
-    if (tabPanel == null || tabSelect.isEmpty()) {
-      return false;
-    }
-    if (!tabSelect.containsKey(select)) {
-      System.err.println("Tab selection '" + select + "' not found!");
-      return false;
-    }
-
-    int graphTab = tabSelect.get(select);
-    int curTab = tabPanel.getSelectedIndex();
-    return curTab == graphTab;
-  }
-
-  public static void highlightBranch(int start, boolean branch) {
-    bytecodeLogger.highlightBranch(start, branch);
-  }
-  
-  public static void resetLoggedTime() {
-    // this adds log entry to file for demarcation
-    if (udpThread != null) {
-      udpThread.resetInput();
-    }
-    
-    // this resets and starts the timer
-    startElapsedTime();
-  }
-  
-  public static void resetCapturedInput() {
-    // clear the packet buffer and statistics
-    if (udpThread != null) {
-      udpThread.clear();
-    }
-
-    // clear the graphics panel
-    CallGraph.clearGraphAndMethodList();
-    if (isTabSelection_CALLGRAPH()) {
-      CallGraph.updateCallGraph(GraphHighlight.NONE, false);
-    }
-          
-    // reset the elapsed time
-//    resetElapsedTime();
-  }
-  
-  public static void addLocalVariable(String name, String type, String slot, String start, String end) {
-    localVarTbl.addEntry(name, type, slot, start, end);
-  }
-
-  public static void addSymbVariable(String meth, String name, String type, String slot, String start, String end) {
-    symbolTbl.addEntry(meth, name, type, slot, start, end);
-  }
-
-  public static Integer byteOffsetToLineNumber(int offset) {
-    return bytecodeLogger.byteOffsetToLineNumber(offset);
-  }
-  
   
   /**
    * finds the classes in a jar file & sets the Class ComboBox to these values.
@@ -1422,12 +1432,11 @@ public final class LauncherMain {
     }
     
     // other params not covered by the PROJ_PROP_TBL:
-    String dflt = isServerType ? "true" : "false";
+    String dflt = isServerTypeMenuItem.isSelected() ? "true" : "false";
     String val = projectProps.getPropertiesItem(ProjectProperties.IS_SERVER_TYPE.toString(), dflt);
     if (!val.equals(dflt)) {
       // update the GUI selection
-      isServerType = (val.equals("true"));
-      isServerTypeMenuItem.setSelected(isServerType);
+      isServerTypeMenuItem.setSelected(val.equals("true"));
     }
   }
   
@@ -1453,30 +1462,6 @@ public final class LauncherMain {
 
     printStatusError("Missing file: " + fname);
     return false;
-  }
-  
-  private static void addSolution(String solution, long cost) {
-    if(solutionMap.containsKey(solution)) {
-      solutionMap.replace(solution, cost);
-      System.out.println("Replaced solution " + solution + " with cost: " + cost);
-
-      // let's clear the field and redo them all
-      solutionList.clear();
-      Iterator it = solutionMap.entrySet().iterator();
-      while (it.hasNext()) {
-        Map.Entry pair = (Map.Entry)it.next();
-        String coststr = cost < 0 ? "---" : "" + pair.getValue();
-        solutionList.addElement(pair.getKey() + "    " + coststr);
-        //it.remove(); // avoids a ConcurrentModificationException
-      }
-    } else {
-      solutionMap.put(solution, cost);
-      System.out.println("Added solution " + solution + " at cost: " + cost);
-
-      // can simply add the entry
-      String coststr = cost < 0 ? "---" : "" + cost;
-      solutionList.addElement(solution + "    " + coststr);
-    }
   }
   
   private static int loadJarFile() {
@@ -1514,8 +1499,12 @@ public final class LauncherMain {
     // clear out the symbolic parameter list
     symbolTbl.clear();
 
+    String content = initDanfigInfo();
+    
     // read the symbolic parameter definitions from danfig file (if present)
-    readSymbolicList();
+    if (loadDanfigMenuItem.isSelected()) {
+      readSymbolicList(content);
+    }
   
     String mainclass = "danalyzer.instrumenter.Instrumenter";
     String classpath = DSEPATH + "danalyzer/dist/danalyzer.jar";
@@ -1597,8 +1586,7 @@ public final class LauncherMain {
     startDebugPort(projectPathName);
         
     // reset the soultion list
-    solutionMap.clear();
-    solutionList.clear();
+    solutionTbl.clear();
     return 0;
   }
 
@@ -1649,7 +1637,7 @@ public final class LauncherMain {
               + ":" + mongolib
               + ":" + localpath;
 
-    if (!isServerType) {
+    if (!isServerTypeMenuItem.isSelected()) {
       inputAttempt = arglist;
       elapsedStart = System.currentTimeMillis();
     }
@@ -1739,7 +1727,7 @@ public final class LauncherMain {
     HttpURLConnection connection = null;
     
     // get starting time
-    if (isServerType) {
+    if (isServerTypeMenuItem.isSelected()) {
       inputAttempt = urlParameters;
       elapsedStart = System.currentTimeMillis();
     }
@@ -1777,7 +1765,7 @@ public final class LauncherMain {
       // add input value to solutions tried
       // TODO: this is not really the elapsed time - we need to read from the debug output to
       // determine when the terminating condition has been reached.
-      addSolution(inputAttempt, System.currentTimeMillis() - elapsedStart);
+      solutionTbl.addEntry(inputAttempt, "" + (System.currentTimeMillis() - elapsedStart));
     } catch (IOException ex) {
       // display error
       printStatusMessage("Post failure");
@@ -1867,12 +1855,10 @@ public final class LauncherMain {
     return content;
   }
   
-  private static void readSymbolicList() {
+  private static void readSymbolicList(String content) {
 
     boolean needChange = false;
     boolean noChange = false;
-    
-    String content = initDanfigInfo();
     
     File file = new File(projectPathName + "danfig");
     if (!file.isFile()) {
@@ -1999,9 +1985,9 @@ public final class LauncherMain {
       printCommandMessage("jobfinished - " + threadInfo.jobname + ": status = " + threadInfo.exitcode);
       switch (threadInfo.exitcode) {
         case 0:
-          if (!isServerType) {
+          if (!isServerTypeMenuItem.isSelected()) {
             // TODO: need to get the actual cost here
-            addSolution(inputAttempt, System.currentTimeMillis() - elapsedStart);
+            solutionTbl.addEntry(inputAttempt, "" + (System.currentTimeMillis() - elapsedStart));
           }
           printStatusMessage(threadInfo.jobname + " command (pid " + threadInfo.pid + ") completed successfully");
           break;

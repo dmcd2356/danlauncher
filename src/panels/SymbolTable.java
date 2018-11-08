@@ -287,8 +287,8 @@ public class SymbolTable {
     // ask user if he wants to remove the variable from the symbolic list
     String[] selection = {"Remove All", "Yes", "No" };
     int which = JOptionPane.showOptionDialog(null,
-      "Remove symbolic variable from symbolic parameter list?",
-      "Method Info", // title of pane
+      "Remove entry from list?",
+      "Remove entry", // title of pane
       JOptionPane.YES_NO_CANCEL_OPTION, // DEFAULT_OPTION,
       JOptionPane.QUESTION_MESSAGE, // PLAIN_MESSAGE
       null, // icon
