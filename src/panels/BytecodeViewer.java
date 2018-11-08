@@ -43,12 +43,15 @@ public class BytecodeViewer {
   private static final int HIGHLIGHT_BRANCH = 0x0002;
   private static final int HIGHLIGHT_ALL    = 0xFFFF;
   
+  // This is how the switch opcode branch data gets saved in the comment
+  private static final String SWITCH_DELIMITER = "//-- { ";
+
   // types of messages
   private static enum MsgType { ERROR, METHOD, TEXT, PARAM, COMMENT, SYMBRA, BRANCH,
                                 SWITCH, GOTO,  INVOKE, RETURN, LOAD, STORE, OTHER }
   
   // states for parseJavap
-  private static enum ParseMode { NONE, CLASS, METHOD, DESCRIPTION, OPCODE, LINENUM_TBL, LOCALVAR_TBL, EXCEPTION_TBL }
+  private static enum ParseMode { NONE, CLASS, METHOD, DESCRIPTION, OPCODE, OPSWITCH, LINENUM_TBL, LOCALVAR_TBL, EXCEPTION_TBL }
   
   // types of opcode instructions that we handle
   private static enum OpcodeType { SYMBRA, BRANCH, SWITCH, GOTO, INVOKE, RETURN, OTHER }
@@ -197,6 +200,7 @@ public class BytecodeViewer {
     // check if method is already loaded
     if (methodLoaded.equals(classSelect + "." + methodSelect) && !bytecode.isEmpty()) {
       // make sure highlighting is desabled for the text, and we're good to exit
+      LauncherMain.printCommandMessage(classSelect + "." + methodSelect + " is already loaded");
       highlightClear();
       valid = true;
       return;
@@ -211,6 +215,7 @@ public class BytecodeViewer {
     methodLoaded = "";
     int linesRead = 0;
     String switchInProcess = "";
+    int switchOffset = 0;
     logger.clear();
     bytecode = new ArrayList<>();
     boff2Line = new HashMap<>();
@@ -220,27 +225,6 @@ public class BytecodeViewer {
       ++curLine;
       entry = entry.replace("\t", " ").trim();
 
-      // VERY KLUDGY, LET'S CLEAN THIS UP!
-      // to eliminate having multi-line opcodes "tableswitch" and lookupswitch" we're going to
-      // check if we are decoding the specified method and have found the start of one of these.
-      // if so, we keep reading input and removing the NEWLINEs until we reach the end.
-      // that way, we have all this info on a single line
-      if (valid && (parseMode == ParseMode.OPCODE) &&
-                   (entry.contains("tableswitch") || entry.contains("lookupswitch"))) {
-        switchInProcess = entry.substring(0, entry.indexOf("//"));
-        continue;
-      }
-      if (!switchInProcess.isEmpty()) {
-        if (entry.startsWith("}")) {
-          // we are done, now we can run
-          entry = switchInProcess + " }";
-          switchInProcess = "";
-        } else {
-          switchInProcess += entry + ", ";
-          continue;
-        }
-      }
-      
       // modify this entry - it indicates the static initializer method
       if (entry.equals("static {};")) {
         entry = "<clinit>()";
@@ -388,21 +372,65 @@ public class BytecodeViewer {
           continue;
         case OPCODE:
           // check if we are at the correct method
-          if (valid) {
-            offset = getOpcodeOffset(entry, lastoffset);
-            if (offset >= 0) {
-              // process the bytecode instruction (save info in array for reference & display text in panel)
-              lastoffset = offset;
-              entry = entry.substring(entry.indexOf(": ") + 1).trim();
-              formatBytecode(linesRead, offset, entry);
-              ++linesRead;
+          if (!valid) {
+            parseMode = ParseMode.NONE;
+            break; // check for method
+          }
+
+          // else, verify entry beings with "<numeric>: " header
+          offset = getOpcodeOffset(entry, lastoffset);
+          if (offset >= 0) {
+            // check for a SWITCH opcode (special handling for multi-line opcodes)
+            if ((entry.contains("tableswitch") || entry.contains("lookupswitch"))) {
+              // save the opcode info up to, but excluding the comment field
+              switchInProcess = entry.substring(0, entry.indexOf("//")) + SWITCH_DELIMITER;
+              switchOffset = offset;
+              parseMode = ParseMode.OPSWITCH;
+              LauncherMain.printCommandMessage("Line: " + curLine + " - SWITCH statement");
+              continue;
             }
+
+            // process the bytecode instruction (save info in array for reference & display text in panel)
+            lastoffset = offset;
+            entry = entry.substring(entry.indexOf(": ") + 1).trim();
+            formatBytecode(linesRead, offset, entry);
+            ++linesRead;
+            continue;
+          }
+          break; // else, we probably completed the opcodes, so check for next method definition
+        case OPSWITCH:
+          // VERY KLUDGY, LET'S CLEAN THIS UP!
+          // to eliminate having multi-line opcodes "tableswitch" and lookupswitch" we're going to
+          // check if we are decoding the specified method and have found the start of one of these.
+          // if so, we keep reading input and removing the NEWLINEs until we reach the end.
+          // that way, we have all this info on a single line
+          if (switchInProcess.isEmpty()) {
+            break;
+          }
+          if (entry.startsWith("}")) {
+            // this terminates the SWITCH mode
+            if (switchInProcess.endsWith(", ")) {
+              switchInProcess = switchInProcess.substring(0, switchInProcess.length() - 2);
+            }
+            entry = switchInProcess + " }";
+            // now we can process the opcode (since offset was already validated, this will always pass)
+            lastoffset = switchOffset;
+            entry = entry.substring(entry.indexOf(": ") + 1).trim();
+            formatBytecode(linesRead, switchOffset, entry);
+            ++linesRead;
+            parseMode = ParseMode.OPCODE; // switch back to normal opcode handling
+          } else {
+            // this is the next switch line that holds the selection followed by the branch
+            // location to jump to. add the entry in a comma-separated list.
+            switchInProcess += entry + ", ";
           }
           continue;
         default:
           break;
       }
       
+      LauncherMain.printCommandMessage("Line: " + curLine + " - current mode = " + parseMode.toString());
+
       // otherwise, let's check if it is a method definition
       // check for start of selected method (method must contain the parameter list)
       // first, eliminate the comment section, which may contain () and method names
@@ -432,7 +460,7 @@ public class BytecodeViewer {
           
       // seperate the name into class and method names
       String clsName = clsCurrent; // if no class specified, use the current class definition
-      if (methName.equals(clsName)) { // the <init> method will have no name, just a class
+      if (methName.equals(clsName)) { // the <init> method will have no method name, just a class
         methName = "<init>";
       }
       offset = methName.lastIndexOf(".");
@@ -993,8 +1021,8 @@ public class BytecodeViewer {
       
       // check special case of tableswitch and lookupswitch - these are multiline cases
       String switchList = "";
-      if (param.startsWith("{")) {
-        switchList = param.substring(1).trim(); // remove leading braces
+      if (comment.startsWith(SWITCH_DELIMITER)) {
+        switchList = comment.substring(SWITCH_DELIMITER.length()).trim(); // remove the delimiter
         offset = switchList.lastIndexOf(",");   // remove trailing comma and end brace
         if (offset > 0) {
           switchList = switchList.substring(0, offset);

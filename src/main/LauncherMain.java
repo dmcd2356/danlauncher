@@ -391,6 +391,7 @@ public final class LauncherMain {
     // setup the handlers for the controls
     mainFrame.getCombobox("COMBO_CLASS").addActionListener(new Action_BytecodeClassSelect());
     mainFrame.getCombobox("COMBO_METHOD").addActionListener(new Action_BytecodeMethodSelect());
+    mainFrame.getCombobox("COMBO_MAINCLS").addActionListener(new Action_MainClassSelect());
     mainFrame.getButton("BTN_BYTECODE").addActionListener(new Action_RunBytecode());
     mainFrame.getButton("BTN_RUNTEST").addActionListener(new Action_RunTest());
     mainFrame.getButton("BTN_SOLVER").addActionListener(new Action_RunSolver());
@@ -447,7 +448,6 @@ public final class LauncherMain {
     menuItem = new JMenuItem("Debug Setup");
     menuItem.addActionListener(new Action_DebugSetup());
     menuDebug.add(menuItem);
-    menuDebug.addSeparator();
 
     // define entries in Callgraph header
     menuItem = new JMenuItem("Callgraph Setup");
@@ -678,6 +678,12 @@ public final class LauncherMain {
   }
 
   private class Action_BytecodeMethodSelect implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+    }
+  }
+  
+  private class Action_MainClassSelect implements ActionListener {
     @Override
     public void actionPerformed(java.awt.event.ActionEvent evt) {
       //if (evt.getActionCommand().equals("comboBoxChanged")) {
@@ -1004,12 +1010,6 @@ public final class LauncherMain {
     GuiControls.Orient CENTER = GuiControls.Orient.CENTER;
     GuiControls.Orient RIGHT  = GuiControls.Orient.RIGHT;
 
-    // get current project settings, if we have opened one yet
-    debugFlags = "";
-    if (projectProps != null) {
-      debugFlags = projectProps.getPropertiesItem(ProjectProperties.DEBUG_FLAGS.toString(), "");
-    }
-      
     // create the frame
     JFrame frame = debugSetupFrame.newFrame("Debug Setup", 350, 250, FrameSize.FIXEDSIZE);
     frame.addWindowListener(new Window_DebugSetupListener());
@@ -1022,16 +1022,16 @@ public final class LauncherMain {
     
     // now add controls to the sub-panels
     panel = "PNL_DBGFLAGS";
-    debugSetupFrame.makeCheckbox(panel, "DBG_WARNING" , "Warnings"      , LEFT, false , debugFlags.contains("WARN")    ? 1 : 0);
-    debugSetupFrame.makeCheckbox(panel, "DBG_CALL"    , "Call/Return"   , LEFT, true  , debugFlags.contains("CALLS")   ? 1 : 0);
-    debugSetupFrame.makeCheckbox(panel, "DBG_INFO"    , "Info"          , LEFT, false , debugFlags.contains("INFO")    ? 1 : 0);
-    debugSetupFrame.makeCheckbox(panel, "DBG_THREAD"  , "Thread"        , LEFT, true  , debugFlags.contains("THREAD")  ? 1 : 0);
-    debugSetupFrame.makeCheckbox(panel, "DBG_COMMAND" , "Commands"      , LEFT, false , debugFlags.contains("COMMAND") ? 1 : 0);
-    debugSetupFrame.makeCheckbox(panel, "DBG_STACK"   , "Stack"         , LEFT, true  , debugFlags.contains("STACK")   ? 1 : 0);
-    debugSetupFrame.makeCheckbox(panel, "DBG_AGENT"   , "Agent"         , LEFT, false , debugFlags.contains("AGENT")   ? 1 : 0);
-    debugSetupFrame.makeCheckbox(panel, "DBG_LOCALS"  , "Locals"        , LEFT, true  , debugFlags.contains("LOCAL")   ? 1 : 0);
-    debugSetupFrame.makeCheckbox(panel, "DBG_BRANCH"  , "Branch"        , LEFT, false , debugFlags.contains("BRANCH")  ? 1 : 0);
-    debugSetupFrame.makeCheckbox(panel, "DBG_SOLVER"  , "Solver"        , LEFT, true  , debugFlags.contains("SOLVE")   ? 1 : 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_WARNING" , "Warnings"      , LEFT, false , 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_CALL"    , "Call/Return"   , LEFT, true  , 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_INFO"    , "Info"          , LEFT, false , 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_THREAD"  , "Thread"        , LEFT, true  , 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_COMMAND" , "Commands"      , LEFT, false , 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_STACK"   , "Stack"         , LEFT, true  , 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_AGENT"   , "Agent"         , LEFT, false , 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_LOCALS"  , "Locals"        , LEFT, true  , 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_BRANCH"  , "Branch"        , LEFT, false , 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_SOLVER"  , "Solver"        , LEFT, true  , 0);
 
     panel = "PNL_DEBUGOUT";
     debugSetupFrame.makeTextField(panel, "TEXT_PORT"   , "Port"         , LEFT, true, debugPort + "", 8, true);
@@ -1040,6 +1040,10 @@ public final class LauncherMain {
   private class Window_DebugSetupListener extends java.awt.event.WindowAdapter {
     @Override
     public void windowClosing(java.awt.event.WindowEvent evt) {
+      // save current settings
+      String oldDebugFlags = debugFlags;
+      int oldDebugPort = debugPort;
+      
       // get the current debug selections
       debugFlags = "";
       debugFlags += debugSetupFrame.getCheckbox("DBG_WARNING").isSelected() ? "WARN "    : "";
@@ -1080,6 +1084,11 @@ public final class LauncherMain {
       // now put this frame back into hiding
       debugSetupFrame.hide();
       
+      if (oldDebugPort == debugPort && oldDebugFlags.equals(debugFlags)) {
+        System.out.println("No changes to debug settings");
+        return;
+      }
+      
       // ask user if he wants to update the danfig file so his changes will take effect
       // the next time he runs the application
       String[] selection = {"Yes", "No" };
@@ -1107,6 +1116,19 @@ public final class LauncherMain {
     }
   }
 
+  private static void setDebugFromProperties() {
+    debugSetupFrame.getCheckbox("DBG_WARNING").setSelected(debugFlags.contains("WARN"));
+    debugSetupFrame.getCheckbox("DBG_CALL"   ).setSelected(debugFlags.contains("CALLS"));
+    debugSetupFrame.getCheckbox("DBG_INFO"   ).setSelected(debugFlags.contains("INFO"));
+    debugSetupFrame.getCheckbox("DBG_THREAD" ).setSelected(debugFlags.contains("THREAD"));
+    debugSetupFrame.getCheckbox("DBG_COMMAND").setSelected(debugFlags.contains("COMMAND"));
+    debugSetupFrame.getCheckbox("DBG_STACK"  ).setSelected(debugFlags.contains("STACK"));
+    debugSetupFrame.getCheckbox("DBG_AGENT"  ).setSelected(debugFlags.contains("AGENT"));
+    debugSetupFrame.getCheckbox("DBG_LOCALS" ).setSelected(debugFlags.contains("LOCAL"));
+    debugSetupFrame.getCheckbox("DBG_BRANCH" ).setSelected(debugFlags.contains("BRANCH"));
+    debugSetupFrame.getCheckbox("DBG_SOLVER" ).setSelected(debugFlags.contains("SOLVE"));
+  }
+  
   private Logger createTextLogger(PanelTabs tabname, HashMap<String, FontInfo> fontmap) {
     return new Logger(getTabPanel(tabname), tabname.toString(), fontmap);
   }
@@ -1452,6 +1474,7 @@ public final class LauncherMain {
     
     // now we can re-enable changes in the main class causing the properties entry to be updated
     mainClassInitializing = false;
+    updateProjectProperty("COMBO_MAINCLS");
     
     // now update the method selections
     setMethodSelections((String) classCombo.getSelectedItem());
@@ -1545,9 +1568,9 @@ public final class LauncherMain {
   
   private static void initProjectProperties(String pathname) {
     // create the properties file if not already created
-    if (projectProps == null) {
+//    if (projectProps == null) {
       projectProps = new PropertiesFile(pathname + ".danlauncher", "PROJECT_PROPERTIES", commandLogger);
-    }
+//    }
 
     // loop thru the properties table and set up each entry
     for (PropertiesTable propEntry : PROJ_PROP_TBL) {
@@ -1560,6 +1583,7 @@ public final class LauncherMain {
       String val = projectProps.getPropertiesItem(tag.toString(), setting);
       if (!setting.equals(val)) {
         // if property value was found & differs from gui setting, update the gui
+        printCommandMessage("Project updated " + ctlName + " to value: " + val);
         mainFrame.setInputControl(ctlName, ctlType, val);
       }
     }
@@ -1569,12 +1593,18 @@ public final class LauncherMain {
     String val = projectProps.getPropertiesItem(ProjectProperties.IS_SERVER_TYPE.toString(), dflt);
     if (!val.equals(dflt)) {
       // update the GUI selection
+      printCommandMessage("Project updated IS_SERVER_TYPE to value: " + val);
       isServerTypeMenuItem.setSelected(val.equals("true"));
     }
 
     // this uses the current setting of debugFlags as a default value, so if the entry is defined
     // in projectProperties it will use that, otherwise it will keep its current setting.
-    debugFlags = projectProps.getPropertiesItem(ProjectProperties.DEBUG_FLAGS.toString(), debugFlags);
+    String prevFlags = debugFlags;
+    debugFlags = projectProps.getPropertiesItem(ProjectProperties.DEBUG_FLAGS.toString(), prevFlags);
+    if (!prevFlags.equals(debugFlags)) {
+      printCommandMessage("Project updated DEBUG_FLAGS to value: " + val);
+    }
+    setDebugFromProperties();
   }
   
   private static void updateProjectProperty(String ctlName) {
@@ -1982,7 +2012,7 @@ public final class LauncherMain {
     content += "IPAddress: localhost" + NEWLINE;
     content += "DebugPort: " + debugPort + NEWLINE;
     content += "DebugMode: TCPPORT" + NEWLINE;
-    content += "DebugFlags:" + debugFlags + NEWLINE;
+    content += "DebugFlags: " + debugFlags + NEWLINE;
     content += NEWLINE;
     return content;
   }
@@ -2029,7 +2059,7 @@ public final class LauncherMain {
               needChange = true;
             }
           }
-          if (!line.isEmpty()) {
+          if (!line.isEmpty() && !line.startsWith("#")) {
             content += line + NEWLINE;
           }
         }
