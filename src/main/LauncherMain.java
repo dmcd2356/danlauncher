@@ -60,6 +60,7 @@ import javax.swing.JLabel;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
@@ -125,13 +126,24 @@ public final class LauncherMain {
   private static final GuiControls mainFrame = new GuiControls();
   private static final GuiControls graphSetupFrame = new GuiControls();
   private static final GuiControls debugSetupFrame = new GuiControls();
+  private static BytecodeViewer  bytecodeLogger;
+  private static DebugLogger     debugLogger;
+  private static ThreadLauncher  threadLauncher;
+  private static DatabaseTable   dbtable;
+  private static ParamTable      localVarTbl;
+  private static SymbolTable     symbolTbl;
+  private static SolutionTable   solutionTbl;
+  private static NetworkServer   udpThread = null;
+  private static NetworkListener networkListener = null;
+  private static DebugInputListener inputListener;
+  private static Visitor         makeConnection;
+  private static Logger          commandLogger;
   private static JFileChooser    fileSelector;
   private static JComboBox       mainClassCombo;
   private static JComboBox       classCombo;
   private static JComboBox       methodCombo;
-  private static Logger          commandLogger;
-  private static BytecodeViewer  bytecodeLogger;
-  private static DebugLogger     debugLogger;
+  private static JCheckBoxMenuItem isServerTypeMenuItem;
+  private static JCheckBoxMenuItem loadDanfigMenuItem;
   private static Timer           debugMsgTimer;
   private static Timer           graphTimer;
   private static long            elapsedStart;
@@ -139,24 +151,13 @@ public final class LauncherMain {
   private static GraphHighlight  graphMode;
   private static String          projectPathName;
   private static String          projectName;
-  private static String          debugPort;
+  private static int             debugPort;
   private static int             tabIndex = 0;
-  private static ThreadLauncher  threadLauncher;
-  private static DatabaseTable   dbtable;
-  private static ParamTable      localVarTbl;
-  private static SymbolTable     symbolTbl;
-  private static SolutionTable   solutionTbl;
   private static String          inputAttempt = "";
   private static String          debugFlags = "";
-  private static Visitor         makeConnection;
   private static String          clientPort = "";
-  private static NetworkServer   udpThread = null;
-  private static NetworkListener networkListener = null;
-  private static DebugInputListener inputListener;
   private static String          javaHome;
   private static boolean         mainClassInitializing;
-  private static JCheckBoxMenuItem isServerTypeMenuItem;
-  private static JCheckBoxMenuItem loadDanfigMenuItem;
   
   private static ArrayList<String> fullMethList = new ArrayList<>();
   private static ArrayList<String> classList = new ArrayList<>();
@@ -229,7 +230,11 @@ public final class LauncherMain {
     systemProps = new PropertiesFile(HOMEPATH + "/" + PROJ_CONFIG, "SYSTEM_PROPERTIES");
     String projectPath = systemProps.getPropertiesItem(SystemProperties.PROJECT_PATH.toString(), HOMEPATH);
     String maxLogLength = systemProps.getPropertiesItem(SystemProperties.MAX_LOG_LENGTH.toString(), "500000");
-    debugPort = systemProps.getPropertiesItem(SystemProperties.DEBUG_PORT.toString(), "5000");
+    String myport = systemProps.getPropertiesItem(SystemProperties.DEBUG_PORT.toString(), "5000");
+    if (myport == null) {
+      myport = "5000";
+    }
+    debugPort = Integer.parseUnsignedInt(myport);
     javaHome = systemProps.getPropertiesItem(SystemProperties.JAVA_HOME.toString(), JAVA_HOME);
     
     // we need a filechooser and initialize it to the project path
@@ -993,16 +998,18 @@ public final class LauncherMain {
       return;
     }
 
-    // get current settings from properties 
-    debugPort = systemProps.getPropertiesItem(SystemProperties.DEBUG_PORT.toString(), "5000");
-    debugFlags = projectProps.getPropertiesItem(ProjectProperties.DEBUG_FLAGS.toString(), "");
-    
     // these just make the gui entries cleaner
     String panel;
     GuiControls.Orient LEFT   = GuiControls.Orient.LEFT;
     GuiControls.Orient CENTER = GuiControls.Orient.CENTER;
     GuiControls.Orient RIGHT  = GuiControls.Orient.RIGHT;
-    
+
+    // get current project settings, if we have opened one yet
+    debugFlags = "";
+    if (projectProps != null) {
+      debugFlags = projectProps.getPropertiesItem(ProjectProperties.DEBUG_FLAGS.toString(), "");
+    }
+      
     // create the frame
     JFrame frame = debugSetupFrame.newFrame("Debug Setup", 350, 250, FrameSize.FIXEDSIZE);
     frame.addWindowListener(new Window_DebugSetupListener());
@@ -1015,16 +1022,16 @@ public final class LauncherMain {
     
     // now add controls to the sub-panels
     panel = "PNL_DBGFLAGS";
-    debugSetupFrame.makeCheckbox(panel, "DBG_WARNING" , "Warnings"      , LEFT, false , 0);
-    debugSetupFrame.makeCheckbox(panel, "DBG_CALL"    , "Call/Return"   , LEFT, true  , 0);
-    debugSetupFrame.makeCheckbox(panel, "DBG_INFO"    , "Info"          , LEFT, false , 0);
-    debugSetupFrame.makeCheckbox(panel, "DBG_THREAD"  , "Thread"        , LEFT, true  , 0);
-    debugSetupFrame.makeCheckbox(panel, "DBG_COMMAND" , "Commands"      , LEFT, false , 0);
-    debugSetupFrame.makeCheckbox(panel, "DBG_STACK"   , "Stack"         , LEFT, true  , 0);
-    debugSetupFrame.makeCheckbox(panel, "DBG_AGENT"   , "Agent"         , LEFT, false , 0);
-    debugSetupFrame.makeCheckbox(panel, "DBG_LOCALS"  , "Locals"        , LEFT, true  , 0);
-    debugSetupFrame.makeCheckbox(panel, "DBG_BRANCH"  , "Branch"        , LEFT, false , 0);
-    debugSetupFrame.makeCheckbox(panel, "DBG_SOLVER"  , "Solver"        , LEFT, true  , 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_WARNING" , "Warnings"      , LEFT, false , debugFlags.contains("WARN")    ? 1 : 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_CALL"    , "Call/Return"   , LEFT, true  , debugFlags.contains("CALLS")   ? 1 : 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_INFO"    , "Info"          , LEFT, false , debugFlags.contains("INFO")    ? 1 : 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_THREAD"  , "Thread"        , LEFT, true  , debugFlags.contains("THREAD")  ? 1 : 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_COMMAND" , "Commands"      , LEFT, false , debugFlags.contains("COMMAND") ? 1 : 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_STACK"   , "Stack"         , LEFT, true  , debugFlags.contains("STACK")   ? 1 : 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_AGENT"   , "Agent"         , LEFT, false , debugFlags.contains("AGENT")   ? 1 : 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_LOCALS"  , "Locals"        , LEFT, true  , debugFlags.contains("LOCAL")   ? 1 : 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_BRANCH"  , "Branch"        , LEFT, false , debugFlags.contains("BRANCH")  ? 1 : 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_SOLVER"  , "Solver"        , LEFT, true  , debugFlags.contains("SOLVE")   ? 1 : 0);
 
     panel = "PNL_DEBUGOUT";
     debugSetupFrame.makeTextField(panel, "TEXT_PORT"   , "Port"         , LEFT, true, debugPort + "", 8, true);
@@ -1033,28 +1040,70 @@ public final class LauncherMain {
   private class Window_DebugSetupListener extends java.awt.event.WindowAdapter {
     @Override
     public void windowClosing(java.awt.event.WindowEvent evt) {
-      // get the current selections
+      // get the current debug selections
       debugFlags = "";
-      debugFlags += debugSetupFrame.getCheckbox("DBG_WARNING").isSelected() ? " WARN"    : "";
-      debugFlags += debugSetupFrame.getCheckbox("DBG_CALL"   ).isSelected() ? " CALLS"   :"";
-      debugFlags += debugSetupFrame.getCheckbox("DBG_INFO"   ).isSelected() ? " INFO"    : "";
-      debugFlags += debugSetupFrame.getCheckbox("DBG_THREAD" ).isSelected() ? " THREAD"  : "";
-      debugFlags += debugSetupFrame.getCheckbox("DBG_COMMAND").isSelected() ? " COMMAND" : "";
-      debugFlags += debugSetupFrame.getCheckbox("DBG_STACK"  ).isSelected() ? " STACK"   : "";
-      debugFlags += debugSetupFrame.getCheckbox("DBG_AGENT"  ).isSelected() ? " AGENT"   : "";
-      debugFlags += debugSetupFrame.getCheckbox("DBG_LOCALS" ).isSelected() ? " LOCAL"   : "";
-      debugFlags += debugSetupFrame.getCheckbox("DBG_BRANCH" ).isSelected() ? " BRANCH"  : "";
-      debugFlags += debugSetupFrame.getCheckbox("DBG_SOLVER" ).isSelected() ? " SOLVE"   : "";
-//      System.out.println("debug flags = " + debugFlags);
+      debugFlags += debugSetupFrame.getCheckbox("DBG_WARNING").isSelected() ? "WARN "    : "";
+      debugFlags += debugSetupFrame.getCheckbox("DBG_CALL"   ).isSelected() ? "CALLS "   : "";
+      debugFlags += debugSetupFrame.getCheckbox("DBG_INFO"   ).isSelected() ? "INFO "    : "";
+      debugFlags += debugSetupFrame.getCheckbox("DBG_THREAD" ).isSelected() ? "THREAD "  : "";
+      debugFlags += debugSetupFrame.getCheckbox("DBG_COMMAND").isSelected() ? "COMMAND " : "";
+      debugFlags += debugSetupFrame.getCheckbox("DBG_STACK"  ).isSelected() ? "STACK "   : "";
+      debugFlags += debugSetupFrame.getCheckbox("DBG_AGENT"  ).isSelected() ? "AGENT "   : "";
+      debugFlags += debugSetupFrame.getCheckbox("DBG_LOCALS" ).isSelected() ? "LOCAL "   : "";
+      debugFlags += debugSetupFrame.getCheckbox("DBG_BRANCH" ).isSelected() ? "BRANCH "  : "";
+      debugFlags += debugSetupFrame.getCheckbox("DBG_SOLVER" ).isSelected() ? "SOLVE "   : "";
+      debugFlags = debugFlags.trim();
+      // update properties file
+      if (projectProps != null) {
+        projectProps.setPropertiesItem(ProjectProperties.DEBUG_FLAGS.toString(), debugFlags);
+      }
 
-      // save to properties file
-//      if (props != null) {
-//        String hexval = Integer.toHexString(DebugUtil.getDebugFlags());
-//        props.setPropertiesItem("DebugFlags", hexval);
-//        TriggerSetup.saveToProperties(props);
-//      }
+      // get the current port selection (make sure it is valid)
+      String portstr = debugSetupFrame.getTextField("TEXT_PORT").getText();
+      int portint = 0;
+      try {
+        portint = Integer.parseUnsignedInt(portstr);
+        if (portint < 100 || portint > 65535) {
+          portint = 0;
+        }
+      } catch (NumberFormatException ex) { }
+      if (portint <= 0) {
+        // bad - restore previous value
+        printStatusError("Invalid value for port: " + portstr);
+        debugSetupFrame.getTextField("TEXT_PORT").setText(debugPort + "");
+      } else {
+        // valid - save value and update properties file
+        debugPort = portint;
+        systemProps.setPropertiesItem(SystemProperties.DEBUG_PORT.toString(), debugPort + "");
+      }
       
+      // now put this frame back into hiding
       debugSetupFrame.hide();
+      
+      // ask user if he wants to update the danfig file so his changes will take effect
+      // the next time he runs the application
+      String[] selection = {"Yes", "No" };
+      int which = JOptionPane.showOptionDialog(null,
+        "Do you wish to update the 'danfig' file" + NEWLINE +
+        "with your changes so that they will take" + NEWLINE +
+        "effect the next time the application is run?",
+        "Update danfig", // title of pane
+        JOptionPane.YES_NO_CANCEL_OPTION, // DEFAULT_OPTION,
+        JOptionPane.QUESTION_MESSAGE, // PLAIN_MESSAGE
+        null, // icon
+        selection, selection[1]);
+
+      if (which >= 0 && selection[which].equals("Yes")) {
+        // init the background stuff
+        String content = initDanfigInfo();
+    
+        // now add in the latest and greatest symbolic defs
+        content += symbolTbl.getSymbolicList();
+
+        // now save to the file
+        saveProjectTextFile("danfig", content);
+        printStatusMessage("Updated danfig file");
+      }
     }
   }
 
@@ -1247,23 +1296,15 @@ public final class LauncherMain {
   }
   
   private static void startDebugPort(String projectPath) {
-    int port = 5000; // init to default value
-    if (debugPort != null && !debugPort.isEmpty()) {
-      try {
-        port = Integer.parseUnsignedInt(debugPort);
-      } catch (NumberFormatException ex) {
-        System.err.println("ERROR: Invalid port value for NetworkServer: " + debugPort);
-      }
-    }
-
+    // disable timers while we are setting this up
     enableUpdateTimers(false);
 
     if (udpThread != null) {
       // server is already running, see if no change in parameters
-      if (port != udpThread.getPort()) {
+      if (debugPort != udpThread.getPort()) {
         // port change: we have to close the current server so we can create a new one using a different port
         udpThread.exit();
-        System.out.println("Changinng NetworkServer port from " + udpThread.getPort() + " to " + port);
+        System.out.println("Changinng NetworkServer port from " + udpThread.getPort() + " to " + debugPort);
         // continue onto starting a new server
       } else if (!projectPath.equals(udpThread.getOutputFile())) {
         // storage location changed - easy, we can just change the setting on the fly
@@ -1278,12 +1319,12 @@ public final class LauncherMain {
     }
     
     try {
-      udpThread = new NetworkServer(port, true);
+      udpThread = new NetworkServer(debugPort, true);
     } catch (IOException ex) {
       System.err.println("ERROR: unable to start NetworkServer. " + ex);
     }
 
-    System.out.println("danlauncher receiving port: " + port);
+    System.out.println("danlauncher receiving port: " + debugPort);
     udpThread.start();
     udpThread.setLoggingCallback(makeConnection);
     udpThread.setBufferFile(projectPath + "/debug.log");
@@ -1378,8 +1419,7 @@ public final class LauncherMain {
 
     // setup the class and method selections
     setClassSelections();
-    System.out.println(classList.size() + " classes and " +
-        fullMethList.size() + " methods found");
+    System.out.println(classList.size() + " classes and " + fullMethList.size() + " methods found");
   }
 
   private static void setClassSelections() {
@@ -1531,6 +1571,10 @@ public final class LauncherMain {
       // update the GUI selection
       isServerTypeMenuItem.setSelected(val.equals("true"));
     }
+
+    // this uses the current setting of debugFlags as a default value, so if the entry is defined
+    // in projectProperties it will use that, otherwise it will keep its current setting.
+    debugFlags = projectProps.getPropertiesItem(ProjectProperties.DEBUG_FLAGS.toString(), debugFlags);
   }
   
   private static void updateProjectProperty(String ctlName) {
