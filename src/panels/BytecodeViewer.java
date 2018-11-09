@@ -6,6 +6,8 @@
 package panels;
 
 import callgraph.BaseGraph;
+import com.mxgraph.model.mxCell;
+import com.mxgraph.swing.handler.mxGraphHandler;
 //import com.mxgraph.model.mxCell;
 //import com.mxgraph.swing.handler.mxGraphHandler;
 import com.mxgraph.swing.mxGraphComponent;
@@ -17,6 +19,7 @@ import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
 import javax.swing.JPanel;
@@ -429,8 +432,6 @@ public class BytecodeViewer {
           break;
       }
       
-      LauncherMain.printCommandMessage("Line: " + curLine + " - current mode = " + parseMode.toString());
-
       // otherwise, let's check if it is a method definition
       // check for start of selected method (method must contain the parameter list)
       // first, eliminate the comment section, which may contain () and method names
@@ -495,7 +496,7 @@ public class BytecodeViewer {
     flowGraph = new BaseGraph<>();
   }
 
-  public void updateCallGraph() {
+  public void updateFlowGraph() {
     // exit if the graphics panel has not been established
     if (graphPanel == null) {
       return;
@@ -508,31 +509,8 @@ public class BytecodeViewer {
       graphComponent.setConnectable(false);
         
       // add listener to show details of selected element
-      graphComponent.getGraphControl().addMouseListener(new MouseAdapter() {
-          @Override
-          public void mouseReleased(MouseEvent e) {
-            // if an INVOKE block is clicked, load the specified method in the bytecode viewer
-            // NOT A GOOD IDEA THE WAY THE CODE IS WRITTEN - THIS WILL POTENTIALLY BE RECURSIVE!!!
-//            int x = e.getX();
-//            int y = e.getY();
-//            mxGraphHandler handler = graphComponent.getGraphHandler();
-//            mxCell cell = (mxCell) handler.getGraphComponent().getCellAt(x, y);
-//            if (cell != null && cell.isVertex()) {
-//              BytecodeInfo selected = flowGraph.getSelectedNode();
-//              if (selected.optype == OpcodeType.INVOKE) {
-//                String meth = selected.callMeth;
-//                int offset = meth.lastIndexOf(".");
-//                String cls = meth.substring(0, offset);
-//                meth = meth.substring(offset + 1);
-//                
-//                LauncherMain.printCommandMessage("Switching bytecode view to: " + cls + "." + meth);
-//                LauncherMain.generateBytecode(cls, meth);
-//              }
-//            }
-          }
-        });
-        graphPanel.add(graphComponent);
-      }
+      graphComponent.getGraphControl().addMouseListener(new ByteFlowMouseListener());
+      graphPanel.add(graphComponent);
 
       // update the contents of the graph component
       Graphics graphics = graphPanel.getGraphics();
@@ -542,20 +520,63 @@ public class BytecodeViewer {
       
       // update the graph layout
       flowGraph.layoutGraph();
+    }
   }
 
+  private class ByteFlowMouseListener extends MouseAdapter {
+
+    @Override
+    public void mouseReleased(MouseEvent e) {
+      int x = e.getX();
+      int y = e.getY();
+      mxGraphHandler handler = graphComponent.getGraphHandler();
+      mxCell cell = (mxCell) handler.getGraphComponent().getCellAt(x, y);
+      if (cell != null && cell.isVertex()) {
+        FlowInfo selected = flowGraph.getSelectedNode();
+        if (selected.type == FlowType.Call) {
+          String meth = selected.bcode.callMeth;
+          int offset = meth.lastIndexOf(".");
+          String cls = meth.substring(0, offset);
+          meth = meth.substring(offset + 1);
+                
+          // skip if the method is the one that's currently loaded
+          if (!isMethodDisplayed(cls, meth)) {
+            // check if we have already generated the bytecode text file
+            String content = "";
+            String fname = LauncherMain.getJavapClassFile(cls);
+            File file = new File(fname);
+            if (file.isFile()) {
+              content = LauncherMain.readTextFile(fname);
+            } else {
+              content = LauncherMain.generateBytecode(cls, meth);
+            }
+
+            parseJavap(cls, meth, content);
+            if (isValidBytecode()) {
+              clearGraph();
+              drawGraph();
+              updateFlowGraph();
+            }
+          }
+        }
+      }
+    }
+  }
+  
   private static enum FlowType { Entry, Exception, Call, SymBranch, Switch, Branch, Return, Block }
   
   private class FlowInfo {
     public FlowType type;       // type of block
     public int      line;       // bytecode line number corresponding to entry
-    public int      offset;     // byte offset of opcode
+    public int      offset;     // byte offset of opcode (-1 if not a bytecode entry)
     public String   opcode;     // opcode
     public String   color;      // color to display
     public String   title;      // title for the block
+    public BytecodeInfo bcode;  // the Bytecode info
     ArrayList<Integer> nextloc = new ArrayList<>(); // list of offsets to branch to
     
     public FlowInfo(int count, BytecodeInfo bc) {
+      bcode  = bc;
       opcode = bc.opcode.toUpperCase();
       offset = bc.offset;
       line = count;

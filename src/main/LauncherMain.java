@@ -335,6 +335,129 @@ public final class LauncherMain {
     return bytecodeLogger.byteOffsetToLineNumber(offset);
   }
   
+  public static String getJavapClassFile(String className) {
+    return projectPathName + JAVAPFILE_STORAGE + "/" + className + ".txt";
+  }
+  
+  public static String readTextFile(String filename) {
+
+    String content = "";
+    File file = new File(filename);
+    if (!file.isFile()) {
+      printCommandError("file not found: " + filename);
+    } else {
+      try {
+        FileReader fileReader = new FileReader(file);
+        BufferedReader bufferedReader = new BufferedReader(fileReader);
+        String line;
+        while ((line = bufferedReader.readLine()) != null) {
+          content += line;
+        }
+      } catch (IOException ex) {
+        printCommandError(ex.getMessage());
+      }
+    }
+
+    return content;
+  }
+
+  public static void saveTextFile(String filename, String content) {
+    // make sure all dir paths exist
+    int offset = filename.lastIndexOf("/");
+    if (offset > 0) {
+      String newpathname = filename.substring(0, offset);
+      File newpath = new File(newpathname);
+      if (!newpath.isDirectory()) {
+        newpath.mkdirs();
+      }
+    }
+    
+    // delete file if it already exists
+    File file = new File(filename);
+    if (file.isFile()) {
+      file.delete();
+    }
+    
+    // create a new file and copy text contents to it
+    BufferedWriter bw = null;
+    try {
+      FileWriter fw = new FileWriter(file);
+      bw = new BufferedWriter(fw);
+      bw.write(content);
+    } catch (IOException ex) {
+      printCommandError(ex.getMessage());
+    } finally {
+      if (bw != null) {
+        try {
+          bw.close();
+        } catch (IOException ex) {
+          printCommandError(ex.getMessage());
+        }
+      }
+    }
+  }
+  
+  public static String generateBytecode(String classSelect, String methodSelect) {
+    printStatusClear();
+
+    // first we have to extract the class file from the jar file
+    File jarfile = new File(projectPathName + projectName);
+    if (!jarfile.isFile()) {
+      printStatusError("Jar file not found: " + jarfile);
+      return null;
+    }
+    try {
+      // extract the selected class file
+      extractClassFile(jarfile, classSelect);
+    } catch (IOException ex) {
+      printStatusError(ex.getMessage());
+      return null;
+    }
+
+    // clear out the local variable list
+    localVarTbl.clear(classSelect + "." + methodSelect);
+
+    // decompile the selected class file
+    String[] command = { "javap", "-p", "-c", "-s", "-l", CLASSFILE_STORAGE + "/" + classSelect + ".class" };
+    // this creates a command launcher that runs on the current thread
+    CommandLauncher commandLauncher = new CommandLauncher(commandLogger);
+    int retcode = commandLauncher.start(command, projectPathName);
+    if (retcode != 0) {
+      printStatusError("running javap on file: " + classSelect + ".class");
+      return null;
+    }
+
+    // success - save the output as a file
+    String content = commandLauncher.getResponse();
+    saveTextFile(projectPathName + JAVAPFILE_STORAGE + "/" + classSelect + ".txt", content);
+    return content;
+  }
+
+  public static void runBytecodeViewer(String classSelect, String methodSelect) {
+      // get the current tab selection
+      PanelTabs selected = getTabSelect();
+
+      // check if bytecode for this method already displayed
+      if (bytecodeLogger.isMethodDisplayed(classSelect, methodSelect)) {
+        // just clear any highlighting
+        bytecodeLogger.highlightClear();
+        printStatusMessage("Bytecode already loaded");
+      } else {
+        // need to run javap to generate the bytecode source
+        String content = generateBytecode(classSelect, methodSelect);
+        if (content == null) {
+          return;
+        }
+        // if successful, load it in the Bytecode viewer
+        runBytecodeParser(classSelect, methodSelect, content);
+      }
+      
+      // swich tab to show bytecode
+      if (selected != PanelTabs.BYTECODE && selected != PanelTabs.BYTEFLOW) {
+        setTabSelect(PanelTabs.BYTECODE);
+      }
+  }
+  
   public void createMainPanel() {
     // if a panel already exists, close the old one
     if (mainFrame.isValidFrame()) {
@@ -589,7 +712,7 @@ public final class LauncherMain {
       content += symbolTbl.getSymbolicList();
 
       // now save to the file
-      saveProjectTextFile("danfig", content);
+      saveTextFile(projectPathName + "danfig", content);
       printStatusMessage("Updated danfig file");
     }
   }
@@ -723,7 +846,7 @@ public final class LauncherMain {
     public void actionPerformed(java.awt.event.ActionEvent evt) {
       String classSelect  = (String) classCombo.getSelectedItem();
       String methodSelect = (String) methodCombo.getSelectedItem();
-      generateBytecode(classSelect, methodSelect);
+      runBytecodeViewer(classSelect, methodSelect);
     }
   }
 
@@ -1110,7 +1233,7 @@ public final class LauncherMain {
         content += symbolTbl.getSymbolicList();
 
         // now save to the file
-        saveProjectTextFile("danfig", content);
+        saveTextFile(projectPathName + "danfig", content);
         printStatusMessage("Updated danfig file");
       }
     }
@@ -1821,72 +1944,18 @@ public final class LauncherMain {
     mainFrame.getButton("BTN_STOPTEST").setEnabled(true);
   }
 
-  public static void generateBytecode(String classSelect, String methodSelect) {
-    printStatusClear();
-
-    // get the current tab selection
-    PanelTabs selected = getTabSelect();
-
-    // check if bytecode for this method already displayed
-    if (bytecodeLogger.isMethodDisplayed(classSelect, methodSelect)) {
-      printStatusMessage("Bytecode already loaded");
-
-      // clear any highlighting
-      bytecodeLogger.highlightClear();
-      
-      // swich tab to show bytecode
-      if (selected != PanelTabs.BYTECODE && selected != PanelTabs.BYTEFLOW) {
-        setTabSelect(PanelTabs.BYTECODE);
-      }
-      return;
-    }
-    
-    // first we have to pull off the class files from the jar file
-    File jarfile = new File(projectPathName + projectName);
-    if (!jarfile.isFile()) {
-      printStatusError("Jar file not found: " + jarfile);
-      return;
-    }
-    try {
-      // extract the selected class file
-      extractClassFile(jarfile, classSelect);
-    } catch (IOException ex) {
-      printStatusError(ex.getMessage());
-      return;
-    }
-
-    // clear out the local variable list
-    localVarTbl.clear(classSelect + "." + methodSelect);
-
-    // decompile the selected class file
-    String[] command = { "javap", "-p", "-c", "-s", "-l", CLASSFILE_STORAGE + "/" + classSelect + ".class" };
-    // this creates a command launcher that runs on the current thread
-    CommandLauncher commandLauncher = new CommandLauncher(commandLogger);
-    int retcode = commandLauncher.start(command, projectPathName);
-    if (retcode == 0) {
-      String content = commandLauncher.getResponse();
-      bytecodeLogger.parseJavap(classSelect, methodSelect, content);
-      if (bytecodeLogger.isValidBytecode()) {
-        printStatusMessage("Successfully generated bytecode for method");
-        bytecodeLogger.clearGraph();
-        bytecodeLogger.drawGraph();
-        bytecodeLogger.updateCallGraph();
-      } else {
-        printStatusMessage("Generated class bytecode, but method not found");
-      }
-
-      // save the file in with the class
-      saveProjectTextFile(JAVAPFILE_STORAGE + "/" + classSelect + ".txt", content);
-      
-      // swich tab to show bytecode
-      if (selected != PanelTabs.BYTECODE && selected != PanelTabs.BYTEFLOW) {
-        setTabSelect(PanelTabs.BYTECODE);
-      }
+  private static void runBytecodeParser(String classSelect, String methodSelect, String content) {
+    bytecodeLogger.parseJavap(classSelect, methodSelect, content);
+    if (bytecodeLogger.isValidBytecode()) {
+      printStatusMessage("Successfully generated bytecode for method");
+      bytecodeLogger.clearGraph();
+      bytecodeLogger.drawGraph();
+      bytecodeLogger.updateFlowGraph();
     } else {
-      printStatusError("running javap on file: " + classSelect + ".class");
+      printStatusMessage("Generated class bytecode, but method not found");
     }
   }
-
+  
   private static void executePost(String targetURL, String urlParameters) {
     printStatusMessage("Posting message to: " + targetURL);
     printCommandMessage("Message contents: " + urlParameters);
@@ -2079,48 +2148,10 @@ public final class LauncherMain {
       }
       
       // create the new file
-      saveProjectTextFile("danfig", content);
+      saveTextFile(projectPathName + "danfig", content);
     }
   }
 
-  private static void saveProjectTextFile(String filename, String content) {
-    String path = projectPathName;
-    
-    // make sure all dir paths exist
-    int offset = filename.lastIndexOf("/");
-    if (offset > 0) {
-      String newpathname = filename.substring(0, offset);
-      File newpath = new File(projectPathName + newpathname);
-      if (!newpath.isDirectory()) {
-        newpath.mkdirs();
-      }
-    }
-    
-    // delete file if it already exists
-    File file = new File(projectPathName + filename);
-    if (file.isFile()) {
-      file.delete();
-    }
-    
-    // create a new file and copy text contents to it
-    BufferedWriter bw = null;
-    try {
-      FileWriter fw = new FileWriter(file);
-      bw = new BufferedWriter(fw);
-      bw.write(content);
-    } catch (IOException ex) {
-      printCommandError(ex.getMessage());
-    } finally {
-      if (bw != null) {
-        try {
-          bw.close();
-        } catch (IOException ex) {
-          printCommandError(ex.getMessage());
-        }
-      }
-    }
-  }
-  
   /**
    * This performs the actions to take upon completion of the thread command.
    */

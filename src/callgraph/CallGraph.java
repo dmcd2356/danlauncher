@@ -462,7 +462,7 @@ public class CallGraph {
             int offset = cls.lastIndexOf(".");
             String meth = cls.substring(offset + 1);
             cls = cls.substring(0, offset);
-            LauncherMain.generateBytecode(cls, meth);
+            LauncherMain.runBytecodeViewer(cls, meth);
             break;
           default:
             break;
