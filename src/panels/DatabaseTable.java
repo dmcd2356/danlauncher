@@ -5,6 +5,7 @@
  */
 package panels;
 
+import main.LauncherMain;
 import gui.GuiControls;
 import com.mongodb.BasicDBObject;
 import com.mongodb.client.FindIterable;
@@ -33,7 +34,6 @@ import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
 import javax.swing.table.TableCellRenderer;
 import javax.swing.table.TableColumnModel;
-import main.LauncherMain;
 import org.bson.Document;
 import org.bson.conversions.Bson;
 
@@ -345,7 +345,6 @@ public class DatabaseTable {
    * action event when the mouse is clicked in the table.
    */
   private void dbTableMouseClicked(java.awt.event.MouseEvent evt) {                                            
-//    bPauseCloudUpdate = true;
     int row = dbTable.rowAtPoint(evt.getPoint());
     int col = dbTable.columnAtPoint(evt.getPoint());
     String colname = getColumnName(col);
@@ -359,7 +358,8 @@ public class DatabaseTable {
         int offset = meth.lastIndexOf("/");
         String cls = meth.substring(0, offset);
         meth = meth.substring(offset + 1);
-        LauncherMain.generateBytecode(cls, meth);
+        LauncherMain.runBytecodeViewer(cls, meth);
+        LauncherMain.setBytecodeSelections(cls, meth);
         LauncherMain.highlightBranch(Integer.parseInt(line), branch.equals("true"));
         break;
       case "Solution":

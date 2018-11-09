@@ -74,6 +74,7 @@ import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import org.apache.commons.io.FileUtils;
+import panels.BytecodeGraph;
 
 /**
  *
@@ -126,7 +127,8 @@ public final class LauncherMain {
   private static final GuiControls mainFrame = new GuiControls();
   private static final GuiControls graphSetupFrame = new GuiControls();
   private static final GuiControls debugSetupFrame = new GuiControls();
-  private static BytecodeViewer  bytecodeLogger;
+  private static BytecodeViewer  bytecodeViewer;
+  private static BytecodeGraph   bytecodeGraph;
   private static DebugLogger     debugLogger;
   private static ThreadLauncher  threadLauncher;
   private static DatabaseTable   dbtable;
@@ -166,6 +168,7 @@ public final class LauncherMain {
   private static final HashMap<String, FontInfo>     bytecodeFontTbl = new HashMap<>();
   private static final HashMap<String, FontInfo>     debugFontTbl = new HashMap<>();
   private static final HashMap<PanelTabs, Component> tabbedPanels = new HashMap<>();
+  private static ArrayList<MethodHistoryInfo> bytecodeHistory = new ArrayList<>();
   
   // configuration file settings
   private static PropertiesFile  systemProps;   // this is for the generic properties for the user
@@ -187,6 +190,16 @@ public final class LauncherMain {
       tag = propname;
       controlType = type;
       controlName = name;
+    }
+  }
+  
+  private static class MethodHistoryInfo {
+    public String className;
+    public String methodName;
+    
+    public MethodHistoryInfo(String cls, String meth) {
+      className = cls;
+      methodName = meth;
     }
   }
   
@@ -294,7 +307,7 @@ public final class LauncherMain {
   }
 
   public static void highlightBranch(int start, boolean branch) {
-    bytecodeLogger.highlightBranch(start, branch);
+    bytecodeViewer.highlightBranch(start, branch);
   }
   
   public static void resetLoggedTime() {
@@ -332,7 +345,7 @@ public final class LauncherMain {
   }
 
   public static Integer byteOffsetToLineNumber(int offset) {
-    return bytecodeLogger.byteOffsetToLineNumber(offset);
+    return bytecodeViewer.byteOffsetToLineNumber(offset);
   }
   
   public static String getJavapClassFile(String className) {
@@ -351,7 +364,7 @@ public final class LauncherMain {
         BufferedReader bufferedReader = new BufferedReader(fileReader);
         String line;
         while ((line = bufferedReader.readLine()) != null) {
-          content += line;
+          content += line + NEWLINE;
         }
       } catch (IOException ex) {
         printCommandError(ex.getMessage());
@@ -397,7 +410,7 @@ public final class LauncherMain {
     }
   }
   
-  public static String generateBytecode(String classSelect, String methodSelect) {
+  private static String generateBytecode(String classSelect, String methodSelect) {
     printStatusClear();
 
     // first we have to extract the class file from the jar file
@@ -433,28 +446,54 @@ public final class LauncherMain {
     return content;
   }
 
-  public static void runBytecodeViewer(String classSelect, String methodSelect) {
-      // get the current tab selection
-      PanelTabs selected = getTabSelect();
+  public static void setBytecodeSelections(String classSelect, String methodSelect) {
+    String curClass = (String) classCombo.getSelectedItem();
+    String curMeth = (String) methodCombo.getSelectedItem();
 
+    if (!curClass.equals(classSelect) && !curMeth.equals(methodSelect)) {
+      // push current entry onto history stack
+      bytecodeHistory.add(new MethodHistoryInfo(curClass, curMeth));
+      mainFrame.getButton("BTN_BACK").setVisible(true);
+            
+      // make new selections
+      classCombo.setSelectedItem(classSelect);
+      methodCombo.setSelectedItem(methodSelect);
+    }
+  }
+
+  public static void runBytecodeViewer(String classSelect, String methodSelect) {
       // check if bytecode for this method already displayed
-      if (bytecodeLogger.isMethodDisplayed(classSelect, methodSelect)) {
+      if (bytecodeViewer.isMethodDisplayed(classSelect, methodSelect)) {
         // just clear any highlighting
-        bytecodeLogger.highlightClear();
+        bytecodeViewer.highlightClear();
         printStatusMessage("Bytecode already loaded");
       } else {
-        // need to run javap to generate the bytecode source
-        String content = generateBytecode(classSelect, methodSelect);
-        if (content == null) {
-          return;
+        String content;
+        String fname = LauncherMain.getJavapClassFile(classSelect);
+        File file = new File(fname);
+        if (file.isFile()) {
+          // use the javap file already generated
+          content = readTextFile(fname);
+        } else {
+          // need to run javap to generate the bytecode source
+          content = generateBytecode(classSelect, methodSelect);
+          if (content == null) {
+            return;
+          }
         }
+
         // if successful, load it in the Bytecode viewer
         runBytecodeParser(classSelect, methodSelect, content);
       }
       
       // swich tab to show bytecode
-      if (selected != PanelTabs.BYTECODE && selected != PanelTabs.BYTEFLOW) {
-        setTabSelect(PanelTabs.BYTECODE);
+      PanelTabs selected = getTabSelect();
+      setTabSelect(PanelTabs.BYTECODE);
+      
+      // this is an attempt to get the bytecode graph to update its display properly by
+      // switching to different panel and back again
+      if (selected == PanelTabs.BYTEFLOW) {
+        setTabSelect(PanelTabs.BYTEFLOW);
       }
   }
   
@@ -496,7 +535,8 @@ public final class LauncherMain {
     panel = "PNL_BYTECODE";
     mainFrame.makeCombobox  (panel, "COMBO_CLASS"  , "Class"       , LEFT, true);
     mainFrame.makeCombobox  (panel, "COMBO_METHOD" , "Method"      , LEFT, true);
-    mainFrame.makeButton    (panel, "BTN_BYTECODE" , "Get Bytecode", LEFT, true);
+    mainFrame.makeButton    (panel, "BTN_BYTECODE" , "Get Bytecode", LEFT, false);
+    mainFrame.makeButton    (panel, "BTN_BACK"     , "Back"        , LEFT, true);
 
     panel = "PNL_CONTROLS";
     mainFrame.makeCombobox  (panel, "COMBO_MAINCLS", "Main Class"  , LEFT, true);
@@ -511,11 +551,15 @@ public final class LauncherMain {
     // set color of STOP button
     mainFrame.getButton("BTN_STOPTEST").setBackground(Color.pink);
 
+    // disable the back button initially
+    mainFrame.getButton("BTN_BACK").setVisible(false);
+            
     // setup the handlers for the controls
     mainFrame.getCombobox("COMBO_CLASS").addActionListener(new Action_BytecodeClassSelect());
     mainFrame.getCombobox("COMBO_METHOD").addActionListener(new Action_BytecodeMethodSelect());
     mainFrame.getCombobox("COMBO_MAINCLS").addActionListener(new Action_MainClassSelect());
     mainFrame.getButton("BTN_BYTECODE").addActionListener(new Action_RunBytecode());
+    mainFrame.getButton("BTN_BACK").addActionListener(new Action_RunPrevBytecode());
     mainFrame.getButton("BTN_RUNTEST").addActionListener(new Action_RunTest());
     mainFrame.getButton("BTN_SOLVER").addActionListener(new Action_RunSolver());
     mainFrame.getButton("BTN_SEND").addActionListener(new Action_SendHttpMessage());
@@ -605,9 +649,9 @@ public final class LauncherMain {
     // display the frame
     mainFrame.display();
 
-    // create the special text loggers
+    // create the viewer panel classes
     debugLogger = new DebugLogger(PanelTabs.LOG.toString());
-    bytecodeLogger = new BytecodeViewer(PanelTabs.BYTECODE.toString());
+    bytecodeViewer = new BytecodeViewer(PanelTabs.BYTECODE.toString());
 
     // create a split panel for sharing the local variables and symbolic parameters in a tab
     JTable paramList = new JTable();        // the bytecode param list
@@ -620,7 +664,7 @@ public final class LauncherMain {
 //    sybolList.setBorder(new TitledBorder("Symbolics defined"));
 
     // wrap the bytecode logger in another pane to prevent line wrapping on a JTextPane
-    JTextPane bytecodePane = bytecodeLogger.getTextPane();
+    JTextPane bytecodePane = bytecodeViewer.getTextPane();
     JPanel noWrapBytecodePanel = new JPanel(new BorderLayout());
     noWrapBytecodePanel.add(bytecodePane);
 
@@ -649,7 +693,7 @@ public final class LauncherMain {
     
     // init the CallGraph panel
     CallGraph.initCallGraph((JPanel) getTabPanel(PanelTabs.CALLGRAPH));
-    bytecodeLogger.initGraph((JPanel) getTabPanel(PanelTabs.BYTEFLOW));
+    bytecodeGraph = new BytecodeGraph((JPanel) getTabPanel(PanelTabs.BYTEFLOW), bytecodeViewer);
 
     // init the local variable and symbolic list tables
     localVarTbl = new ParamTable(paramList);
@@ -847,6 +891,25 @@ public final class LauncherMain {
       String classSelect  = (String) classCombo.getSelectedItem();
       String methodSelect = (String) methodCombo.getSelectedItem();
       runBytecodeViewer(classSelect, methodSelect);
+    }
+  }
+
+  private class Action_RunPrevBytecode implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      if (!bytecodeHistory.isEmpty()) {
+        MethodHistoryInfo entry = bytecodeHistory.remove(bytecodeHistory.size() - 1);
+        runBytecodeViewer(entry.className, entry.methodName);
+        
+        // update the selections
+        classCombo.setSelectedItem(entry.className);
+        methodCombo.setSelectedItem(entry.methodName);
+
+        // disable back button if no more
+        if (bytecodeHistory.isEmpty()) {
+          mainFrame.getButton("BTN_BACK").setVisible(false);
+        }
+      }
     }
   }
 
@@ -1786,8 +1849,9 @@ public final class LauncherMain {
       return -1;
     }
     
-    // clear out the symbolic parameter list
+    // clear out the symbolic parameter list and the history list for bytecode viewer
     symbolTbl.clear();
+    bytecodeHistory.clear();
 
     String content = initDanfigInfo();
     
@@ -1945,12 +2009,10 @@ public final class LauncherMain {
   }
 
   private static void runBytecodeParser(String classSelect, String methodSelect, String content) {
-    bytecodeLogger.parseJavap(classSelect, methodSelect, content);
-    if (bytecodeLogger.isValidBytecode()) {
+    bytecodeViewer.parseJavap(classSelect, methodSelect, content);
+    if (bytecodeViewer.isValidBytecode()) {
       printStatusMessage("Successfully generated bytecode for method");
-      bytecodeLogger.clearGraph();
-      bytecodeLogger.drawGraph();
-      bytecodeLogger.updateFlowGraph();
+      bytecodeGraph.drawGraph();
     } else {
       printStatusMessage("Generated class bytecode, but method not found");
     }
