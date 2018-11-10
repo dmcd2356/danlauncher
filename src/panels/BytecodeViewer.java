@@ -68,26 +68,26 @@ public class BytecodeViewer {
   private static boolean         valid;
 
   // these are needed by BytecodeGraph
-  public static ArrayList<BytecodeInfo> bytecode = new ArrayList<>();
+  public static ArrayList<BytecodeInfo>  bytecode = new ArrayList<>();
   public static HashMap<Integer, String> exceptions = new HashMap<>();
 
   public BytecodeViewer(String name) {
     String fonttype = "Courier";
-    FontInfo.setTypeColor (fontmap, MsgType.ERROR.toString(),      TextColor.Red,    FontType.Bold  , 14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.METHOD.toString(),     TextColor.Violet, FontType.Italic, 16, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.TEXT.toString(),       TextColor.Black,  FontType.Italic, 14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.PARAM.toString(),      TextColor.Brown,  FontType.Normal, 14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.COMMENT.toString(),    TextColor.Green,  FontType.Italic, 14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.SYMBRA.toString(),     TextColor.DkVio,  FontType.Bold  , 14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.INVOKE.toString(),     TextColor.Gold,   FontType.Bold  , 14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.SWITCH.toString(),     TextColor.Blue,   FontType.Normal, 14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.ERROR.toString(),   TextColor.Red,    FontType.Bold  , 14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.METHOD.toString(),  TextColor.Violet, FontType.Italic, 16, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.TEXT.toString(),    TextColor.Black,  FontType.Italic, 14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.PARAM.toString(),   TextColor.Brown,  FontType.Normal, 14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.COMMENT.toString(), TextColor.Green,  FontType.Italic, 14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.SYMBRA.toString(),  TextColor.DkVio,  FontType.Bold  , 14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.INVOKE.toString(),  TextColor.Gold,   FontType.Bold  , 14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.SWITCH.toString(),  TextColor.Blue,   FontType.Normal, 14, fonttype);
 
-    FontInfo.setTypeColor (fontmap, MsgType.LOAD.toString(),       TextColor.Black,  FontType.Normal, 14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.STORE.toString(),      TextColor.Black,  FontType.Normal, 14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.BRANCH.toString(),     TextColor.Black,  FontType.Normal, 14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.GOTO.toString(),       TextColor.Black,  FontType.Normal, 14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.RETURN.toString(),     TextColor.Black,  FontType.Normal, 14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.OTHER.toString(),      TextColor.Black,  FontType.Normal, 14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.LOAD.toString(),    TextColor.Black,  FontType.Normal, 14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.STORE.toString(),   TextColor.Black,  FontType.Normal, 14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.BRANCH.toString(),  TextColor.Black,  FontType.Normal, 14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.GOTO.toString(),    TextColor.Black,  FontType.Normal, 14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.RETURN.toString(),  TextColor.Black,  FontType.Normal, 14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.OTHER.toString(),   TextColor.Black,  FontType.Normal, 14, fonttype);
     valid = false;
     
     // create the text panel and assign it to the logger
@@ -139,21 +139,22 @@ public class BytecodeViewer {
     clearHighlighting(HIGHLIGHT_ALL);
   }
 
-  public void highlightBranch(int line, boolean branch) {
+  public ArrayList<Integer> highlightBranch(int line, boolean branch) {
+    ArrayList<Integer> branchMarks = new ArrayList<>();
     System.out.println("BytecodeLogger: highlightBranch " + line + " (" + branch + ")");
     // check for error conditions
     if (bytecode.isEmpty()) {
       System.err.println("highlightBranch: no bytecode found");
-      return;
+      return null;
     }
     if (bytecode.size() < line) {
       System.err.println("highlightBranch: line " + line + " exceeds bytecode length " + bytecode.size());
-      return;
+      return null;
     }
     BytecodeInfo bc = bytecode.get(line);
     if (bc.optype != OpcodeType.SYMBRA) {
       System.err.println("highlightBranch: " + line + " not branch opcode: " + bc.opcode);
-      return;
+      return null;
     }
 
     // clear all previous branch entries and remove all highlighting
@@ -161,6 +162,7 @@ public class BytecodeViewer {
 
     // mark the the branch line
     highlightSetMark(line, HIGHLIGHT_BRANCH);
+    branchMarks.add(bc.offset);
     
     // determine if we take the branch or not to determine the next line to highlight
     if (branch) {
@@ -168,12 +170,15 @@ public class BytecodeViewer {
       int branchLine = findBranchLine(bc.param);
       if (branchLine >= 0) {
         highlightSetMark(branchLine, HIGHLIGHT_BRANCH);
+        branchMarks.add(Integer.parseUnsignedInt(bc.param));
       }
     } else {
       highlightSetMark(line + 1, HIGHLIGHT_BRANCH); // the line following the branch opcode
+      branchMarks.add(bytecode.get(line + 1).offset);
     }
 
     highlightUpdate();   // update the display
+    return branchMarks;
   }
 
   /**

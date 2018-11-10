@@ -24,27 +24,54 @@ import main.LauncherMain;
 public class BytecodeGraph {
   
   private static final String NEWLINE = System.getProperty("line.separator");
-
-  private static JPanel graphPanel = null;
+  
+  private static enum BlockColor { NONE, PINK, CYAN, BLUE, GOLD, VIOLET }
+  
+  private static JPanel graphPanel;
   private static mxGraphComponent graphComponent = null;
   private static BaseGraph<FlowInfo> flowGraph = new BaseGraph<>();
   private static BytecodeViewer bcViewer;
+  private static ArrayList<FlowInfo> flowBlocks = new ArrayList<>();
+  private static HashMap<Integer, FlowInfo> branchMap = new HashMap<>();
+  private static ArrayList<Integer> branchMarks = new ArrayList<>();
+
   
-  public BytecodeGraph(JPanel panel, BytecodeViewer viewer) {
-    graphPanel = panel;
+  public BytecodeGraph(BytecodeViewer viewer) {
+    graphPanel = new JPanel();
     bcViewer = viewer;
   }
   
-  public void drawGraph() {
+  public JPanel getPanel() {
+    return graphPanel;
+  }
+  
+  public void drawGraphNormal() {
+    branchMarks.clear();
+      
+    // redraw the graph without highlights
+    drawGraph();
+  }
+  
+  public void drawGraphHighlights(ArrayList<Integer> branch) {
+    // copy over the highlight marks
+    branchMarks.clear();
+
+    if (branch != null) {
+      for (Integer entry : branch) {
+        branchMarks.add(entry);
+      }
+    }
+    
+    // redraw the graph with the highlights
+    drawGraph();
+  }
+  
+  private void drawGraph() {
     System.out.println("drawGraph: Bytecode entries = " + BytecodeViewer.bytecode.size());
     
     // clear the current graph
     clearGraph();
     
-    // create an array of FlowInfo entities that correspond to blocks to display
-    ArrayList<FlowInfo> flowBlocks = new ArrayList<>();
-    HashMap<Integer, FlowInfo> branchMap = new HashMap<>();
-
     // start with an initial ENTRY block and add EXCEPTION entry points (if any)
     FlowInfo lastBlock = new FlowInfo();
     flowBlocks.add(lastBlock);
@@ -95,6 +122,8 @@ public class BytecodeGraph {
         essentialList.add(flow);
         branchMap.put(flow.offset, flow); // map the line number to the flow entry
         last = flow;
+      } else {
+        flow.ignore = true;
       }
     }
 
@@ -102,8 +131,23 @@ public class BytecodeGraph {
     for(FlowInfo flow : essentialList) {
       if (!flow.opcode.equals("GOTO")) {
         flowGraph.addVertex(flow, flow.title);
-        if (!flow.color.isEmpty()) {
-          flowGraph.colorVertex(flow, flow.color);
+        
+        BlockColor color = flow.color;
+        if (!branchMarks.isEmpty() && branchMarks.contains(flow.offset)) {
+          color = BlockColor.PINK;
+        }
+        String colorStr = "";
+        switch (color) {
+          case PINK:    colorStr = "FFCCCC";  break;
+          case CYAN:    colorStr = "00FFFF";  break;
+          case BLUE:    colorStr = "0077FF";  break;
+          case GOLD:    colorStr = "DDAA00";  break;
+          case VIOLET:  colorStr = "CC00EE";  break;
+          default:
+            break;
+        }
+        if (!colorStr.isEmpty()) {
+          flowGraph.colorVertex(flow, colorStr);
         }
       }
     }
@@ -163,7 +207,7 @@ public class BytecodeGraph {
       }
     }
     
-    updateClass();
+    updateGraph();
   }
   
   private class ByteFlowMouseListener extends MouseAdapter {
@@ -201,9 +245,10 @@ public class BytecodeGraph {
     }
     graphComponent = null;
     flowGraph = new BaseGraph<>();
+    flowBlocks.clear();
   }
 
-  private void updateClass() {
+  private void updateGraph() {
     graphComponent = new mxGraphComponent(flowGraph.getGraph());
     graphComponent.setConnectable(false);
     graphComponent.getGraphControl().addMouseListener(new ByteFlowMouseListener());
@@ -222,11 +267,12 @@ public class BytecodeGraph {
   private static enum FlowType { Entry, Exception, Call, SymBranch, Switch, Branch, Return, Block }
   
   private class FlowInfo {
+    public boolean  ignore;     // true if we can ignore this block
     public FlowType type;       // type of block
     public int      line;       // bytecode line number corresponding to entry
     public int      offset;     // byte offset of opcode (-1 if not a bytecode entry)
     public String   opcode;     // opcode
-    public String   color;      // color to display
+    public BlockColor color;    // color to display
     public String   title;      // title for the block
     public BytecodeViewer.BytecodeInfo bcode;  // the Bytecode info
     ArrayList<Integer> nextloc = new ArrayList<>(); // list of offsets to branch to
@@ -236,6 +282,7 @@ public class BytecodeGraph {
       opcode = bc.opcode.toUpperCase();
       offset = bc.offset;
       line = count;
+      ignore = false;
 
       int branchix;
       switch (bc.optype) {
@@ -251,7 +298,7 @@ public class BytecodeGraph {
           methname = methname.substring(stroff + 1);
 
           type = FlowType.Call;
-          color = "DDAA00"; // gold
+          color = BlockColor.GOLD;
           title = clsname + NEWLINE + methname;
           break;
 
@@ -259,7 +306,7 @@ public class BytecodeGraph {
           branchix = Integer.parseUnsignedInt(bc.param); // let's assume it is a numeric
 
           type = FlowType.SymBranch;
-          color = "CC00EE"; // violet
+          color = BlockColor.VIOLET;
           title = bc.offset + NEWLINE + bc.opcode.toUpperCase();
           nextloc.add(branchix);
           break;
@@ -269,14 +316,14 @@ public class BytecodeGraph {
           branchix = Integer.parseUnsignedInt(bc.param); // let's assume it is a numeric
 
           type = FlowType.Branch;
-          color = "";
+          color = BlockColor.NONE;
           title = bc.offset + NEWLINE + bc.opcode.toUpperCase();
           nextloc.add(branchix);
           break;
 
         case SWITCH:
           type = FlowType.Switch;
-          color = "0077FF"; // blue
+          color = BlockColor.BLUE;
           title = bc.offset + NEWLINE + bc.opcode.toUpperCase();
           for (HashMap.Entry pair : bc.switchinfo.entrySet()) {
             nextloc.add((Integer) pair.getValue());
@@ -285,14 +332,14 @@ public class BytecodeGraph {
           
         case RETURN:
           type = FlowType.Return;
-          color = "";
+          color = BlockColor.NONE;
           title = bc.offset + NEWLINE + bc.opcode.toUpperCase();
           // there is no branch from here
           break;
 
         case OTHER:
           type = FlowType.Block;
-          color = "";
+          color = BlockColor.NONE;
           title = bc.offset + NEWLINE + "BLOCK";
           break;
 
@@ -309,7 +356,7 @@ public class BytecodeGraph {
       opcode = "";
       offset = -1; // this indicates it is not an opcode
       title = "ENTRY";
-      color = "FFCCCC"; // pink
+      color = BlockColor.CYAN;
       nextloc.add(0);
     }
 
@@ -319,7 +366,7 @@ public class BytecodeGraph {
       opcode = "";
       offset = -1; // this indicates it is not an opcode
       title = "EXCEPTION" + NEWLINE + extype;
-      color = "FFCCCC"; // pink
+      color = BlockColor.CYAN;
       nextloc.add(branchoff);
     }
     
