@@ -25,6 +25,7 @@ import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
 import javax.swing.table.TableCellRenderer;
 import javax.swing.table.TableColumnModel;
+import util.Utils;
 
 /**
  *
@@ -35,13 +36,6 @@ import javax.swing.table.TableColumnModel;
  * @author dan
  */
 public class SymbolTable {
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
-  
-  private static final String NEWLINE = System.getProperty("line.separator");
 
   private static final String[] TABLE_COLUMNS = new String [] {
     "Method", "Slot", "Start", "End", "Name", "Type"
@@ -153,7 +147,7 @@ public class SymbolTable {
   public String getSymbolicList() {
     String content = "";
     for (TableListInfo entry : paramList) {
-      content += entry.slot + ", " + entry.method + ", " + entry.start + ", " + entry.end + NEWLINE;
+      content += entry.slot + ", " + entry.method + ", " + entry.start + ", " + entry.end + Utils.NEWLINE;
     }
     return content;
   }

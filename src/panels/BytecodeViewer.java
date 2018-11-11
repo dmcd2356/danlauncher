@@ -5,24 +5,14 @@
  */
 package panels;
 
-import callgraph.BaseGraph;
-import com.mxgraph.model.mxCell;
-import com.mxgraph.swing.handler.mxGraphHandler;
-//import com.mxgraph.model.mxCell;
-//import com.mxgraph.swing.handler.mxGraphHandler;
-import com.mxgraph.swing.mxGraphComponent;
-import com.mxgraph.view.mxGraph;
 import java.awt.Color;
 import java.awt.Component;
-import java.awt.Graphics;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
-import javax.swing.JPanel;
 import javax.swing.JTextPane;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.DefaultHighlighter;
@@ -32,6 +22,7 @@ import logging.FontInfo.FontType;
 import logging.FontInfo.TextColor;
 import logging.Logger;
 import main.LauncherMain;
+import util.Utils;
 
 /**
  *
@@ -39,8 +30,6 @@ import main.LauncherMain;
  */
 public class BytecodeViewer {
   
-  private static final String NEWLINE = System.getProperty("line.separator");
-
   // these are the bitmask values for highlighting types
   private static final int HIGHLIGHT_CURSOR = 0x0001;
   private static final int HIGHLIGHT_BRANCH = 0x0002;
@@ -226,7 +215,7 @@ public class BytecodeViewer {
     bytecode = new ArrayList<>();
     boff2Line = new HashMap<>();
 
-    String[] lines = content.split(NEWLINE);
+    String[] lines = content.split(Utils.NEWLINE);
     for (String entry : lines) {
       ++curLine;
       entry = entry.replace("\t", " ").trim();
@@ -506,7 +495,7 @@ public class BytecodeViewer {
   
   private static void printBytecodeMethod(String methodName) {
     logger.printField("TEXT"  , "Method: ");
-    logger.printField("METHOD", methodName + NEWLINE + NEWLINE);
+    logger.printField("METHOD", methodName + Utils.NEWLINE + Utils.NEWLINE);
   }
   
   private static void printBytecodeOpcode(int boffset, String opcode, OpcodeType optype, String param, String comment) {
@@ -514,7 +503,7 @@ public class BytecodeViewer {
     logger.printField          ("TEXT", ":  ");
     logger.printFieldAlignLeft (optype.toString(), opcode, 19);
     logger.printFieldAlignLeft ("PARAM", param, 10);
-    logger.printField          ("COMMENT", comment + NEWLINE);
+    logger.printField          ("COMMENT", comment + Utils.NEWLINE);
   }
   
   private static OpcodeType getOpcodeType(String opcode) {

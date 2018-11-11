@@ -16,14 +16,13 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import javax.swing.JPanel;
 import main.LauncherMain;
+import util.Utils;
 
 /**
  *
  * @author dan
  */
 public class BytecodeGraph {
-  
-  private static final String NEWLINE = System.getProperty("line.separator");
   
   private static enum BlockColor { NONE, PINK, CYAN, BLUE, GOLD, VIOLET }
   
@@ -299,7 +298,7 @@ public class BytecodeGraph {
 
           type = FlowType.Call;
           color = BlockColor.GOLD;
-          title = clsname + NEWLINE + methname;
+          title = clsname + Utils.NEWLINE + methname;
           break;
 
         case SYMBRA:
@@ -307,7 +306,7 @@ public class BytecodeGraph {
 
           type = FlowType.SymBranch;
           color = BlockColor.VIOLET;
-          title = bc.offset + NEWLINE + bc.opcode.toUpperCase();
+          title = bc.offset + Utils.NEWLINE + bc.opcode.toUpperCase();
           nextloc.add(branchix);
           break;
 
@@ -317,14 +316,14 @@ public class BytecodeGraph {
 
           type = FlowType.Branch;
           color = BlockColor.NONE;
-          title = bc.offset + NEWLINE + bc.opcode.toUpperCase();
+          title = bc.offset + Utils.NEWLINE + bc.opcode.toUpperCase();
           nextloc.add(branchix);
           break;
 
         case SWITCH:
           type = FlowType.Switch;
           color = BlockColor.BLUE;
-          title = bc.offset + NEWLINE + bc.opcode.toUpperCase();
+          title = bc.offset + Utils.NEWLINE + bc.opcode.toUpperCase();
           for (HashMap.Entry pair : bc.switchinfo.entrySet()) {
             nextloc.add((Integer) pair.getValue());
           }
@@ -333,14 +332,14 @@ public class BytecodeGraph {
         case RETURN:
           type = FlowType.Return;
           color = BlockColor.NONE;
-          title = bc.offset + NEWLINE + bc.opcode.toUpperCase();
+          title = bc.offset + Utils.NEWLINE + bc.opcode.toUpperCase();
           // there is no branch from here
           break;
 
         case OTHER:
           type = FlowType.Block;
           color = BlockColor.NONE;
-          title = bc.offset + NEWLINE + "BLOCK";
+          title = bc.offset + Utils.NEWLINE + "BLOCK";
           break;
 
         default:
@@ -365,7 +364,7 @@ public class BytecodeGraph {
       type = FlowType.Exception;
       opcode = "";
       offset = -1; // this indicates it is not an opcode
-      title = "EXCEPTION" + NEWLINE + extype;
+      title = "EXCEPTION" + Utils.NEWLINE + extype;
       color = BlockColor.CYAN;
       nextloc.add(branchoff);
     }

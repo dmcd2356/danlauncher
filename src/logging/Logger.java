@@ -19,6 +19,7 @@ import javax.swing.text.BadLocationException;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
 import javax.swing.text.StyleContext;
+import util.Utils;
 
 /**
  *
@@ -31,7 +32,6 @@ public class Logger {
   // the default point size and font types to use
   private static final int    DEFAULT_POINT = 14;
   private static final String DEFAULT_FONT = "Courier";
-  private static final String NEWLINE = System.getProperty("line.separator");
 
   // this sets the limit for the amount of text displayed in the logger display to prevent
   // memory overruns. 'maxBufferSize' defines the buffer size of when to reduce it and it will
@@ -85,6 +85,14 @@ public class Logger {
     return pnlname;
   }
 
+  public final Component getPanel() {
+    if (textPane != null) {
+      return textPane;
+    } else {
+      return textArea;
+    }
+  }
+  
   /**
    * clears the display.
    */
@@ -127,11 +135,11 @@ public class Logger {
   }
   
   public final void printLine(String type, String message) {
-    printField(type, message + NEWLINE);
+    printField(type, message + Utils.NEWLINE);
   }
   
   public final void printLine(String message) {
-    printField(null, message + NEWLINE);
+    printField(null, message + Utils.NEWLINE);
   }
   
   public final void printFieldAlignLeft(String type, String message, int fieldlen) {
@@ -199,7 +207,7 @@ public class Logger {
           int oldlen = len;
           int start = maxBufferSize / 4; // reduce size by 25%
           String text = textPane.getDocument().getText(start, 500);
-          int offset = text.indexOf(NEWLINE);
+          int offset = text.indexOf(Utils.NEWLINE);
           if (offset >= 0) {
             start += offset + 1;
           }
@@ -216,7 +224,10 @@ public class Logger {
       textPane.replaceSelection(msg);
     } else {
       String current = textArea.getText();
-      textArea.setText(current + NEWLINE + msg);
+      if (!current.endsWith(Utils.NEWLINE)) {
+        current += Utils.NEWLINE;
+      }
+      textArea.setText(current + msg);
     }
   }
 

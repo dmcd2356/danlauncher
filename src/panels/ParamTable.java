@@ -286,8 +286,8 @@ public class ParamTable {
         System.err.println("ERROR: Invalid format for start and end values: " + start + ", " + end);
         return;
       }
-      Integer linestart = LauncherMain.byteOffsetToLineNumber(start);
-      Integer lineend   = LauncherMain.byteOffsetToLineNumber(end);
+      Integer linestart = BytecodeViewer.byteOffsetToLineNumber(start);
+      Integer lineend   = BytecodeViewer.byteOffsetToLineNumber(end);
       if (linestart == null || lineend == null) {
         System.err.println("ERROR: No line found for start and end values: " + start + ", " + end);
       } else {

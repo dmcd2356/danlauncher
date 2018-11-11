@@ -16,14 +16,13 @@ import logging.FontInfo.FontType;
 import logging.FontInfo.TextColor;
 import logging.Logger;
 import main.LauncherMain;
+import util.Utils;
 
 /**
  *
  * @author dan
  */
 public class DebugLogger {
-
-  private static final String NEWLINE = System.getProperty("line.separator");
 
   // types of messages
   private enum MsgType { TSTAMP, NORMAL, INFO, WARN, ERROR, DUMP, START, ENTRY, AGENT, THREAD,
@@ -69,7 +68,7 @@ public class DebugLogger {
     logger = new Logger((Component) panel, name, fontmap);
   }
   
-  public JTextPane getTextPane() {
+  public JTextPane getPanel() {
     return panel;
   }
   
@@ -143,22 +142,6 @@ public class DebugLogger {
       // invalid syntax - skip
       printDebug(message);
       return false;
-    }
-
-    // if we are set to reset when a new session starts and one just started, do a reset (duh!)
-    if (typestr.trim().equals("START")) {
-      System.out.println("START DETECTED...");
-    }
-    if (typestr.trim().equals("START")) {
-//    if (typestr.trim().equals("START") && GuiPanel.mainFrame.getCheckbox("BTN_AUTORESET").isSelected()) {
-      System.out.println("RESET PERFORMED...");
-      LauncherMain.resetLoggedTime();
-      LauncherMain.resetCapturedInput();  // this clears the displayed data and stats
-//      logger.clear();            // clear the text panel
-    }
-    else if (LauncherMain.isElapsedModeReset() && linecount == 0) {
-      // else if we detect the start of a new debug session, restart our elapsed timer
-      LauncherMain.resetLoggedTime();
     }
 
     // send message to the debug display
@@ -235,20 +218,20 @@ public class DebugLogger {
       }
       
       // print message (seperate into multiple lines if ASCII newlines are contained in it)
-      if (!content.contains(NEWLINE)) {
+      if (!content.contains(Utils.NEWLINE)) {
         logger.printField("INFO", linestr + "  ");
         logger.printField("INFO", elapsed + " ");
         logger.printField("INFO", threadid + " ");
-        logger.printField(typestr, typestr + ": " + content + NEWLINE);
+        logger.printField(typestr, typestr + ": " + content + Utils.NEWLINE);
       }
       else {
         // seperate into lines and print each independantly
-        String[] msgarray = content.split(NEWLINE);
+        String[] msgarray = content.split(Utils.NEWLINE);
         for (String msg : msgarray) {
           logger.printField("INFO", linestr + "  ");
           logger.printField("INFO", elapsed + " ");
           logger.printField("INFO", threadid + " ");
-          logger.printField(typestr, typestr + ": " + msg + NEWLINE);
+          logger.printField(typestr, typestr + ": " + msg + Utils.NEWLINE);
         }
       }
     }

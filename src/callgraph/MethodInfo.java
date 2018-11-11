@@ -8,14 +8,13 @@ package callgraph;
 //import com.google.gson.annotations.Expose;
 import java.util.ArrayList;
 import java.util.HashMap;
+import util.Utils;
 
 /**
  *
  * @author dmcd2356
  */
 public class MethodInfo {
-  private static final String NEWLINE = System.getProperty("line.separator");
-
   private String  fullName;       // full name of method (package, class, method + signature)
   private String  className;      // class name (no package info or method name)
   private String  methName;       // method name (no class info)
@@ -129,7 +128,7 @@ public class MethodInfo {
   }
   
   public String getCGName() {
-    return className.isEmpty() ? methName : className + NEWLINE + methName;
+    return className.isEmpty() ? methName : className + Utils.NEWLINE + methName;
   }
   
   public String getClassName() {

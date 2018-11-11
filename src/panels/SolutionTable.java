@@ -35,13 +35,6 @@ import javax.swing.table.TableColumnModel;
  * @author dan
  */
 public class SolutionTable {
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
-  
-  private static final String NEWLINE = System.getProperty("line.separator");
 
   private static final String[] TABLE_COLUMNS = new String [] {
     "Solution", "Cost"

@@ -32,6 +32,7 @@ import java.util.Stack;
 import javax.imageio.ImageIO;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import util.Utils;
 
 /**
  *
@@ -39,11 +40,11 @@ import javax.swing.JPanel;
  */
 public class CallGraph {
   
-  private static final String NEWLINE = System.getProperty("line.separator");
   private static final int ALL_THREADS = -1;
 
-  private static JPanel           graphPanel = null;
-  private static mxGraphComponent graphComponent = null;
+  private static String  pnlname;
+  private static JPanel  graphPanel;
+  private static mxGraphComponent graphComponent;
   private static BaseGraph<MethodInfo> callGraph = new BaseGraph<>();
   private static List<MethodInfo> graphMethList = new ArrayList<>(); // list of all methods found
   private static List<MethodInfo> threadMethList = new ArrayList<>(); // list of all methods for selected thread
@@ -54,6 +55,21 @@ public class CallGraph {
   private static int threadSel;
   private static LauncherMain.GraphHighlight curGraphMode;
   private static boolean graphShowAllThreads;
+  
+  public CallGraph(String name) {
+    pnlname = name;
+    graphPanel = new JPanel();
+
+    clearGraphAndMethodList();
+    
+    curGraphMode = LauncherMain.GraphHighlight.NONE;
+    graphShowAllThreads = true;
+    rangeStepsize = 20;
+  }
+  
+  public static JPanel getPanel() {
+    return graphPanel;
+  }
   
   private static Stack<Integer> getStack(int tid) {
     Stack<Integer> stack;
@@ -240,13 +256,8 @@ public class CallGraph {
    * 
    * @param panel 
    */
-  public static void initCallGraph(JPanel panel) {
-    clearGraphAndMethodList();
-    CallGraph.curGraphMode = LauncherMain.GraphHighlight.NONE;
-    CallGraph.graphShowAllThreads = true;
-    CallGraph.rangeStepsize = 20;
-    CallGraph.graphPanel = panel;
-  }
+//  public static void initCallGraph(JPanel panel) {
+//  }
 
   /**
    * this resets the graphics so a new call graph can be drawn and resets the method list.
@@ -427,7 +438,7 @@ public class CallGraph {
             } else if (offset > 0) {
               name = name.substring(0, offset);
             }
-            parentList += NEWLINE + "   " + name;
+            parentList += Utils.NEWLINE + "   " + name;
           }
         }
       }
@@ -435,19 +446,19 @@ public class CallGraph {
       String[] selection = {"Yes", "No" };
       int which = JOptionPane.showOptionDialog(graphPanel,
           "Thread: " + ((selected.getThread().isEmpty()) ?
-              "<no info>" : selected.getThread().toString()) + NEWLINE +
-          "Method: " + selected.getFullName() + NEWLINE +
-          "Calling Methods: " + parentList + NEWLINE +
+              "<no info>" : selected.getThread().toString()) + Utils.NEWLINE +
+          "Method: " + selected.getFullName() + Utils.NEWLINE +
+          "Calling Methods: " + parentList + Utils.NEWLINE +
           "Execution Time: " + (selected.getDuration(tid) < 0 ?
-              "(never returned)" : selected.getDuration(tid) + " msec") + NEWLINE +
+              "(never returned)" : selected.getDuration(tid) + " msec") + Utils.NEWLINE +
           "Instruction Count: " + (selected.getInstructionCount(tid) < 0 ?
-              "(no info)" : selected.getInstructionCount(tid)) + NEWLINE +
-          "Iterations: " + selected.getCount(tid) + NEWLINE +
-          "1st called @ line: " + selected.getFirstLine(tid) + NEWLINE +
+              "(no info)" : selected.getInstructionCount(tid)) + Utils.NEWLINE +
+          "Iterations: " + selected.getCount(tid) + Utils.NEWLINE +
+          "1st called @ line: " + selected.getFirstLine(tid) + Utils.NEWLINE +
           (selected.getExecption(tid) <= 1 ?
-              "" : "exception @ line: " + selected.getExecption(tid) + NEWLINE) +
+              "" : "exception @ line: " + selected.getExecption(tid) + Utils.NEWLINE) +
           (selected.getError(tid) <= 1 ?
-              "" : "error @ line: " + selected.getError(tid)) + NEWLINE + NEWLINE +
+              "" : "error @ line: " + selected.getError(tid)) + Utils.NEWLINE + Utils.NEWLINE +
           "Show Bytecode for selected method?",
           "Method Info", // title of pane
           JOptionPane.YES_NO_CANCEL_OPTION, // DEFAULT_OPTION,

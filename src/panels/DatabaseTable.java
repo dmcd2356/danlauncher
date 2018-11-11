@@ -49,6 +49,7 @@ public class DatabaseTable {
     "ID", "Method", "Offset", "Path", "Cost", "Solvable", "Solution" //, "Constraint"
   };
 
+  private static String   pnlname;
   private static JTable   dbTable;
   private static Timer    databaseTimer;
   private static ArrayList<DatabaseInfo> dbList = new ArrayList<>();
@@ -94,8 +95,9 @@ public class DatabaseTable {
     }
   } 
   
-  public DatabaseTable (JTable dbaseTable) {
-    dbTable = dbaseTable;
+  public DatabaseTable (String name) {
+    pnlname = name;
+    dbTable = new JTable();
     
     // init the access to mongo
     mongoClient = MongoClients.create();
@@ -166,6 +168,10 @@ public class DatabaseTable {
     cloudTableHeader.addMouseListener(new HeaderMouseListener());
   }
     
+  public JTable getPanel() {
+    return dbTable;
+  }
+  
   public void clearDB() {
     collection.deleteMany(new Document());
   }
@@ -398,7 +404,7 @@ public class DatabaseTable {
   @Override
     public void actionPerformed(ActionEvent e) {
       // exit if database panel is not selected
-      if (!LauncherMain.isTabSelection_DATABASE()) {
+      if (!LauncherMain.isTabSelection("DATABASE")) {
         return;
       }
 

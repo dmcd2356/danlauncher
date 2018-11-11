@@ -20,6 +20,7 @@ import panels.SolutionTable;
 import callgraph.CallGraph;
 import util.CommandLauncher;
 import util.ThreadLauncher;
+import util.Utils;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -31,12 +32,10 @@ import java.awt.event.FocusListener;
 import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
 import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -82,7 +81,6 @@ import org.apache.commons.io.FileUtils;
  */
 public final class LauncherMain {
 
-  private static final String NEWLINE = System.getProperty("line.separator");
   private static final PrintStream STANDARD_OUT = System.out;
   private static final PrintStream STANDARD_ERR = System.err;
   
@@ -127,6 +125,7 @@ public final class LauncherMain {
   private static final GuiControls mainFrame = new GuiControls();
   private static final GuiControls graphSetupFrame = new GuiControls();
   private static final GuiControls debugSetupFrame = new GuiControls();
+  private static CallGraph       callGraph;
   private static BytecodeViewer  bytecodeViewer;
   private static BytecodeGraph   bytecodeGraph;
   private static DebugLogger     debugLogger;
@@ -146,10 +145,10 @@ public final class LauncherMain {
   private static JComboBox       methodCombo;
   private static JCheckBoxMenuItem isServerTypeMenuItem;
   private static JCheckBoxMenuItem loadDanfigMenuItem;
+  private static JMenuBar        launcherMenuBar;
   private static Timer           debugMsgTimer;
   private static Timer           graphTimer;
   private static long            elapsedStart;
-  private static ElapsedMode     elapsedMode;
   private static GraphHighlight  graphMode;
   private static String          projectPathName;
   private static String          projectName;
@@ -161,10 +160,11 @@ public final class LauncherMain {
   private static String          javaHome;
   private static boolean         mainClassInitializing;
   
+  private static final HashMap<String, JCheckBoxMenuItem> menuCheckboxes = new HashMap<>();
   private static ArrayList<String> fullMethList = new ArrayList<>();
   private static ArrayList<String> classList = new ArrayList<>();
   private static HashMap<String, ArrayList<String>>  clsMethMap = new HashMap<>(); // maps the list of methods to each class
-  private static final HashMap<PanelTabs, Integer>   tabSelect = new HashMap<>();
+  private static final HashMap<String, Integer>   tabSelect = new HashMap<>();
   private static final HashMap<String, FontInfo>     bytecodeFontTbl = new HashMap<>();
   private static final HashMap<String, FontInfo>     debugFontTbl = new HashMap<>();
   private static final HashMap<PanelTabs, Component> tabbedPanels = new HashMap<>();
@@ -235,7 +235,6 @@ public final class LauncherMain {
     classList = new ArrayList<>();
     clsMethMap = new HashMap<>();
     elapsedStart = 0;
-    elapsedMode = ElapsedMode.OFF;
     graphMode = GraphHighlight.NONE;
     mainClassInitializing = false;
 
@@ -270,17 +269,10 @@ public final class LauncherMain {
 
     // create a slow timer for updating the call graph
     graphTimer = new Timer(1000, new GraphUpdateListener());
-
-    // start timer when 1st line is received from port
-    elapsedMode = ElapsedMode.RESET;
 }
 
   public static boolean isInstrumentedMethod(String methName) {
     return fullMethList.contains(methName);
-  }
-  
-  public static boolean isElapsedModeReset() {
-    return elapsedMode == ElapsedMode.RESET;
   }
   
   public static void setThreadEnabled(boolean enabled) {
@@ -298,43 +290,32 @@ public final class LauncherMain {
     graphSetupFrame.getButton("BTN_TH_DN").setEnabled(enabled);
   }
   
-  public static boolean isTabSelection_CALLGRAPH() {
-    return isTabSelection(PanelTabs.CALLGRAPH);
+  public static void printCommandMessage(String message) {
+    commandLogger.printLine(message);
   }
+  
+  public static void printCommandError(String message) {
+    commandLogger.printLine(message);
+  }
+  
+  public static boolean isTabSelection(String select) {
+    JTabbedPane tabPanel = mainFrame.getTabbedPanel("PNL_TABBED");
+    if (tabPanel == null || tabSelect.isEmpty()) {
+      return false;
+    }
+    if (!tabSelect.containsKey(select)) {
+      System.err.println("Tab selection '" + select + "' not found!");
+      return false;
+    }
 
-  public static boolean isTabSelection_DATABASE() {
-    return isTabSelection(PanelTabs.DATABASE);
+    int graphTab = tabSelect.get(select);
+    int curTab = tabPanel.getSelectedIndex();
+    return curTab == graphTab;
   }
 
   public static void highlightBranch(int start, boolean branch) {
     ArrayList<Integer> branchMarks = bytecodeViewer.highlightBranch(start, branch);
     bytecodeGraph.drawGraphHighlights(branchMarks);
-  }
-  
-  public static void resetLoggedTime() {
-    // this adds log entry to file for demarcation
-    if (udpThread != null) {
-      udpThread.resetInput();
-    }
-    
-    // this resets and starts the timer
-    startElapsedTime();
-  }
-  
-  public static void resetCapturedInput() {
-    // clear the packet buffer and statistics
-    if (udpThread != null) {
-      udpThread.clear();
-    }
-
-    // clear the graphics panel
-    CallGraph.clearGraphAndMethodList();
-    if (isTabSelection_CALLGRAPH()) {
-      CallGraph.updateCallGraph(GraphHighlight.NONE, false);
-    }
-          
-    // reset the elapsed time
-//    resetElapsedTime();
   }
   
   public static void addLocalVariable(String name, String type, String slot, String start, String end) {
@@ -343,108 +324,6 @@ public final class LauncherMain {
 
   public static void addSymbVariable(String meth, String name, String type, String slot, String start, String end) {
     symbolTbl.addEntry(meth, name, type, slot, start, end);
-  }
-
-  public static Integer byteOffsetToLineNumber(int offset) {
-    return bytecodeViewer.byteOffsetToLineNumber(offset);
-  }
-  
-  public static String getJavapClassFile(String className) {
-    return projectPathName + JAVAPFILE_STORAGE + "/" + className + ".txt";
-  }
-  
-  public static String readTextFile(String filename) {
-
-    String content = "";
-    File file = new File(filename);
-    if (!file.isFile()) {
-      printCommandError("file not found: " + filename);
-    } else {
-      try {
-        FileReader fileReader = new FileReader(file);
-        BufferedReader bufferedReader = new BufferedReader(fileReader);
-        String line;
-        while ((line = bufferedReader.readLine()) != null) {
-          content += line + NEWLINE;
-        }
-      } catch (IOException ex) {
-        printCommandError(ex.getMessage());
-      }
-    }
-
-    return content;
-  }
-
-  public static void saveTextFile(String filename, String content) {
-    // make sure all dir paths exist
-    int offset = filename.lastIndexOf("/");
-    if (offset > 0) {
-      String newpathname = filename.substring(0, offset);
-      File newpath = new File(newpathname);
-      if (!newpath.isDirectory()) {
-        newpath.mkdirs();
-      }
-    }
-    
-    // delete file if it already exists
-    File file = new File(filename);
-    if (file.isFile()) {
-      file.delete();
-    }
-    
-    // create a new file and copy text contents to it
-    BufferedWriter bw = null;
-    try {
-      FileWriter fw = new FileWriter(file);
-      bw = new BufferedWriter(fw);
-      bw.write(content);
-    } catch (IOException ex) {
-      printCommandError(ex.getMessage());
-    } finally {
-      if (bw != null) {
-        try {
-          bw.close();
-        } catch (IOException ex) {
-          printCommandError(ex.getMessage());
-        }
-      }
-    }
-  }
-  
-  private static String generateBytecode(String classSelect, String methodSelect) {
-    printStatusClear();
-
-    // first we have to extract the class file from the jar file
-    File jarfile = new File(projectPathName + projectName);
-    if (!jarfile.isFile()) {
-      printStatusError("Jar file not found: " + jarfile);
-      return null;
-    }
-    try {
-      // extract the selected class file
-      extractClassFile(jarfile, classSelect);
-    } catch (IOException ex) {
-      printStatusError(ex.getMessage());
-      return null;
-    }
-
-    // clear out the local variable list
-    localVarTbl.clear(classSelect + "." + methodSelect);
-
-    // decompile the selected class file
-    String[] command = { "javap", "-p", "-c", "-s", "-l", CLASSFILE_STORAGE + "/" + classSelect + ".class" };
-    // this creates a command launcher that runs on the current thread
-    CommandLauncher commandLauncher = new CommandLauncher(commandLogger);
-    int retcode = commandLauncher.start(command, projectPathName);
-    if (retcode != 0) {
-      printStatusError("running javap on file: " + classSelect + ".class");
-      return null;
-    }
-
-    // success - save the output as a file
-    String content = commandLauncher.getResponse();
-    saveTextFile(projectPathName + JAVAPFILE_STORAGE + "/" + classSelect + ".txt", content);
-    return content;
   }
 
   public static void setBytecodeSelections(String classSelect, String methodSelect) {
@@ -470,11 +349,11 @@ public final class LauncherMain {
         printStatusMessage("Bytecode already loaded");
       } else {
         String content;
-        String fname = LauncherMain.getJavapClassFile(classSelect);
+        String fname = projectPathName + JAVAPFILE_STORAGE + "/" + classSelect + ".txt";
         File file = new File(fname);
         if (file.isFile()) {
           // use the javap file already generated
-          content = readTextFile(fname);
+          content = Utils.readTextFile(fname);
         } else {
           // need to run javap to generate the bytecode source
           content = generateBytecode(classSelect, methodSelect);
@@ -488,16 +367,17 @@ public final class LauncherMain {
       }
       
       // swich tab to show bytecode
-      PanelTabs selected = getTabSelect();
-      setTabSelect(PanelTabs.BYTECODE);
+      String selected = getTabSelect();
+      setTabSelect(PanelTabs.BYTECODE.toString());
       
       // this is an attempt to get the bytecode graph to update its display properly by
       // switching to different panel and back again
-      if (selected == PanelTabs.BYTEFLOW) {
-        setTabSelect(PanelTabs.BYTEFLOW);
+      String byteflowTab = PanelTabs.BYTEFLOW.toString();
+      if (selected.equals(byteflowTab)) {
+        setTabSelect(byteflowTab);
       }
   }
-  
+
   public void createMainPanel() {
     // if a panel already exists, close the old one
     if (mainFrame.isValidFrame()) {
@@ -571,66 +451,37 @@ public final class LauncherMain {
     mainFrame.getTextField("TXT_PORT").addFocusListener(new Focus_UpdatePort());
 
     // add a menu to the frame
-    JMenuBar menuBar = new JMenuBar();
-    JMenu menuProject = new JMenu("Project");
-    menuBar.add(menuProject);
-    JMenu menuDebug = new JMenu("Debug");
-    menuBar.add(menuDebug);
-    JMenu menuCallgraph = new JMenu("Graphs");
-    menuBar.add(menuCallgraph);
-    mainFrame.getFrame().setJMenuBar(menuBar);
+    launcherMenuBar = new JMenuBar();
+    mainFrame.getFrame().setJMenuBar(launcherMenuBar);
+    JMenu menuProject = launcherMenuBar.add(new JMenu("Project"));
+    JMenu menuDebug   = launcherMenuBar.add(new JMenu("Debug"));
+    JMenu menuGraphs  = launcherMenuBar.add(new JMenu("Graphs"));
 
-    // define entries in Project header
-    JMenuItem menuItem = new JMenuItem("Select Jar file");
-    menuItem.addActionListener(new Action_SelectJarFile());
-    menuProject.add(menuItem);
-    menuProject.addSeparator();
+    JMenu menu = menuProject;
+    addMenuItem     (menu, "Select Jar file", new Action_SelectJarFile());
+    menu.addSeparator();
+    addMenuCheckbox (menu, "MENUCB_SERVER_TYPE", "Input using Post (server app)", true,
+                      new ItemListener_EnablePost());
+    addMenuCheckbox (menu, "MENUCB_LOAD_DANFIG", "Load symbolics from danfig", true,
+                      null);
+    addMenuItem     (menu, "Update danfig file", new Action_UpdateDanfigFile());
+    menu.addSeparator();
+    addMenuItem     (menu, "Clear DATABASE", new Action_ClearDatabase());
+    addMenuItem     (menu, "Clear LOG", new Action_ClearLog());
+    addMenuItem     (menu, "Clear SOLUTIONS", new Action_ClearSolutions());
     
-    isServerTypeMenuItem = new JCheckBoxMenuItem("Input using Post (server app)");
-    isServerTypeMenuItem.setSelected(true);
-    isServerTypeMenuItem.addItemListener(new ItemListener_EnablePost());
-    menuProject.add(isServerTypeMenuItem);
+    menu = menuDebug;
+    addMenuItem     (menu, "Debug Setup", new Action_DebugSetup());
 
-    loadDanfigMenuItem = new JCheckBoxMenuItem("Load symbolics from danfig");
-    loadDanfigMenuItem.setSelected(true);
-    menuProject.add(loadDanfigMenuItem);  // listener not needed
+    menu = menuGraphs;
+    addMenuItem     (menu, "Callgraph Setup", new Action_CallgraphSetup());
+    menu.addSeparator();
+    addMenuItem     (menu, "Save Callgraph (PNG)", new Action_SaveGraphPNG());
+    addMenuItem     (menu, "Save Callgraph (JSON)", new Action_SaveGraphJSON());
+
+    isServerTypeMenuItem = getMenuCheckbox ("MENUCB_SERVER_TYPE");
+    loadDanfigMenuItem = getMenuCheckbox ("MENUCB_LOAD_DANFIG");
     
-    menuItem = new JMenuItem("Update danfig file");
-    menuItem.addActionListener(new Action_UpdateDanfigFile());
-    menuProject.add(menuItem);
-    menuProject.addSeparator();
-
-    menuItem = new JMenuItem("Clear DATABASE");
-    menuItem.addActionListener(new Action_ClearDatabase());
-    menuProject.add(menuItem);
-
-    menuItem = new JMenuItem("Clear LOG");
-    menuItem.addActionListener(new Action_ClearLog());
-    menuProject.add(menuItem);
-
-    menuItem = new JMenuItem("Clear SOLUTIONS");
-    menuItem.addActionListener(new Action_ClearSolutions());
-    menuProject.add(menuItem);
-
-    // define entries in Callgraph header
-    menuItem = new JMenuItem("Debug Setup");
-    menuItem.addActionListener(new Action_DebugSetup());
-    menuDebug.add(menuItem);
-
-    // define entries in Callgraph header
-    menuItem = new JMenuItem("Callgraph Setup");
-    menuItem.addActionListener(new Action_CallgraphSetup());
-    menuCallgraph.add(menuItem);
-    menuCallgraph.addSeparator();
-
-    menuItem = new JMenuItem("Save Callgraph (PNG)");
-    menuItem.addActionListener(new Action_SaveGraphPNG());
-    menuCallgraph.add(menuItem);
-
-    menuItem = new JMenuItem("Save Callgraph (JSON)");
-    menuItem.addActionListener(new Action_SaveGraphJSON());
-    menuCallgraph.add(menuItem);
-
     // initially disable the class/method select and generating bytecode
     mainClassCombo = mainFrame.getCombobox ("COMBO_MAINCLS");
     classCombo  = mainFrame.getCombobox ("COMBO_CLASS");
@@ -650,10 +501,17 @@ public final class LauncherMain {
     // display the frame
     mainFrame.display();
 
-    // create the viewer panel classes
+    // create the panel classes
+    commandLogger = new Logger(new JTextArea(), PanelTabs.COMMAND.toString(), null);
     debugLogger = new DebugLogger(PanelTabs.LOG.toString());
     bytecodeViewer = new BytecodeViewer(PanelTabs.BYTECODE.toString());
     bytecodeGraph = new BytecodeGraph(bytecodeViewer);
+    callGraph = new CallGraph(PanelTabs.CALLGRAPH.toString());
+    dbtable = new DatabaseTable(PanelTabs.DATABASE.toString());
+
+    // wrap the bytecode logger in another pane to prevent line wrapping on a JTextPane
+    JPanel noWrapBytecodePanel = new JPanel(new BorderLayout());
+    noWrapBytecodePanel.add(bytecodeViewer.getTextPane());
 
     // create a split panel for sharing the local variables and symbolic parameters in a tab
     JTable paramList = new JTable();        // the bytecode param list
@@ -665,12 +523,7 @@ public final class LauncherMain {
 //    paramList.setBorder(new TitledBorder("Local variables"));
 //    sybolList.setBorder(new TitledBorder("Symbolics defined"));
 
-    // wrap the bytecode logger in another pane to prevent line wrapping on a JTextPane
-    JTextPane bytecodePane = bytecodeViewer.getTextPane();
-    JPanel noWrapBytecodePanel = new JPanel(new BorderLayout());
-    noWrapBytecodePanel.add(bytecodePane);
-
-    // we're going to combine the BYTECODE entry with the parameter/symbolics split panel
+    // now we're going to combine the BYTECODE entry with the parameter/symbolics split panel
     splitName = "SPLIT_MAIN";
     JSplitPane splitMain = mainFrame.makeSplitPane(splitName, true, 0.5);
     mainFrame.addSplitComponent(splitName, 0, "BYTECODE"  , noWrapBytecodePanel, true);
@@ -678,31 +531,22 @@ public final class LauncherMain {
     
     // add the tabbed message panels and a listener to detect when a tab has been selected
     JTabbedPane tabPanel = mainFrame.getTabbedPanel("PNL_TABBED");
-    addPanelToTab(tabPanel, PanelTabs.COMMAND  , new JTextArea(), true);
-    addPanelToTab(tabPanel, PanelTabs.DATABASE , new JTable(), true);
+    addPanelToTab(tabPanel, PanelTabs.COMMAND  , commandLogger.getPanel(), true);
+    addPanelToTab(tabPanel, PanelTabs.DATABASE , dbtable.getPanel(), true);
     addPanelToTab(tabPanel, PanelTabs.BYTECODE , splitMain, false);
     addPanelToTab(tabPanel, PanelTabs.BYTEFLOW , bytecodeGraph.getPanel(), true);
-    addPanelToTab(tabPanel, PanelTabs.LOG      , debugLogger.getTextPane(), true);
-    addPanelToTab(tabPanel, PanelTabs.CALLGRAPH, new JPanel(), true);
+    addPanelToTab(tabPanel, PanelTabs.LOG      , debugLogger.getPanel(), true);
+    addPanelToTab(tabPanel, PanelTabs.CALLGRAPH, callGraph.getPanel(), true);
     tabPanel.addChangeListener(new Change_TabPanelSelect());
-
-    // create the message logging for the text panels
-    commandLogger = createTextLogger(PanelTabs.COMMAND , null);
 
     // update divider locations in split frame now that it has been placed (and the dimensions are set)
     mainFrame.setSplitDivider("SPLIT_MAIN", 0.6);
     mainFrame.setSplitDivider("SPLIT_PANE1", 0.6);
-    
-    // init the CallGraph panel
-    CallGraph.initCallGraph((JPanel) getTabPanel(PanelTabs.CALLGRAPH));
 
     // init the local variable and symbolic list tables
     localVarTbl = new ParamTable(paramList);
     symbolTbl   = new SymbolTable(symbolList);
     solutionTbl = new SolutionTable(mainFrame.getTable("TBL_SOLUTIONS"));
-            
-    // init the database table panel
-    dbtable = new DatabaseTable((JTable) getTabPanel(PanelTabs.DATABASE));
   }
 
   private class Window_MainListener extends java.awt.event.WindowAdapter {
@@ -722,7 +566,7 @@ public final class LauncherMain {
     @Override
     public void stateChanged(ChangeEvent e) {
       // if we switched to the graph display tab, update the graph
-      if (isTabSelection_CALLGRAPH()) {
+      if (isTabSelection(PanelTabs.CALLGRAPH.toString())) {
         if (CallGraph.updateCallGraph(graphMode, false)) {
 //          mainFrame.repack();
         }
@@ -757,7 +601,7 @@ public final class LauncherMain {
       content += symbolTbl.getSymbolicList();
 
       // now save to the file
-      saveTextFile(projectPathName + "danfig", content);
+      Utils.saveTextFile(projectPathName + "danfig", content);
       printStatusMessage("Updated danfig file");
     }
   }
@@ -775,10 +619,16 @@ public final class LauncherMain {
       // clear out the debug logger
       debugLogger.clear();
 
-      // reset debug input from network in case some messages are pending
+      // reset debug input from network in case some messages are pending and clear buffer
       if (udpThread != null) {
         udpThread.resetInput();
-        resetCapturedInput();
+        udpThread.clear();
+      }
+
+      // clear the graphics panel
+      CallGraph.clearGraphAndMethodList();
+      if (isTabSelection(PanelTabs.CALLGRAPH.toString())) {
+        CallGraph.updateCallGraph(GraphHighlight.NONE, false);
       }
 
       // force the highlight selection back to NONE
@@ -978,24 +828,6 @@ public final class LauncherMain {
     }
   }
     
-  private void enableControlSelections(boolean enable) {
-    mainFrame.getLabel("COMBO_MAINCLS").setEnabled(enable);
-    mainFrame.getLabel("COMBO_CLASS").setEnabled(enable);
-    mainFrame.getLabel("COMBO_METHOD").setEnabled(enable);
-    mainFrame.getButton("BTN_BYTECODE").setEnabled(enable);
-    mainFrame.getButton("BTN_RUNTEST").setEnabled(enable);
-    mainFrame.getButton("BTN_SOLVER").setEnabled(enable);
-    mainFrame.getTextField("TXT_ARGLIST").setEnabled(enable);
-    mainFrame.getTextField("TXT_INPUT").setEnabled(enable);
-
-    // only enable these if the "Post message" is also enabled
-    if (enable) {
-      enable = isServerTypeMenuItem.isSelected();
-    }
-    mainFrame.getButton("BTN_SEND").setEnabled(enable);
-    mainFrame.getTextField("TXT_PORT").setEnabled(enable);
-  }  
-
   private void createGraphSetupPanel() {
     if (graphSetupFrame.isValidFrame()) {
       return;
@@ -1122,7 +954,7 @@ public final class LauncherMain {
         CallGraph.setThreadSelection(value);
 
         // if CallGraph is selected, update the graph
-        if (isTabSelection(PanelTabs.CALLGRAPH)) {
+        if (isTabSelection(PanelTabs.CALLGRAPH.toString())) {
           CallGraph.updateCallGraph(GraphHighlight.THREAD, true);
         }
       }
@@ -1141,7 +973,7 @@ public final class LauncherMain {
         CallGraph.setThreadSelection(value);
 
         // if CallGraph is selected, update the graph
-        if (isTabSelection(PanelTabs.CALLGRAPH)) {
+        if (isTabSelection(PanelTabs.CALLGRAPH.toString())) {
           CallGraph.updateCallGraph(GraphHighlight.THREAD, true);
         }
       }
@@ -1160,7 +992,7 @@ public final class LauncherMain {
         CallGraph.setRangeStepSize(step);
 
         // if CallGraph is selected, update the graph
-        if (isTabSelection(PanelTabs.CALLGRAPH)) {
+        if (isTabSelection(PanelTabs.CALLGRAPH.toString())) {
           CallGraph.updateCallGraph(graphMode, true);
         }
       }
@@ -1179,7 +1011,7 @@ public final class LauncherMain {
         CallGraph.setRangeStepSize(step);
 
         // if CallGraph is selected, update the graph
-        if (isTabSelection(PanelTabs.CALLGRAPH)) {
+        if (isTabSelection(PanelTabs.CALLGRAPH.toString())) {
           CallGraph.updateCallGraph(graphMode, true);
         }
       }
@@ -1280,8 +1112,8 @@ public final class LauncherMain {
       // the next time he runs the application
       String[] selection = {"Yes", "No" };
       int which = JOptionPane.showOptionDialog(null,
-        "Do you wish to update the 'danfig' file" + NEWLINE +
-        "with your changes so that they will take" + NEWLINE +
+        "Do you wish to update the 'danfig' file" + Utils.NEWLINE +
+        "with your changes so that they will take" + Utils.NEWLINE +
         "effect the next time the application is run?",
         "Update danfig", // title of pane
         JOptionPane.YES_NO_CANCEL_OPTION, // DEFAULT_OPTION,
@@ -1297,27 +1129,30 @@ public final class LauncherMain {
         content += symbolTbl.getSymbolicList();
 
         // now save to the file
-        saveTextFile(projectPathName + "danfig", content);
+        Utils.saveTextFile(projectPathName + "danfig", content);
         printStatusMessage("Updated danfig file");
       }
     }
   }
 
-  private static void setDebugFromProperties() {
-    debugSetupFrame.getCheckbox("DBG_WARNING").setSelected(debugFlags.contains("WARN"));
-    debugSetupFrame.getCheckbox("DBG_CALL"   ).setSelected(debugFlags.contains("CALLS"));
-    debugSetupFrame.getCheckbox("DBG_INFO"   ).setSelected(debugFlags.contains("INFO"));
-    debugSetupFrame.getCheckbox("DBG_THREAD" ).setSelected(debugFlags.contains("THREAD"));
-    debugSetupFrame.getCheckbox("DBG_COMMAND").setSelected(debugFlags.contains("COMMAND"));
-    debugSetupFrame.getCheckbox("DBG_STACK"  ).setSelected(debugFlags.contains("STACK"));
-    debugSetupFrame.getCheckbox("DBG_AGENT"  ).setSelected(debugFlags.contains("AGENT"));
-    debugSetupFrame.getCheckbox("DBG_LOCALS" ).setSelected(debugFlags.contains("LOCAL"));
-    debugSetupFrame.getCheckbox("DBG_BRANCH" ).setSelected(debugFlags.contains("BRANCH"));
-    debugSetupFrame.getCheckbox("DBG_SOLVER" ).setSelected(debugFlags.contains("SOLVE"));
+  private void addMenuItem(JMenu menucat, String title, ActionListener action) {
+    JMenuItem item = new JMenuItem(title);
+    item.addActionListener(action);
+    menucat.add(item);
+  }
+
+  private void addMenuCheckbox(JMenu menucat, String name, String title, boolean dflt, ItemListener action) {
+    JCheckBoxMenuItem item = new JCheckBoxMenuItem(title);
+    item.setSelected(dflt);
+    if (action != null) {
+      item.addItemListener(action);
+    }
+    menucat.add(item);
+    menuCheckboxes.put(name, item);
   }
   
-  private Logger createTextLogger(PanelTabs tabname, HashMap<String, FontInfo> fontmap) {
-    return new Logger(getTabPanel(tabname), tabname.toString(), fontmap);
+  private JCheckBoxMenuItem getMenuCheckbox(String name) {
+    return menuCheckboxes.get(name);
   }
   
   private void addPanelToTab(JTabbedPane tabpane, PanelTabs tabname, Component panel, boolean scrollable) {
@@ -1341,7 +1176,7 @@ public final class LauncherMain {
     }
     
     // save access to panel by name
-    tabSelect.put(tabname, tabIndex++);
+    tabSelect.put(tabname.toString(), tabIndex++);
     tabbedPanels.put(tabname, panel);
   }
 
@@ -1353,7 +1188,7 @@ public final class LauncherMain {
     return tabbedPanels.get(tabname);
   }
 
-  private static PanelTabs getTabSelect() {
+  private static String getTabSelect() {
     JTabbedPane tabPanel = mainFrame.getTabbedPanel("PNL_TABBED");
     if (tabPanel == null || tabSelect.isEmpty()) {
       return null;
@@ -1362,13 +1197,13 @@ public final class LauncherMain {
     int curTab = tabPanel.getSelectedIndex();
     for (HashMap.Entry pair : tabSelect.entrySet()) {
       if ((Integer) pair.getValue() == curTab) {
-        return (PanelTabs) pair.getKey();
+        return (String) pair.getKey();
       }
     }
     return null;
   }
   
-  private static void setTabSelect(PanelTabs tabname) {
+  private static void setTabSelect(String tabname) {
     Integer index = tabSelect.get(tabname);
     if (index == null) {
       System.err.println("ERROR: '" + tabname + "' panel not found in tabs");
@@ -1379,21 +1214,59 @@ public final class LauncherMain {
     tabPanel.setSelectedIndex(index);
   }
   
-  private static boolean isTabSelection(PanelTabs select) {
-    JTabbedPane tabPanel = mainFrame.getTabbedPanel("PNL_TABBED");
-    if (tabPanel == null || tabSelect.isEmpty()) {
-      return false;
-    }
-    if (!tabSelect.containsKey(select)) {
-      System.err.println("Tab selection '" + select + "' not found!");
-      return false;
-    }
-
-    int graphTab = tabSelect.get(select);
-    int curTab = tabPanel.getSelectedIndex();
-    return curTab == graphTab;
+  private Logger createTextLogger(PanelTabs tabname, HashMap<String, FontInfo> fontmap) {
+    return new Logger(new JTextArea(), tabname.toString(), fontmap);
   }
+  
+  private static void printStatusClear() {
+    mainFrame.getTextField("TXT_MESSAGES").setText("                   ");
+  }
+  
+  private static void printStatusMessage(String message) {
+    mainFrame.getTextField("TXT_MESSAGES").setText(message);
+      
+    // echo status to command output window
+    printCommandError(message);
+  }
+  
+  private static void printStatusError(String message) {
+    mainFrame.getTextField("TXT_MESSAGES").setText("ERROR: " + message);
+      
+    // echo status to command output window
+    printCommandError(message);
+  }
+  
+  private void enableControlSelections(boolean enable) {
+    mainFrame.getLabel("COMBO_MAINCLS").setEnabled(enable);
+    mainFrame.getLabel("COMBO_CLASS").setEnabled(enable);
+    mainFrame.getLabel("COMBO_METHOD").setEnabled(enable);
+    mainFrame.getButton("BTN_BYTECODE").setEnabled(enable);
+    mainFrame.getButton("BTN_RUNTEST").setEnabled(enable);
+    mainFrame.getButton("BTN_SOLVER").setEnabled(enable);
+    mainFrame.getTextField("TXT_ARGLIST").setEnabled(enable);
+    mainFrame.getTextField("TXT_INPUT").setEnabled(enable);
 
+    // only enable these if the "Post message" is also enabled
+    if (enable) {
+      enable = isServerTypeMenuItem.isSelected();
+    }
+    mainFrame.getButton("BTN_SEND").setEnabled(enable);
+    mainFrame.getTextField("TXT_PORT").setEnabled(enable);
+  }  
+
+  private static void setDebugFromProperties() {
+    debugSetupFrame.getCheckbox("DBG_WARNING").setSelected(debugFlags.contains("WARN"));
+    debugSetupFrame.getCheckbox("DBG_CALL"   ).setSelected(debugFlags.contains("CALLS"));
+    debugSetupFrame.getCheckbox("DBG_INFO"   ).setSelected(debugFlags.contains("INFO"));
+    debugSetupFrame.getCheckbox("DBG_THREAD" ).setSelected(debugFlags.contains("THREAD"));
+    debugSetupFrame.getCheckbox("DBG_COMMAND").setSelected(debugFlags.contains("COMMAND"));
+    debugSetupFrame.getCheckbox("DBG_STACK"  ).setSelected(debugFlags.contains("STACK"));
+    debugSetupFrame.getCheckbox("DBG_AGENT"  ).setSelected(debugFlags.contains("AGENT"));
+    debugSetupFrame.getCheckbox("DBG_LOCALS" ).setSelected(debugFlags.contains("LOCAL"));
+    debugSetupFrame.getCheckbox("DBG_BRANCH" ).setSelected(debugFlags.contains("BRANCH"));
+    debugSetupFrame.getCheckbox("DBG_SOLVER" ).setSelected(debugFlags.contains("SOLVE"));
+  }
+  
   private static void setHighlightMode(GraphHighlight mode) {
     JRadioButton threadSelBtn = graphSetupFrame.getRadiobutton("RB_THREAD");
     JRadioButton timeSelBtn   = graphSetupFrame.getRadiobutton("RB_ELAPSED");
@@ -1462,7 +1335,7 @@ public final class LauncherMain {
 
     // set the mode flag & update graph
     graphMode = mode;
-    if (isTabSelection(PanelTabs.CALLGRAPH)) {
+    if (isTabSelection(PanelTabs.CALLGRAPH.toString())) {
       CallGraph.updateCallGraph(graphMode, false);
     }
   }
@@ -1701,57 +1574,22 @@ public final class LauncherMain {
   
   private static void startElapsedTime() {
     elapsedStart = System.currentTimeMillis();
-    elapsedMode = ElapsedMode.RUN;
 //    GuiPanel.GuiControls.getTextField("FIELD_ELAPSED").setText("00:00");
   }
   
-  private static void resetElapsedTime() {
-    elapsedStart = 0;
-    elapsedMode = ElapsedMode.RESET;
-//    GuiPanel.GuiControls.getTextField("FIELD_ELAPSED").setText("00:00");
-  }
-  
-  private static void updateElapsedTime() {
-    if (elapsedMode == ElapsedMode.RUN) {
-      long elapsed = System.currentTimeMillis() - elapsedStart;
-      if (elapsed > 0) {
-        Integer msec = (int)(elapsed % 1000);
-        elapsed = elapsed / 1000;
-        Integer secs = (int)(elapsed % 60);
-        Integer mins = (int)(elapsed / 60);
-        String timestamp = ((mins < 10) ? "0" : "") + mins.toString() + ":" +
-                           ((secs < 10) ? "0" : "") + secs.toString(); // + "." +
-                           //((msec < 10) ? "00" : (msec < 100) ? "0" : "") + msec.toString();
-//        mainFrame.getTextField("FIELD_ELAPSED").setText(timestamp);
-      }
-    }
-  }
-  
-  private static void printStatusClear() {
-    mainFrame.getTextField("TXT_MESSAGES").setText("                   ");
-  }
-  
-  private static void printStatusMessage(String message) {
-    mainFrame.getTextField("TXT_MESSAGES").setText(message);
-      
-    // echo status to command output window
-    printCommandError(message);
-  }
-  
-  private static void printStatusError(String message) {
-    mainFrame.getTextField("TXT_MESSAGES").setText("ERROR: " + message);
-      
-    // echo status to command output window
-    printCommandError(message);
-  }
-  
-  public static void printCommandMessage(String message) {
-    commandLogger.printLine(message);
-  }
-  
-  private static void printCommandError(String message) {
-    commandLogger.printLine(message);
-  }
+//  private static void updateElapsedTime() {
+//    long elapsed = System.currentTimeMillis() - elapsedStart;
+//    if (elapsed > 0) {
+//      Integer msec = (int)(elapsed % 1000);
+//      elapsed = elapsed / 1000;
+//      Integer secs = (int)(elapsed % 60);
+//      Integer mins = (int)(elapsed / 60);
+//      String timestamp = ((mins < 10) ? "0" : "") + mins.toString() + ":" +
+//                         ((secs < 10) ? "0" : "") + secs.toString(); // + "." +
+//                         //((msec < 10) ? "00" : (msec < 100) ? "0" : "") + msec.toString();
+////      mainFrame.getTextField("FIELD_ELAPSED").setText(timestamp);
+//    }
+//  }
   
   private static void initProjectProperties(String pathname) {
     // create the properties file if not already created
@@ -2076,6 +1914,42 @@ public final class LauncherMain {
     }
   }
   
+  private static String generateBytecode(String classSelect, String methodSelect) {
+    printStatusClear();
+
+    // first we have to extract the class file from the jar file
+    File jarfile = new File(projectPathName + projectName);
+    if (!jarfile.isFile()) {
+      printStatusError("Jar file not found: " + jarfile);
+      return null;
+    }
+    try {
+      // extract the selected class file
+      extractClassFile(jarfile, classSelect);
+    } catch (IOException ex) {
+      printStatusError(ex.getMessage());
+      return null;
+    }
+
+    // clear out the local variable list
+    localVarTbl.clear(classSelect + "." + methodSelect);
+
+    // decompile the selected class file
+    String[] command = { "javap", "-p", "-c", "-s", "-l", CLASSFILE_STORAGE + "/" + classSelect + ".class" };
+    // this creates a command launcher that runs on the current thread
+    CommandLauncher commandLauncher = new CommandLauncher(commandLogger);
+    int retcode = commandLauncher.start(command, projectPathName);
+    if (retcode != 0) {
+      printStatusError("running javap on file: " + classSelect + ".class");
+      return null;
+    }
+
+    // success - save the output as a file
+    String content = commandLauncher.getResponse();
+    Utils.saveTextFile(projectPathName + JAVAPFILE_STORAGE + "/" + classSelect + ".txt", content);
+    return content;
+  }
+
   private static void extractClassFile(File jarfile, String className) throws IOException {
     // get the path relative to the application directory
     int offset;
@@ -2132,13 +2006,13 @@ public final class LauncherMain {
   
   private static String initDanfigInfo() {
     // initialize replacement config info
-    String content = "#! DANALYZER SYMBOLIC EXPRESSION LIST" + NEWLINE;
-    content += "# DANLAUNCHER_VERSION" + NEWLINE;
-    content += "IPAddress: localhost" + NEWLINE;
-    content += "DebugPort: " + debugPort + NEWLINE;
-    content += "DebugMode: TCPPORT" + NEWLINE;
-    content += "DebugFlags: " + debugFlags + NEWLINE;
-    content += NEWLINE;
+    String content = "#! DANALYZER SYMBOLIC EXPRESSION LIST" + Utils.NEWLINE;
+    content += "# DANLAUNCHER_VERSION" + Utils.NEWLINE;
+    content += "IPAddress: localhost" + Utils.NEWLINE;
+    content += "DebugPort: " + debugPort + Utils.NEWLINE;
+    content += "DebugMode: TCPPORT" + Utils.NEWLINE;
+    content += "DebugFlags: " + debugFlags + Utils.NEWLINE;
+    content += Utils.NEWLINE;
     return content;
   }
   
@@ -2184,7 +2058,7 @@ public final class LauncherMain {
             }
           }
           if (!line.isEmpty() && !line.startsWith("#")) {
-            content += line + NEWLINE;
+            content += line + Utils.NEWLINE;
           }
         }
         fileReader.close();
@@ -2203,7 +2077,7 @@ public final class LauncherMain {
       }
       
       // create the new file
-      saveTextFile(projectPathName + "danfig", content);
+      Utils.saveTextFile(projectPathName + "danfig", content);
     }
   }
 
@@ -2262,7 +2136,7 @@ public final class LauncherMain {
     @Override
     public void actionPerformed(ActionEvent e) {
       // if Call Graph tab selected, update graph
-      if (isTabSelection_CALLGRAPH()) {
+      if (isTabSelection(PanelTabs.CALLGRAPH.toString())) {
         if (CallGraph.updateCallGraph(graphMode, false)) {
 //          mainFrame.repack();
         }
