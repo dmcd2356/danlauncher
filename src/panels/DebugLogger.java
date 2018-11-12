@@ -84,21 +84,21 @@ public class DebugLogger {
     logger.clear();
   }
 
-  public boolean processMessage(String message) {
+  public int processMessage(String message) {
     // seperate message into the message type and the message content
     if (message == null) {
-      return false;
+      return CallGraph.getMethodCount();
     }
     if (message.length() < 30) {
       printDebug(message);
-      return false;
+      return CallGraph.getMethodCount();
     }
 
     // read the specific entries from the message
     String[] array = message.split("\\s+", 3);
     if (array.length < 3) {
       printDebug(message);
-      return false;
+      return CallGraph.getMethodCount();
     }
     String linenum = array[0];
     String timestr = array[1];
@@ -127,7 +127,7 @@ public class DebugLogger {
     // timestamp = [00:00.000] (followed by a space)
     if (timestr.charAt(0) != '[' || timestr.charAt(10) != ']') {
       printDebug(message);
-      return false;
+      return CallGraph.getMethodCount();
     }
     String timeMin = timestr.substring(1, 3);
     String timeSec = timestr.substring(4, 6);
@@ -141,7 +141,7 @@ public class DebugLogger {
     } catch (NumberFormatException ex) {
       // invalid syntax - skip
       printDebug(message);
-      return false;
+      return CallGraph.getMethodCount();
     }
 
     // send message to the debug display
@@ -161,7 +161,7 @@ public class DebugLogger {
         if (splited.length < 2) {
           printDebug("invalid syntax for CALL command");
           System.out.println("ERROR: invalid CALL message on line " + linecount);
-          return false; // invalid syntax - ignore
+          return CallGraph.getMethodCount(); // invalid syntax - ignore
         }
 
         String icount = splited[0].trim();
@@ -189,7 +189,7 @@ public class DebugLogger {
         break;
     }
     
-    return (linecount == 0);
+    return CallGraph.getMethodCount();
   }
   
   private static void printDebug(String content) {

@@ -12,8 +12,11 @@ import com.mxgraph.swing.mxGraphComponent;
 import java.awt.Graphics;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.image.BufferedImage;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
+import javax.imageio.ImageIO;
 import javax.swing.JPanel;
 import main.LauncherMain;
 import util.Utils;
@@ -33,6 +36,7 @@ public class BytecodeGraph {
   private static ArrayList<FlowInfo> flowBlocks = new ArrayList<>();
   private static HashMap<Integer, FlowInfo> branchMap = new HashMap<>();
   private static ArrayList<Integer> branchMarks = new ArrayList<>();
+  private static boolean valid = false;
 
   
   public BytecodeGraph(BytecodeViewer viewer) {
@@ -65,6 +69,28 @@ public class BytecodeGraph {
     drawGraph();
   }
   
+  public void clear() {
+    clearGraph();
+    updateGraph();
+  }
+  
+  public boolean isValid() {
+    return !flowBlocks.isEmpty();
+  }
+  
+  public static void saveAsImageFile(File file) {
+    BufferedImage bi = new BufferedImage(graphPanel.getSize().width,
+      graphPanel.getSize().height, BufferedImage.TYPE_INT_ARGB); 
+    Graphics graphics = bi.createGraphics();
+    graphPanel.paint(graphics);
+    graphics.dispose();
+    try {
+      ImageIO.write(bi,"png",file);
+    } catch (Exception ex) {
+      System.err.println(ex.getMessage());
+    }
+  }
+
   private void drawGraph() {
     System.out.println("drawGraph: Bytecode entries = " + BytecodeViewer.bytecode.size());
     

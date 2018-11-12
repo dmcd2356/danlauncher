@@ -45,6 +45,7 @@ import java.net.URL;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.Enumeration;
@@ -68,7 +69,6 @@ import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
-import javax.swing.JTextPane;
 import javax.swing.Timer;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
@@ -159,8 +159,10 @@ public final class LauncherMain {
   private static String          clientPort = "";
   private static String          javaHome;
   private static boolean         mainClassInitializing;
+  private static boolean         runMode = false;
   
   private static final HashMap<String, JCheckBoxMenuItem> menuCheckboxes = new HashMap<>();
+  private static final HashMap<String, JMenuItem> menuItems = new HashMap<>();
   private static ArrayList<String> fullMethList = new ArrayList<>();
   private static ArrayList<String> classList = new ArrayList<>();
   private static HashMap<String, ArrayList<String>>  clsMethMap = new HashMap<>(); // maps the list of methods to each class
@@ -457,30 +459,33 @@ public final class LauncherMain {
     JMenu menuDebug   = launcherMenuBar.add(new JMenu("Debug"));
     JMenu menuGraphs  = launcherMenuBar.add(new JMenu("Graphs"));
 
-    JMenu menu = menuProject;
-    addMenuItem     (menu, "Select Jar file", new Action_SelectJarFile());
+    JMenu menu = menuProject; // selections for the Project Menu
+    addMenuItem     (menu, "MENU_SEL_JAR"    , "Select Jar file", new Action_SelectJarFile());
     menu.addSeparator();
-    addMenuCheckbox (menu, "MENUCB_SERVER_TYPE", "Input using Post (server app)", true,
+    addMenuCheckbox (menu, "MENU_SERVER_TYPE", "Input using Post (server app)", true,
                       new ItemListener_EnablePost());
-    addMenuCheckbox (menu, "MENUCB_LOAD_DANFIG", "Load symbolics from danfig", true,
-                      null);
-    addMenuItem     (menu, "Update danfig file", new Action_UpdateDanfigFile());
+    addMenuCheckbox (menu, "MENU_LOAD_DANFIG", "Load symbolics from danfig", true, null);
+    addMenuItem     (menu, "MENU_SAVE_DANFIG", "Update danfig file", new Action_UpdateDanfigFile());
     menu.addSeparator();
-    addMenuItem     (menu, "Clear DATABASE", new Action_ClearDatabase());
-    addMenuItem     (menu, "Clear LOG", new Action_ClearLog());
-    addMenuItem     (menu, "Clear SOLUTIONS", new Action_ClearSolutions());
-    
-    menu = menuDebug;
-    addMenuItem     (menu, "Debug Setup", new Action_DebugSetup());
-
-    menu = menuGraphs;
-    addMenuItem     (menu, "Callgraph Setup", new Action_CallgraphSetup());
+    addMenuItem     (menu, "MENU_CLR_DBASE"  , "Clear DATABASE", new Action_ClearDatabase());
+    addMenuItem     (menu, "MENU_CLR_LOG"    , "Clear LOG", new Action_ClearLog());
+    addMenuItem     (menu, "MENU_CLR_SOL"    , "Clear SOLUTIONS", new Action_ClearSolutions());
+    menu = menuDebug; // selections for the Debug Menu
+    addMenuItem     (menu, "MENU_SETUP_DBUG" , "Debug Setup", new Action_DebugSetup());
+    menu = menuGraphs; // selections for the Graphs Menu
+    addMenuItem     (menu, "MENU_SETUP_GRAF" , "Callgraph Setup", new Action_CallgraphSetup());
     menu.addSeparator();
-    addMenuItem     (menu, "Save Callgraph (PNG)", new Action_SaveGraphPNG());
-    addMenuItem     (menu, "Save Callgraph (JSON)", new Action_SaveGraphJSON());
+    addMenuItem     (menu, "MENU_SAVE_PNG"   , "Save Callgraph (PNG)", new Action_SaveGraphPNG());
+    addMenuItem     (menu, "MENU_SAVE_JSON"  , "Save Callgraph (JSON)", new Action_SaveGraphJSON());
+    addMenuItem     (menu, "MENU_SAVE_BCODE" , "Save Bytecode Graph", new Action_SaveByteFlowGraph());
 
-    isServerTypeMenuItem = getMenuCheckbox ("MENUCB_SERVER_TYPE");
-    loadDanfigMenuItem = getMenuCheckbox ("MENUCB_LOAD_DANFIG");
+    // setup access to menu controls
+    isServerTypeMenuItem = getMenuCheckbox ("MENU_SERVER_TYPE");
+    loadDanfigMenuItem = getMenuCheckbox ("MENU_LOAD_DANFIG");
+    getMenuItem("MENU_SETUP_DBUG").setEnabled(false);
+    getMenuItem("MENU_SAVE_PNG").setEnabled(false);
+    getMenuItem("MENU_SAVE_JSON").setEnabled(false);
+    getMenuItem("MENU_SAVE_BCODE").setEnabled(false);
     
     // initially disable the class/method select and generating bytecode
     mainClassCombo = mainFrame.getCombobox ("COMBO_MAINCLS");
@@ -588,6 +593,9 @@ public final class LauncherMain {
       classCombo.setEnabled(true);
       methodCombo.setEnabled(true);
       enableControlSelections(true);
+
+      // enable the debug setup selection
+      getMenuItem("MENU_SETUP_DBUG").setEnabled(true);
     }
   }
 
@@ -616,29 +624,10 @@ public final class LauncherMain {
   private class Action_ClearLog implements ActionListener {
     @Override
     public void actionPerformed(java.awt.event.ActionEvent evt) {
-      // clear out the debug logger
-      debugLogger.clear();
-
-      // reset debug input from network in case some messages are pending and clear buffer
-      if (udpThread != null) {
-        udpThread.resetInput();
-        udpThread.clear();
-      }
-
-      // clear the graphics panel
-      CallGraph.clearGraphAndMethodList();
-      if (isTabSelection(PanelTabs.CALLGRAPH.toString())) {
-        CallGraph.updateCallGraph(GraphHighlight.NONE, false);
-      }
-
-      // force the highlight selection back to NONE
-      setHighlightMode(GraphHighlight.NONE);
-
-      // init thread selection in highlighting to OFF
-      setThreadEnabled(false);
+      clearDebugLogger();
     }
   }
-  
+
   private class Action_ClearSolutions implements ActionListener {
     @Override
     public void actionPerformed(java.awt.event.ActionEvent evt) {
@@ -664,27 +653,24 @@ public final class LauncherMain {
   private class Action_SaveGraphPNG implements ActionListener {
     @Override
     public void actionPerformed(java.awt.event.ActionEvent evt) {
-      // only enable setup graph button if graph is not empty
-      if (CallGraph.getMethodCount() == 0) {
-        saveGraphButtonActionPerformed("png");
-      } else {
-        printStatusMessage("WARNING: No graphics to save!");
-      }
+      saveCallGraph("png");
     }
   }
       
   private class Action_SaveGraphJSON implements ActionListener {
     @Override
     public void actionPerformed(java.awt.event.ActionEvent evt) {
-      // only enable setup graph button if graph is not empty
-      if (CallGraph.getMethodCount() == 0) {
-        saveGraphButtonActionPerformed("json");
-      } else {
-        printStatusMessage("WARNING: No graphics to save!");
-      }
+      saveCallGraph("json");
     }
   }
   
+  private class Action_SaveByteFlowGraph implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      saveByteFlowGraph();
+    }
+  }
+      
   private class Action_BytecodeClassSelect implements ActionListener {
     @Override
     public void actionPerformed(java.awt.event.ActionEvent evt) {
@@ -785,11 +771,22 @@ public final class LauncherMain {
       // stop the running process
       ThreadLauncher.ThreadInfo threadInfo = threadLauncher.stopAll();
       if (threadInfo.pid >= 0) {
-        printCommandMessage("Killing job " + threadInfo.jobid + ": pid " + threadInfo.pid);
+        printCommandMessage("Terminating job " + threadInfo.jobid + ": pid " + threadInfo.pid);
 
-        String[] command = { "kill", "-15", threadInfo.pid.toString() };
+        // send SIGTERM to process
+        String[] command = { "term", "-15", threadInfo.pid.toString() };
         CommandLauncher commandLauncher = new CommandLauncher(commandLogger);
         commandLauncher.start(command, null);
+        
+        // give it a few seconds and if it hasn't terminated, send SIGKILL
+        try {
+          Thread.sleep(3000);
+        } catch (InterruptedException ex) { }
+        if (runMode) {
+          printCommandMessage("Killing job " + threadInfo.jobid + ": pid " + threadInfo.pid);
+          String[] command2 = { "kill", "-9", threadInfo.pid.toString() };
+          commandLauncher.start(command2, null);
+        }
       }
     }
   }
@@ -1135,23 +1132,36 @@ public final class LauncherMain {
     }
   }
 
-  private void addMenuItem(JMenu menucat, String title, ActionListener action) {
+  private static void addMenuItem(JMenu menucat, String id, String title, ActionListener action) {
+    if (menuItems.containsKey(id)) {
+      System.err.println("Menu Item '" + id + "' already defined!");
+      return;
+    }
     JMenuItem item = new JMenuItem(title);
     item.addActionListener(action);
     menucat.add(item);
+    menuItems.put(id, item);
   }
 
-  private void addMenuCheckbox(JMenu menucat, String name, String title, boolean dflt, ItemListener action) {
+  private static JMenuItem getMenuItem(String name) {
+    return menuItems.get(name);
+  }
+  
+  private static void addMenuCheckbox(JMenu menucat, String id, String title, boolean dflt, ItemListener action) {
+    if (menuCheckboxes.containsKey(id)) {
+      System.err.println("Menu Checkbox '" + id + "' already defined!");
+      return;
+    }
     JCheckBoxMenuItem item = new JCheckBoxMenuItem(title);
     item.setSelected(dflt);
     if (action != null) {
       item.addItemListener(action);
     }
     menucat.add(item);
-    menuCheckboxes.put(name, item);
+    menuCheckboxes.put(id, item);
   }
   
-  private JCheckBoxMenuItem getMenuCheckbox(String name) {
+  private static JCheckBoxMenuItem getMenuCheckbox(String name) {
     return menuCheckboxes.get(name);
   }
   
@@ -1340,7 +1350,30 @@ public final class LauncherMain {
     }
   }
   
-  private static void saveGraphButtonActionPerformed(String type) {
+  private static void clearDebugLogger() {
+    // clear out the debug logger
+    debugLogger.clear();
+
+    // reset debug input from network in case some messages are pending and clear buffer
+    if (udpThread != null) {
+      udpThread.resetInput();
+      udpThread.clear();
+    }
+
+    // clear the graphics panel
+    CallGraph.clearGraphAndMethodList();
+    if (isTabSelection(PanelTabs.CALLGRAPH.toString())) {
+      CallGraph.updateCallGraph(GraphHighlight.NONE, false);
+    }
+
+    // force the highlight selection back to NONE
+    setHighlightMode(GraphHighlight.NONE);
+
+    // init thread selection in highlighting to OFF
+    setThreadEnabled(false);
+  }
+  
+  private static void saveCallGraph(String type) {
     if (!type.equals("json")) {
       type = "png";
     }
@@ -1374,6 +1407,34 @@ public final class LauncherMain {
         pngFile.delete();
         CallGraph.saveAsImageFile(pngFile);
       }
+    }
+  }
+  
+  private static void saveByteFlowGraph() {
+    DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd-");
+    Date date = new Date();
+    String defaultName = dateFormat.format(date) + "callgraph";
+    FileNameExtensionFilter filter = new FileNameExtensionFilter("PNG Files", "png");
+    String fileExtension = ".png";
+    fileSelector.setFileFilter(filter);
+    fileSelector.setApproveButtonText("Save");
+    fileSelector.setMultiSelectionEnabled(false);
+    fileSelector.setSelectedFile(new File(defaultName + fileExtension));
+    int retVal = fileSelector.showOpenDialog(graphSetupFrame.getFrame());
+    if (retVal == JFileChooser.APPROVE_OPTION) {
+      File file = fileSelector.getSelectedFile();
+      String basename = file.getAbsolutePath();
+      
+      // get the base name without extension so we can create matching json and png files
+      int offset = basename.lastIndexOf('.');
+      if (offset > 0) {
+        basename = basename.substring(0, offset);
+      }
+
+      // remove any pre-existing file and convert method list to appropriate file
+      File pngFile = new File(basename + fileExtension);
+      pngFile.delete();
+      bytecodeGraph.saveAsImageFile(pngFile);
     }
   }
   
@@ -1689,8 +1750,14 @@ public final class LauncherMain {
     }
     
     // clear out the symbolic parameter list and the history list for bytecode viewer
+    // as well as the bytecode data, byteflow graph, solutions and debug/call graph info.
     symbolTbl.clear();
+    localVarTbl.clear("");
+    solutionTbl.clear();
     bytecodeHistory.clear();
+    bytecodeViewer.clear();
+    bytecodeGraph.clear();
+    clearDebugLogger();
 
     String content = initDanfigInfo();
     
@@ -1699,11 +1766,19 @@ public final class LauncherMain {
       readSymbolicList(content);
     }
   
+    String localpath = "*";
+    if (new File(projectPathName + "lib").isDirectory()) {
+      localpath += ":lib/*";
+    }
+    if (new File(projectPathName + "libs").isDirectory()) {
+      localpath += ":libs/*";
+    }
+
     String mainclass = "danalyzer.instrumenter.Instrumenter";
     String classpath = DSEPATH + "danalyzer/dist/danalyzer.jar";
     classpath += ":" + DSEPATH + "danalyzer/lib/commons-io-2.5.jar";
     classpath += ":" + DSEPATH + "danalyzer/lib/asm-all-5.2.jar";
-    classpath += ":/*:/lib/*";
+    classpath += ":" + localpath;
 
     // remove any existing class and javap files in the location of the jar file
     try {
@@ -1777,16 +1852,13 @@ public final class LauncherMain {
         
     // setup access to the network listener thread
     startDebugPort(projectPathName);
-        
-    // reset the soultion list
-    solutionTbl.clear();
     return 0;
   }
 
   private void runTest(String arglist) {
     printStatusClear();
 
-    String instrJarFile = projectName.substring(0, projectName.indexOf(".")) + "-dan-ed.jar";
+    String instrJarFile = projectName.substring(0, projectName.lastIndexOf(".")) + "-dan-ed.jar";
     
     // verify all the required files exist
     if (!fileCheck(projectPathName + instrJarFile) ||
@@ -1808,10 +1880,10 @@ public final class LauncherMain {
 
     // build up the command to run
     String localpath = "*";
-    if (new File("lib").isDirectory()) {
+    if (new File(projectPathName + "lib").isDirectory()) {
       localpath += ":lib/*";
     }
-    if (new File("libs").isDirectory()) {
+    if (new File(projectPathName + "libs").isDirectory()) {
       localpath += ":libs/*";
     }
     String mongolib = DSEPATH + "danalyzer/lib/mongodb-driver-core-3.8.2.jar"
@@ -1838,11 +1910,21 @@ public final class LauncherMain {
     printStatusMessage("Run command started...");
     
     // run the instrumented jar file
-    String[] command = { "java", options, bootlpath, bootcpath, agentpath, "-cp", classpath, mainclass, arglist };
+    String[] argarray = arglist.split("\\s+"); // need to seperate arg list into seperate entries
+    String[] command = { "java", options, bootlpath, bootcpath, agentpath, "-cp", classpath, mainclass };
+    ArrayList<String> cmdlist = new ArrayList(Arrays.asList(command));
+    cmdlist.addAll(Arrays.asList(argarray));
+    String[] fullcmd = new String[cmdlist.size()];
+    fullcmd = cmdlist.toArray(fullcmd);
 
+    runMode = true;
     threadLauncher.init(new ThreadTermination());
-    threadLauncher.launch(command, projectPathName, "run_" + projectName, null);
+    threadLauncher.launch(fullcmd, projectPathName, "run_" + projectName, null);
 
+    // disable the Run and Get Bytecode buttons until the code has terminated
+    mainFrame.getButton("BTN_RUNTEST").setEnabled(false);
+    mainFrame.getButton("BTN_BYTECODE").setEnabled(false);
+    
     // allow user to terminate the test
     mainFrame.getButton("BTN_STOPTEST").setEnabled(true);
   }
@@ -1852,6 +1934,7 @@ public final class LauncherMain {
     if (bytecodeViewer.isValidBytecode()) {
       printStatusMessage("Successfully generated bytecode for method");
       bytecodeGraph.drawGraphNormal();
+      getMenuItem("MENU_SAVE_BCODE").setEnabled(bytecodeGraph.isValid());
     } else {
       printStatusMessage("Generated class bytecode, but method not found");
     }
@@ -2127,8 +2210,11 @@ public final class LauncherMain {
           break;
       }
       
-      // disable stop key
+      // disable stop key abd re-enable the Run and Get Bytecode buttons
+      runMode = false;
       mainFrame.getButton("BTN_STOPTEST").setEnabled(false);
+      mainFrame.getButton("BTN_RUNTEST").setEnabled(true);
+      mainFrame.getButton("BTN_BYTECODE").setEnabled(true);
     }
   }
         
@@ -2151,7 +2237,10 @@ public final class LauncherMain {
       if (udpThread != null) {
         String message = udpThread.getNextMessage();
         if (message != null) {
-          debugLogger.processMessage(message);
+          int methodCount = debugLogger.processMessage(message);
+          // enable/disable Call Graph save buttons based on whether there is anything to save
+          getMenuItem("MENU_SAVE_PNG").setEnabled(methodCount > 0);
+          getMenuItem("MENU_SAVE_JSON").setEnabled(methodCount > 0);
           
           // update the thread count display
           int threads = debugLogger.getThreadCount();

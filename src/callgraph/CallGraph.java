@@ -280,8 +280,8 @@ public class CallGraph {
     CallGraph.numEdges = 0;
     CallGraph.threadSel = 0;
 
-    if (CallGraph.graphPanel != null) {
-      CallGraph.graphPanel.removeAll();
+    if (graphPanel != null) {
+      graphPanel.removeAll();
       Graphics graphics = graphPanel.getGraphics();
       if (graphics != null) {
         graphPanel.update(graphics);
@@ -355,7 +355,7 @@ public class CallGraph {
     boolean updated = false;
 
     // exit if the graphics panel has not been established
-    if (CallGraph.graphPanel == null) {
+    if (graphPanel == null) {
       return false;
     }
     
@@ -382,7 +382,7 @@ public class CallGraph {
             displaySelectedMethodInfo(e.getX(), e.getY());
           }
         });
-        CallGraph.graphPanel.add(graphComponent);
+        graphPanel.add(graphComponent);
       }
 
       int tid = ALL_THREADS;
@@ -483,11 +483,10 @@ public class CallGraph {
   }
   
   public static void saveAsImageFile(File file) {
-    BufferedImage bi = new BufferedImage(CallGraph.graphPanel.getSize().width,
-      CallGraph.graphPanel.getSize().height, BufferedImage.TYPE_INT_ARGB); 
+    BufferedImage bi = new BufferedImage(graphPanel.getSize().width,
+      graphPanel.getSize().height, BufferedImage.TYPE_INT_ARGB); 
     Graphics graphics = bi.createGraphics();
-//    Graphics graphics = graphPanel.getGraphics();
-    CallGraph.graphPanel.paint(graphics);
+    graphPanel.paint(graphics);
     graphics.dispose();
     try {
       ImageIO.write(bi,"png",file);

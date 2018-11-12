@@ -88,6 +88,14 @@ public class BytecodeViewer {
     panel.addKeyListener(new BytecodeKeyListener());
 }
   
+  public void clear() {
+    logger.clear();
+    methodLoaded = "";
+    boff2Line.clear();
+    parseMode = ParseMode.NONE;
+    valid = false;
+  }
+  
   public JTextPane getTextPane() {
     return panel;
   }
@@ -735,6 +743,7 @@ public class BytecodeViewer {
       boolean bIsInstr = false;
       String callMethod = "";
       if (optype == OpcodeType.INVOKE) {
+        param = ""; // clear out the param value, since it is too long to display
         offset = comment.indexOf("Method ");
         if (offset > 0) {
           callMethod = comment.substring(offset + "Method ".length()).trim();
