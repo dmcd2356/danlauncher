@@ -45,6 +45,14 @@ public class ParamTable {
   private static String   methodname;
 
   
+  public static class LocalParamInfo {
+    String  name;
+    String  type;
+    int     slot;
+    int     start;
+    int     end;
+  }
+    
   private static class TableListInfo {
     String  name;
     String  type;
@@ -138,6 +146,27 @@ public class ParamTable {
     TableListInfo entry = new TableListInfo(name, type, slot, start, end);
     paramList.add(entry);
     tableSortAndDisplay();
+  }
+  
+  public static LocalParamInfo getParam(int slot, int offset) {
+    for (TableListInfo entry : paramList) {
+      if (entry.slot.equals(slot + "")) {
+        try {
+          Integer start = Integer.parseUnsignedInt(entry.start);
+          Integer end = Integer.parseUnsignedInt(entry.end);
+          if (start <= offset & offset <= end) {
+            LocalParamInfo retval = new LocalParamInfo();
+            retval.name = entry.name;
+            retval.type = entry.type;
+            retval.start = start;
+            retval.end   = end;
+            retval.slot  = slot;
+            return retval;
+          }
+        } catch (NumberFormatException ex) { }
+      }
+    }
+    return null;
   }
   
   private String getColumnName(int col) {

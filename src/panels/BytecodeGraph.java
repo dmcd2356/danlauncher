@@ -362,6 +362,8 @@ public class BytecodeGraph {
           // there is no branch from here
           break;
 
+        case LOAD:
+        case STORE:
         case OTHER:
           type = FlowType.Block;
           color = BlockColor.NONE;

@@ -13,6 +13,7 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.HashMap;
+import javax.swing.JOptionPane;
 import javax.swing.JTextPane;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.DefaultHighlighter;
@@ -28,7 +29,7 @@ import util.Utils;
  *
  * @author dan
  */
-public class BytecodeViewer {
+public final class BytecodeViewer {
   
   // these are the bitmask values for highlighting types
   private static final int HIGHLIGHT_CURSOR = 0x0001;
@@ -38,15 +39,19 @@ public class BytecodeViewer {
   // This is how the switch opcode branch data gets saved in the comment
   private static final String SWITCH_DELIMITER = "//-- { ";
 
+  // the number of lines that are placed in the bytecode text pane prior to the bytecode info
+  // (this is used for converting from the user selected line number to the bytecode index value)
+  private static final int LINES_PRECEEDING_BYTECODE = 2;
+  
   // types of messages
-  private static enum MsgType { ERROR, METHOD, TEXT, PARAM, COMMENT, SYMBRA, BRANCH,
-                                SWITCH, GOTO,  INVOKE, RETURN, LOAD, STORE, OTHER }
+  private static enum MsgType { ERROR, METHOD, TEXT, PARAM, COMMENT,
+                                SYMBRA, BRANCH, SWITCH, GOTO,  INVOKE, RETURN, LOAD, STORE, OTHER }
   
   // states for parseJavap
   private static enum ParseMode { NONE, CLASS, METHOD, DESCRIPTION, OPCODE, OPSWITCH, LINENUM_TBL, LOCALVAR_TBL, EXCEPTION_TBL }
   
   // types of opcode instructions that we handle
-  public static enum OpcodeType { SYMBRA, BRANCH, SWITCH, GOTO, INVOKE, RETURN, OTHER }
+  public static enum OpcodeType { SYMBRA, BRANCH, SWITCH, GOTO, INVOKE, RETURN, LOAD, STORE, OTHER }
   
   private static JTextPane       panel;
   private static Logger          logger;
@@ -77,7 +82,6 @@ public class BytecodeViewer {
     FontInfo.setTypeColor (fontmap, MsgType.GOTO.toString(),    TextColor.Black,  FontType.Normal, 14, fonttype);
     FontInfo.setTypeColor (fontmap, MsgType.RETURN.toString(),  TextColor.Black,  FontType.Normal, 14, fonttype);
     FontInfo.setTypeColor (fontmap, MsgType.OTHER.toString(),   TextColor.Black,  FontType.Normal, 14, fonttype);
-    valid = false;
     
     // create the text panel and assign it to the logger
     panel = new JTextPane();
@@ -86,14 +90,19 @@ public class BytecodeViewer {
     // add mouse & key listeners for the bytecode viewer
     panel.addMouseListener(new BytecodeMouseListener());
     panel.addKeyListener(new BytecodeKeyListener());
+    
+    clear();
 }
   
   public void clear() {
-    logger.clear();
-    methodLoaded = "";
-    boff2Line.clear();
     parseMode = ParseMode.NONE;
+    methodLoaded = "";
     valid = false;
+
+    logger.clear();
+    boff2Line.clear();
+    bytecode.clear();
+    exceptions.clear();
   }
   
   public JTextPane getTextPane() {
@@ -195,10 +204,6 @@ public class BytecodeViewer {
     classSelect = classSelect.replace("/", ".");
     int lastoffset = -1;
     int curLine = 0;
-    parseMode = ParseMode.NONE;
-    
-    // clear out exception list
-    exceptions = new HashMap<>();
     
     // check if method is already loaded
     if (methodLoaded.equals(classSelect + "." + methodSelect) && !bytecode.isEmpty()) {
@@ -210,18 +215,15 @@ public class BytecodeViewer {
     }
 
     // else we need to start with a clean slate
-    valid = false;
+    clear();
     int offset = methodSelect.indexOf("(");
     String signature = methodSelect.substring(offset);
     methodSelect = methodSelect.substring(0, offset);
     String clsCurrent = classSelect; // the default if no class specified
-    methodLoaded = "";
     int linesRead = 0;
     String switchInProcess = "";
     int switchOffset = 0;
-    logger.clear();
-    bytecode = new ArrayList<>();
-    boff2Line = new HashMap<>();
+    boolean bStatic = false;
 
     String[] lines = content.split(Utils.NEWLINE);
     for (String entry : lines) {
@@ -238,6 +240,10 @@ public class BytecodeViewer {
         entry = entry.substring(entry.indexOf(" ") + 1).trim();
       }
       if (entry.startsWith("static ")) {
+        entry = entry.substring(entry.indexOf(" ") + 1).trim();
+        bStatic = true;
+      }
+      if (entry.startsWith("final ")) {
         entry = entry.substring(entry.indexOf(" ") + 1).trim();
       }
 
@@ -402,7 +408,6 @@ public class BytecodeViewer {
           }
           break; // else, we probably completed the opcodes, so check for next method definition
         case OPSWITCH:
-          // VERY KLUDGY, LET'S CLEAN THIS UP!
           // to eliminate having multi-line opcodes "tableswitch" and lookupswitch" we're going to
           // check if we are decoding the specified method and have found the start of one of these.
           // if so, we keep reading input and removing the NEWLINEs until we reach the end.
@@ -444,38 +449,48 @@ public class BytecodeViewer {
         continue;
       }
 
-      // now remove the argument list, so the string will end with the method name
-      // and eliminate any words preceeding it, so we just have the method name.
-      String methName = entry.substring(0, offset);
-      offset = methName.lastIndexOf(" ");
-      if (offset > 0) {
-        methName = methName.substring(offset + 1);
+      // now remove the argument list, so the string will end with the method name and
+      // seperate the remaining words. This should consist of one of the forllowing formats:
+      // <className>                      - <init> method for specified class
+      // <retType> <methName>             - class is inferred from last Class: definition
+      // <className> <methName>           - static class is not same as last Class: definition
+      // <retType> <className> <methName> - class is not same as last Class: definition
+      entry = entry.substring(0, offset);
+      String[] words = entry.split(" ");
+      String clsName = "";
+      String methName = "";
+      switch (words.length) {
+        case 1: // <init> method for specified class
+          clsName = words[0].trim();
+          methName = "<init>";
+          break;
+        case 2: // a method from the given class
+          clsName = words[0].trim(); // assume the 1st word is the class
+          if (!classSelect.equals(clsName)) {
+            clsName = clsCurrent;   // if it isn't, try the last Class definitionn
+          }
+          methName = words[1].trim();
+          break;
+        case 3: // a method for an inner class
+          clsName = words[1].trim();
+          methName = words[2].trim();
+          break;
+        default:
+          System.err.println("invalid list for method: " + entry);
+          break;
       }
-      
-      if (methName.isEmpty()) {
-        continue; // method name not found - I guess we were wrong about this being method
-      }
+      LauncherMain.printCommandMessage("Line: " + curLine + " Type: " + words.length +
+              " - Method: " + clsName + "." + methName);
 
       // entry has paranthesis, must be a method name
       parseMode = ParseMode.METHOD;
           
-      // seperate the name into class and method names
-      String clsName = clsCurrent; // if no class specified, use the current class definition
-      if (methName.equals(clsName)) { // the <init> method will have no method name, just a class
-        methName = "<init>";
-      }
-      offset = methName.lastIndexOf(".");
-      if (offset > 0) {
-        clsName = methName.substring(0, offset);
-        methName = methName.substring(offset + 1);
-      }
-      
       // method entry found, let's see if it's the one we want
-      LauncherMain.printCommandMessage("Line: " + curLine + " - Method: " + clsName + "." + methName);
       if (methodSelect.equals(methName) && classSelect.equals(clsName)) {
         methodLoaded = classSelect + "." + methodSelect + signature;
         LauncherMain.printCommandMessage("Line: " + curLine + " - Method match");
       } else if (valid) {
+        // exit parsing when we hit the method following the correct one
         break;
       }
     }
@@ -518,7 +533,6 @@ public class BytecodeViewer {
     // determine the opcode type
     OpcodeType type = OpcodeType.OTHER; // the default type
     switch (opcode.toUpperCase()) {
-      // Symbollic branches (these branch instructions check for symbolic values)
       case "IF_ICMPEQ":
       case "IF_ICMPNE":
       case "IF_ICMPGT":
@@ -531,40 +545,113 @@ public class BytecodeViewer {
       case "IFLE":
       case "IFLT":
       case "IFGE":
-        type = OpcodeType.SYMBRA;
+        // NOTE: these branch instructions check for symbolic values
+        type = OpcodeType.SYMBRA; // Symbollic branches
         break;
-      // Other branches (do NOT check for symbolic types)
+      
       case "IF_ACMPEQ":
       case "IF_ACMPNE":
       case "IFNULL":
       case "IFNONNULL":
-        type = OpcodeType.BRANCH;
+        // NOTE: these do NOT check for symbolic types
+        type = OpcodeType.BRANCH; // Other branches
         break;
-      // switch instructions that may take several different paths (do NOT check for symbolic types)
+      
       case "TABLESWITCH":
       case "LOOKUPSWITCH":
-        type = OpcodeType.SWITCH;
+        // NOTE: these do NOT check for symbolic types
+        type = OpcodeType.SWITCH; // switch instructions that may take several different paths
         break;
-      // a simple non-conditional redirect to another byte offset
+      
       case "GOTO":
-        type = OpcodeType.GOTO;
+        type = OpcodeType.GOTO; // a simple non-conditional redirect to another byte offset
         break;
-      // method calls
+      
       case "INVOKESTATIC":
       case "INVOKEVIRTUAL":
       case "INVOKESPECIAL":
       case "INVOKEINTERFACE":
       case "INVOKEDYNAMIC":
-        type = OpcodeType.INVOKE;
+        type = OpcodeType.INVOKE; // method calls
         break;
-      // return to previous stack frame
+      
+      case "ALOAD":
+      case "ALOAD_0":
+      case "ALOAD_1":
+      case "ALOAD_2":
+      case "ALOAD_3":
+      case "ILOAD":
+      case "ILOAD_0":
+      case "ILOAD_1":
+      case "ILOAD_2":
+      case "ILOAD_3":
+      case "LLOAD":
+      case "LLOAD_0":
+      case "LLOAD_1":
+      case "LLOAD_2":
+      case "LLOAD_3":
+      case "FLOAD":
+      case "FLOAD_0":
+      case "FLOAD_1":
+      case "FLOAD_2":
+      case "FLOAD_3":
+      case "DLOAD":
+      case "DLOAD_0":
+      case "DLOAD_1":
+      case "DLOAD_2":
+      case "DLOAD_3":
+//      case "AALOAD:"
+//      case "CALOAD:"
+//      case "SALOAD:"
+//      case "IALOAD:"
+//      case "LALOAD:"
+//      case "FALOAD:"
+//      case "DALOAD:"
+        type = OpcodeType.LOAD; // load local parameter
+        break;
+      
+      case "ASTORE":
+      case "ASTORE_0":
+      case "ASTORE_1":
+      case "ASTORE_2":
+      case "ASTORE_3":
+      case "ISTORE":
+      case "ISTORE_0":
+      case "ISTORE_1":
+      case "ISTORE_2":
+      case "ISTORE_3":
+      case "LSTORE":
+      case "LSTORE_0":
+      case "LSTORE_1":
+      case "LSTORE_2":
+      case "LSTORE_3":
+      case "FSTORE":
+      case "FSTORE_0":
+      case "FSTORE_1":
+      case "FSTORE_2":
+      case "FSTORE_3":
+      case "DSTORE":
+      case "DSTORE_0":
+      case "DSTORE_1":
+      case "DSTORE_2":
+      case "DSTORE_3":
+//      case "AASTORE:"
+//      case "CASTORE:"
+//      case "SASTORE:"
+//      case "IASTORE:"
+//      case "LASTORE:"
+//      case "FASTORE:"
+//      case "DASTORE:"
+        type = OpcodeType.STORE; // store local parameter
+        break;
+      
       case "IRETURN":
       case "LRETURN":
       case "FRETURN":
       case "DRETURN":
       case "ARETURN":
       case "RETURN":
-        type = OpcodeType.RETURN;
+        type = OpcodeType.RETURN; // return to previous stack frame
         break;
       default:
         break;
@@ -778,9 +865,6 @@ public class BytecodeViewer {
       bc.mark     = 0;
       bc.callMeth = callMethod;
 
-      // now make a reference of the byte offset to the line number
-      boff2Line.put(boffset, lineCount);
-      
       // for switch statements, let's gather up the conditions and the corresponding branch locations
       bc.switchinfo = new HashMap<>();
       String[] entries = switchList.split(",");
@@ -793,6 +877,10 @@ public class BytecodeViewer {
           bc.switchinfo.put(key, branchpt);
         }
       }
+
+      // now make a reference of the byte offset to the line number and from the line number
+      // to the bytecode array index, then add the entry to the array
+      boff2Line.put(boffset, lineCount);
       bytecode.add(bc);
     }
   }
@@ -830,21 +918,83 @@ public class BytecodeViewer {
       // set caret to the mouse location and get the caret position (char offset within text)
       panel.setCaretPosition(panel.viewToModel(evt.getPoint()));
       int curpos = panel.getCaretPosition();
+      System.out.println("cursor = " + curpos);
       
       // now determine line number and offset within the line for the caret
       int line = 0;
       int offset = 0;
+      int curoffset = curpos;
       for (int ix = 0; ix < curpos; ix++) {
         if (contents.charAt(ix) == '\n' || contents.charAt(ix) == '\r') {
           ++line;
           offset = ix;
+          curoffset -= offset;
         }
       }
-      int curoffset = curpos - offset - 1;
-      //System.out.println("cursor = " + curpos + ", line " + line + ", offset " + curoffset);
+      // cursor position within line = curoffset - 1;
       
       // highlight the current line selection
       highlightCursorPosition(curpos);
+
+      line -= LINES_PRECEEDING_BYTECODE; // subtract off the lines preceeding the bytecode info
+      if (line >= 0) {
+        BytecodeInfo bc = bytecode.get(line);
+        System.out.println("line " + line + " Opcode: " + bc.opcode + ", type = " + bc.optype.toString());
+        if (bc.optype == OpcodeType.LOAD || bc.optype == OpcodeType.STORE) {
+          // user selected a line containing a load/store to a local parameter.
+          // First, determine which parameter is selected
+          int paramNum;
+          int index = bc.opcode.indexOf("_");
+          if (index > 0) {
+            paramNum = Integer.parseUnsignedInt(bc.opcode.substring(index + 1)); // should be an integer
+          } else {
+            // shucks, now we have to look at value of prev opcode that was pushed onto stack
+            // to determine the parameter index.
+            // NOTE: we make the assumption that the compiler isn't doing anything tricky on the
+            // stack and that we can rely on the last ICONST opcode was used to set this value
+            // immediately before this instruction.
+            // TODO
+            return;
+          }
+          // Next, attempt to find it in the local arg list
+          ParamTable.LocalParamInfo entry = ParamTable.getParam(paramNum, bc.offset);
+          if (entry == null) {
+            // not found - use default values (user can change them in SymbolTbl)
+            entry = new ParamTable.LocalParamInfo();
+            entry.name = "";
+            entry.type = "";
+            entry.start = 0;
+            entry.end = 0;
+            entry.slot = paramNum;
+          }
+
+          // Then, ask user if we wants to add this parameter to the symbolic parameter list.
+          String[] selection = {"Yes", "No" };
+          int which = JOptionPane.showOptionDialog(null,
+            "Do you wish to add" + Utils.NEWLINE + Utils.NEWLINE +
+            "Method: " + methodLoaded + Utils.NEWLINE +
+            "Param : " + paramNum + Utils.NEWLINE +
+            "Name  : " + entry.name + Utils.NEWLINE +
+            "Type  : " + entry.type + Utils.NEWLINE +
+            "Start : " + entry.start + Utils.NEWLINE +
+            "End   : " + entry.end + Utils.NEWLINE + Utils.NEWLINE +
+            "to the symbolic parameter list?",
+            "Add symbolic parameter", // title of pane
+            JOptionPane.YES_NO_CANCEL_OPTION, // DEFAULT_OPTION,
+            JOptionPane.QUESTION_MESSAGE, // PLAIN_MESSAGE
+            null, // icon
+            selection, selection[1]);
+
+          if (which >= 0 && selection[which].equals("Yes")) {
+            // add the entry to the current param list
+            LauncherMain.addSymbVariable(methodLoaded, entry.name, entry.type,
+                paramNum + "", entry.start + "", entry.end + "");
+            
+            // now update the danfig file
+            LauncherMain.updateDanfigFile();
+          }
+        }
+      }
     }
   }
   

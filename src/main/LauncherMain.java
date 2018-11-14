@@ -292,6 +292,24 @@ public final class LauncherMain {
     graphSetupFrame.getButton("BTN_TH_DN").setEnabled(enabled);
   }
   
+  public static void printStatusClear() {
+    mainFrame.getTextField("TXT_MESSAGES").setText("                   ");
+  }
+  
+  public static void printStatusMessage(String message) {
+    mainFrame.getTextField("TXT_MESSAGES").setText(message);
+      
+    // echo status to command output window
+    printCommandError(message);
+  }
+  
+  public static void printStatusError(String message) {
+    mainFrame.getTextField("TXT_MESSAGES").setText("ERROR: " + message);
+      
+    // echo status to command output window
+    printCommandError(message);
+  }
+  
   public static void printCommandMessage(String message) {
     commandLogger.printLine(message);
   }
@@ -326,6 +344,18 @@ public final class LauncherMain {
 
   public static void addSymbVariable(String meth, String name, String type, String slot, String start, String end) {
     symbolTbl.addEntry(meth, name, type, slot, start, end);
+  }
+
+  public static void updateDanfigFile() {
+    // init the background stuff
+    String content = initDanfigInfo();
+    
+    // now add in the latest and greatest symbolic defs
+    content += "Symbolic: " + symbolTbl.getSymbolicList();
+
+    // now save to the file
+    Utils.saveTextFile(projectPathName + "danfig", content);
+    printStatusMessage("Updated danfig file: " + symbolTbl.getSize() + " symbolic entries");
   }
 
   public static void setBytecodeSelections(String classSelect, String methodSelect) {
@@ -602,15 +632,7 @@ public final class LauncherMain {
   private class Action_UpdateDanfigFile implements ActionListener {
     @Override
     public void actionPerformed(java.awt.event.ActionEvent evt) {
-      // init the background stuff
-      String content = initDanfigInfo();
-    
-      // now add in the latest and greatest symbolic defs
-      content += symbolTbl.getSymbolicList();
-
-      // now save to the file
-      Utils.saveTextFile(projectPathName + "danfig", content);
-      printStatusMessage("Updated danfig file");
+      updateDanfigFile();
     }
   }
   
@@ -1119,15 +1141,7 @@ public final class LauncherMain {
         selection, selection[1]);
 
       if (which >= 0 && selection[which].equals("Yes")) {
-        // init the background stuff
-        String content = initDanfigInfo();
-    
-        // now add in the latest and greatest symbolic defs
-        content += symbolTbl.getSymbolicList();
-
-        // now save to the file
-        Utils.saveTextFile(projectPathName + "danfig", content);
-        printStatusMessage("Updated danfig file");
+        updateDanfigFile();
       }
     }
   }
@@ -1222,28 +1236,6 @@ public final class LauncherMain {
 
     JTabbedPane tabPanel = mainFrame.getTabbedPanel("PNL_TABBED");
     tabPanel.setSelectedIndex(index);
-  }
-  
-  private Logger createTextLogger(PanelTabs tabname, HashMap<String, FontInfo> fontmap) {
-    return new Logger(new JTextArea(), tabname.toString(), fontmap);
-  }
-  
-  private static void printStatusClear() {
-    mainFrame.getTextField("TXT_MESSAGES").setText("                   ");
-  }
-  
-  private static void printStatusMessage(String message) {
-    mainFrame.getTextField("TXT_MESSAGES").setText(message);
-      
-    // echo status to command output window
-    printCommandError(message);
-  }
-  
-  private static void printStatusError(String message) {
-    mainFrame.getTextField("TXT_MESSAGES").setText("ERROR: " + message);
-      
-    // echo status to command output window
-    printCommandError(message);
   }
   
   private void enableControlSelections(boolean enable) {
@@ -2124,16 +2116,41 @@ public final class LauncherMain {
             makeBackup = false;
           } else if (line.startsWith("Symbolic:")) {
             String word[] = line.substring("Symbolic:".length()).trim().split(",");
-            if (word.length < 2) {
-              printCommandError("ERROR: invalid symbolic definition - " + line);
-              return;
+            String method, index, start, end, name, type;
+            switch(word.length) {
+              case 2: // index, method
+                index  = word[0].trim();
+                method = word[1].trim().replace(".","/");
+                start  = "0";
+                end    = "0"; // this will default to entire method range
+                name   = "";
+                type   = "";
+                break;
+              case 4: // index, method, start offset, end offset
+                index  = word[0].trim();
+                method = word[1].trim().replace(".","/");
+                start  = word[2].trim();
+                end    = word[3].trim();
+                name   = "";
+                type   = "";
+                break;
+              case 6: // index, method, start offset, end offset, name type
+                index  = word[0].trim();
+                method = word[1].trim().replace(".","/");
+                start  = word[2].trim();
+                end    = word[3].trim();
+                name   = word[4].trim();
+                type   = word[5].trim();
+                break;
+              default:
+                printCommandError("ERROR: invalid symbolic definition - " + line);
+                return;
             }
-            String symname = word[1].trim() + "_" + word[0].trim().replace(".","/");
-            addSymbVariable(word[0].trim().replace(".","/"), "---", "---", word[1].trim(), "0", "0");
-            printCommandMessage(" - " + symname);
+            addSymbVariable(method, name, type, index, start, end);
+            printCommandMessage(" - " + index + "_" + method);
 
             // add entry to list 
-            dbtable.addSymbolic(symname);
+            dbtable.addSymbolic(index + "_" + method);
           } else if (!line.startsWith("Constraint:")) {
             line = "";
             if (!line.startsWith("#")) {
@@ -2152,7 +2169,7 @@ public final class LauncherMain {
 
     // if a change is needed, rename the old file and write the modified file back
     if (needChange) {
-      printCommandMessage("Updating danfig file");
+      printCommandMessage("Updating danfig file: " + symbolTbl.getSize() + " symbolics added");
       
       // backup current file if it was not one we made just for danlauncher
       if (makeBackup) {

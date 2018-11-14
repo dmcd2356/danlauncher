@@ -25,6 +25,7 @@ import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
 import javax.swing.table.TableCellRenderer;
 import javax.swing.table.TableColumnModel;
+import main.LauncherMain;
 import util.Utils;
 
 /**
@@ -46,6 +47,7 @@ public class SymbolTable {
   private static int      rowSelection;
   private static JTable   table;
   private static ArrayList<TableListInfo> paramList = new ArrayList<>();
+  private static ArrayList<String> paramNameList = new ArrayList<>();
 
   
   private static class TableListInfo {
@@ -131,23 +133,47 @@ public class SymbolTable {
     
   public void clear() {
     paramList.clear();
+    paramNameList.clear();
     DefaultTableModel model = (DefaultTableModel) table.getModel();
     model.setRowCount(0); // this clears all the entries from the table
+  }
+  
+  public int getSize() {
+    return paramList.size();
   }
   
   public void exit() {
   }
   
   public void addEntry(String meth, String name, String type, String slot, String start, String end) {
+    // if no name given, pick a default one
+    if (name == null || name.isEmpty()) {
+      name = "P_0";
+    }
+    
+    // name must be unique. if not, make it so
+    if (paramNameList.contains(name)) {
+      if (name.endsWith("_0")) {
+        name = name.substring(0, name.lastIndexOf("_0"));
+      }
+      String newname = name;
+      for (int index = 0; paramNameList.contains(newname); index++) {
+        newname = name + "_" + index;
+      }
+      name = newname;
+    }
+    
     TableListInfo entry = new TableListInfo(meth, name, type, slot, start, end);
     paramList.add(entry);
+    paramNameList.add(name);
     tableSortAndDisplay();
   }
   
   public String getSymbolicList() {
     String content = "";
     for (TableListInfo entry : paramList) {
-      content += entry.slot + ", " + entry.method + ", " + entry.start + ", " + entry.end + Utils.NEWLINE;
+      content += entry.slot + ", " + entry.method + ", " + entry.start + ", " + entry.end +
+           ", " + entry.name + ", " + entry.type + Utils.NEWLINE;
     }
     return content;
   }
@@ -274,27 +300,86 @@ public class SymbolTable {
    */
   private void tableMouseClicked(java.awt.event.MouseEvent evt) {                                            
     int row = table.rowAtPoint(evt.getPoint());
-    //int col = table.columnAtPoint(evt.getPoint());
-    //String colname = getColumnName(col);
-    // no column-specific actions here - the user is simply selecting a row for deletion
+    int col = table.columnAtPoint(evt.getPoint());
+    String colname = getColumnName(col);
 
-    // ask user if he wants to remove the variable from the symbolic list
-    String[] selection = {"Remove All", "Yes", "No" };
-    int which = JOptionPane.showOptionDialog(null,
-      "Remove entry from list?",
-      "Remove entry", // title of pane
-      JOptionPane.YES_NO_CANCEL_OPTION, // DEFAULT_OPTION,
-      JOptionPane.QUESTION_MESSAGE, // PLAIN_MESSAGE
-      null, // icon
-      selection, selection[1]);
+    if (colname.equals("Method") || colname.equals("Slot")) {
+      // ask user if he wants to remove the variable from the symbolic list
+      // (also allow him to remove them all in one fell swoop.)
+      String[] selection = {"Remove All", "Yes", "No" };
+      int which = JOptionPane.showOptionDialog(null,
+        "Remove entry from list?",
+        "Remove entry", // title of pane
+        JOptionPane.YES_NO_CANCEL_OPTION, // DEFAULT_OPTION,
+        JOptionPane.QUESTION_MESSAGE, // PLAIN_MESSAGE
+        null, // icon
+        selection, selection[1]);
 
-    if (which >= 0 && !selection[which].equals("No")) {
-      if (selection[which].equals("Yes")) {
-        // remove selected symbolic parameter
-        paramList.remove(row);
-      } else {
-        // remove all symbolic parameters
-        paramList.clear();
+      if (which >= 0 && !selection[which].equals("No")) {
+        if (selection[which].equals("Yes")) {
+          // remove selected symbolic parameter
+          String name = paramList.get(row).name;
+          paramList.remove(row);
+          paramNameList.remove(name);
+        } else {
+          // remove all symbolic parameters
+          paramList.clear();
+          paramNameList.clear();
+        }
+      
+        // update table display
+        tableSortAndDisplay();
+      }
+    } else {
+      // allow the user to modify the conditions of the symbolic parameter
+      String result;
+      TableListInfo entry;
+      switch (colname) {
+        default:
+        case "Name":
+          result = JOptionPane.showInputDialog(null, "Enter name to identify parameter:");
+          entry = paramList.get(row);
+          if (paramNameList.contains(result)) {
+            LauncherMain.printStatusError("Symbolic name is already used: " + result);
+          } else if (result.equals(entry.name)) {
+            LauncherMain.printStatusMessage("Symbolic name not changed");
+          } else {
+            paramNameList.remove(entry.name);
+            entry.name = result;
+            paramNameList.add(entry.name);
+            tableSortAndDisplay();
+          }
+          break;
+        case "Type":
+          result = JOptionPane.showInputDialog(null, "Enter parameter type:");
+          entry = paramList.get(row);
+          entry.type = result;
+          tableSortAndDisplay();
+          break;
+        case "Start":
+          result = JOptionPane.showInputDialog(null, "Enter start offset range in method:");
+          entry = paramList.get(row);
+          try {
+            int value = Integer.parseUnsignedInt(result);
+          } catch (NumberFormatException ex) {
+            LauncherMain.printStatusError("Invalid start offset for symbolic: " + result);
+            return;
+          }
+          entry.start = result;
+          tableSortAndDisplay();
+          break;
+        case "End":
+          result = JOptionPane.showInputDialog(null, "Enter end offset range in method:");
+          entry = paramList.get(row);
+          try {
+            int value = Integer.parseUnsignedInt(result);
+          } catch (NumberFormatException ex) {
+            LauncherMain.printStatusError("Invalid end offset for symbolic: " + result);
+            return;
+          }
+          entry.end = result;
+          tableSortAndDisplay();
+          break;
       }
     }
   }                                           
