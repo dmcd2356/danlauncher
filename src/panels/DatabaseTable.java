@@ -204,10 +204,10 @@ public class DatabaseTable {
         // String type = (String) solutions.get("type");
         String paramName = (String) solutions.get("name");
         String value = (String) solutions.get("value");
-        if (SYMBOLIC_PARAMS.contains(paramName)) {
-          paramName = "P" + SYMBOLIC_PARAMS.lastIndexOf(paramName);
-          solution = paramName + " = " + value;
-        }
+//        if (SYMBOLIC_PARAMS.contains(paramName)) {
+//          paramName = "P" + SYMBOLIC_PARAMS.lastIndexOf(paramName);
+//        }
+        solution = paramName + " = " + value;
       }
 
       DatabaseInfo entry = new DatabaseInfo(doc.getObjectId("_id").toHexString(),

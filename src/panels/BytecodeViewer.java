@@ -986,9 +986,13 @@ public final class BytecodeViewer {
             selection, selection[1]);
 
           if (which >= 0 && selection[which].equals("Yes")) {
+            // get the corresponding opcode line offset values for the given byte offsets
+            int opstrt = byteOffsetToLineNumber(entry.start);
+            int oplast = byteOffsetToLineNumber(entry.end);
+            
             // add the entry to the current param list
             LauncherMain.addSymbVariable(methodLoaded, entry.name, entry.type,
-                paramNum + "", entry.start + "", entry.end + "");
+                paramNum + "", entry.start + "", entry.end + "", opstrt, oplast);
             
             // now update the danfig file
             LauncherMain.updateDanfigFile();

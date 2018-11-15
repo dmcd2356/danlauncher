@@ -51,20 +51,38 @@ public class SymbolTable {
 
   
   private static class TableListInfo {
-    String  method;
-    String  name;
-    String  type;
-    String  slot;
-    String  start;
-    String  end;
+    String  method;   // the name of the method that the local parameter belongs to
+    String  name;     // the moniker to call the parameter by (unique entry)
+    String  type;     // data type of the parameter
+    String  slot;     // slot within the method for the parameter
+    String  start;    // byte offset in method that specifies the starting range of the parameter
+    String  end;      // byte offset in method that specifies the ending   range of the parameter
+    int     opStart;  // starting opcode entry in method (cause danalyzer can't determine byte offset)
+    int     opEnd;    // ending   opcode entry in method (cause danalyzer can't determine byte offset)
     
-    public TableListInfo(String meth, String id, String typ, String slt, String strt, String len) {
+    public TableListInfo(String meth, String id, String typ, String slt, String strt, String last,
+                         int opstrt, int oplast) {
       method = meth == null ? "" : meth;
       name   = id   == null ? "" : id;
       type   = typ  == null ? "" : typ;
       slot   = slt  == null ? "" : slt;
       start  = strt == null ? "" : strt;
-      end    = len  == null ? "" : len;
+      end    = last == null ? "" : last;
+      
+      opStart = opstrt;
+      opEnd = oplast;
+    }
+    
+    public TableListInfo(String meth, String id, String typ, String slt, int opstrt, int oplast) {
+      method = meth == null ? "" : meth;
+      name   = id   == null ? "" : id;
+      type   = typ  == null ? "" : typ;
+      slot   = slt  == null ? "" : slt;
+      start  = "";
+      end    = "";
+      
+      opStart = opstrt;
+      opEnd = oplast;
     }
   } 
   
@@ -144,8 +162,42 @@ public class SymbolTable {
   
   public void exit() {
   }
+
+  public String addEntry(String meth, String name, String type, String slot, String start, String end,
+                       int opstrt, int oplast) {
+    // if no name given, pick a default one
+    name = getUniqueName(name);
+    TableListInfo entry = new TableListInfo(meth, name, type, slot, start, end, opstrt, oplast);
+    paramList.add(entry);
+    paramNameList.add(name);
+    tableSortAndDisplay();
+    return name;
+  }
   
-  public void addEntry(String meth, String name, String type, String slot, String start, String end) {
+  // this adds the entry using only opcode line numbers for the start and end range,
+  // because the byte offset values are not known at the time (reading from danfig).
+  public String addEntryByLine(String meth, String name, String type, String slot, int start, int end) {
+    // if no name given, pick a default one
+    name = getUniqueName(name);
+    TableListInfo entry = new TableListInfo(meth, name, type, slot, start, end);
+    paramList.add(entry);
+    paramNameList.add(name);
+    tableSortAndDisplay();
+    return name;
+  }
+  
+  public String getSymbolicList() {
+    String content = "";
+    for (TableListInfo entry : paramList) {
+      // this is only used for generating the symbolic entry for danfig, so the range entries
+      // must be composed as opcode line numbers instead of bytecode offsets
+      content += entry.method + " " + entry.slot + " " + entry.opStart + " " + entry.opEnd +
+           " " + entry.name + " " + entry.type + Utils.NEWLINE;
+    }
+    return content;
+  }
+  
+  private String getUniqueName(String name) {
     // if no name given, pick a default one
     if (name == null || name.isEmpty()) {
       name = "P_0";
@@ -162,20 +214,8 @@ public class SymbolTable {
       }
       name = newname;
     }
-    
-    TableListInfo entry = new TableListInfo(meth, name, type, slot, start, end);
-    paramList.add(entry);
-    paramNameList.add(name);
-    tableSortAndDisplay();
-  }
-  
-  public String getSymbolicList() {
-    String content = "";
-    for (TableListInfo entry : paramList) {
-      content += entry.slot + ", " + entry.method + ", " + entry.start + ", " + entry.end +
-           ", " + entry.name + ", " + entry.type + Utils.NEWLINE;
-    }
-    return content;
+
+    return name;
   }
   
   private String getColumnName(int col) {

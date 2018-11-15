@@ -44,7 +44,7 @@ public class ParamTable {
   private static final ArrayList<TableListInfo> paramList = new ArrayList<>();
   private static String   methodname;
 
-  
+  // same as TableListInfo, but for exporting values publicly
   public static class LocalParamInfo {
     String  name;
     String  type;
@@ -54,11 +54,11 @@ public class ParamTable {
   }
     
   private static class TableListInfo {
-    String  name;
-    String  type;
-    String  slot;
-    String  start;
-    String  end;
+    String  name;     // the moniker to call the parameter by (unique entry)
+    String  type;     // data type of the parameter
+    String  slot;     // slot within the method for the parameter
+    String  start;    // byte offset in method that specifies the starting range of the parameter
+    String  end;      // byte offset in method that specifies the ending   range of the parameter
     
     public TableListInfo(String id, String typ, String slt, String strt, String len) {
       name  = id   == null ? "" : id;
@@ -306,21 +306,23 @@ public class ParamTable {
       String name  = (String)table.getValueAt(row, getColumnIndex("Name"));
       String type  = (String)table.getValueAt(row, getColumnIndex("Type"));
       String slot  = (String)table.getValueAt(row, getColumnIndex("Slot"));
-      int start = 0;
-      int end = 0;
+      String start = (String)table.getValueAt(row, getColumnIndex("Start"));
+      String end   = (String)table.getValueAt(row, getColumnIndex("End"));
+      int startVal = 0;
+      int endVal = 0;
       try {
-        start = Integer.parseUnsignedInt((String)table.getValueAt(row, getColumnIndex("Start")));
-        end   = Integer.parseUnsignedInt((String)table.getValueAt(row, getColumnIndex("End")));
+        startVal = Integer.parseUnsignedInt(start);
+        endVal   = Integer.parseUnsignedInt(end);
       } catch (NumberFormatException ex) {
         System.err.println("ERROR: Invalid format for start and end values: " + start + ", " + end);
         return;
       }
-      Integer linestart = BytecodeViewer.byteOffsetToLineNumber(start);
-      Integer lineend   = BytecodeViewer.byteOffsetToLineNumber(end);
-      if (linestart == null || lineend == null) {
+      Integer opstrt = BytecodeViewer.byteOffsetToLineNumber(startVal);
+      Integer oplast = BytecodeViewer.byteOffsetToLineNumber(endVal);
+      if (opstrt == null || oplast == null) {
         System.err.println("ERROR: No line found for start and end values: " + start + ", " + end);
       } else {
-        LauncherMain.addSymbVariable(methodname, name, type, slot, linestart.toString(), lineend.toString());
+        LauncherMain.addSymbVariable(methodname, name, type, slot, start, end, opstrt, oplast);
       }
     }
   }                                           
