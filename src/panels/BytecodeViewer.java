@@ -236,7 +236,7 @@ public final class BytecodeViewer {
       }
       
       // skip past these keywords
-      if (entry.startsWith("public ") || entry.startsWith("private ")) {
+      if (entry.startsWith("public ") || entry.startsWith("private ") || entry.startsWith("protected ")) {
         entry = entry.substring(entry.indexOf(" ") + 1).trim();
       }
       if (entry.startsWith("static ")) {
@@ -792,99 +792,101 @@ public final class BytecodeViewer {
    * @param entry  - the line read from javap
    */
   private void formatBytecode(int lineCount, int boffset, String entry) {
-    if (entry != null && !entry.isEmpty()) {
-      String opcode = entry;
-      String param = "";
-      String comment = "";
-      // check for parameter
-      int offset = opcode.indexOf(" ");
-      if (offset > 0 ) {
-        param = opcode.substring(offset).trim();
-        opcode = opcode.substring(0, offset);
-
-        // check for comment
-        offset = param.indexOf("//");
-        if (offset > 0) {
-          comment = param.substring(offset);
-          param = param.substring(0, offset).trim();
-        }
-      }
-      
-      // check special case of tableswitch and lookupswitch - these are multiline cases
-      String switchList = "";
-      if (comment.startsWith(SWITCH_DELIMITER)) {
-        switchList = comment.substring(SWITCH_DELIMITER.length()).trim(); // remove the delimiter
-        offset = switchList.lastIndexOf("}");   // remove trailing end brace
-        if (offset > 0) {
-          switchList = switchList.substring(0, offset).trim();
-        }
-      }
-
-      // get current length of text generated for the starting offset
-      int startix = panel.getText().length();
-
-      // get the opcode type
-      OpcodeType optype = getOpcodeType(opcode);
-      
-      // if opcode is INVOKE, get the method being called (from the comment section)
-      boolean bIsInstr = false;
-      String callMethod = "";
-      if (optype == OpcodeType.INVOKE) {
-        param = ""; // clear out the param value, since it is too long to display
-        offset = comment.indexOf("Method ");
-        if (offset > 0) {
-          callMethod = comment.substring(offset + "Method ".length()).trim();
-          callMethod = callMethod.replaceAll("\"", ""); // remove any quotes placed around the <init>
-          offset = callMethod.indexOf(":");
-          if (offset > 0) {
-            callMethod = callMethod.substring(0, offset) + callMethod.substring(offset + 1);
-          }
-          
-          // check if method call is instrumented
-          bIsInstr = LauncherMain.isInstrumentedMethod(callMethod);
-        }
-
-        if (!bIsInstr) {
-          optype = OpcodeType.OTHER; // only count the calls to instrumented code
-        }
-      }
-      
-      // add the line to the text display
-      printBytecodeOpcode(boffset, opcode, optype, param, comment);
-
-      // add entry to array
-      BytecodeInfo bc = new BytecodeInfo();
-      bc.line     = lineCount;
-      bc.offset   = boffset;
-      bc.opcode   = opcode;
-      bc.param    = param;
-      bc.comment  = comment;
-      bc.optype   = optype;
-      bc.ixStart  = startix;
-      bc.ixEnd    = panel.getText().length() - 1;
-      bc.mark     = 0;
-      bc.callMeth = callMethod;
-
-      // for switch statements, let's gather up the conditions and the corresponding branch locations
-      bc.switchinfo = new HashMap<>();
-      String[] entries = switchList.split(",");
-      for (String switchval : entries) {
-        offset = switchval.indexOf(":");
-        if (offset > 0) {
-          String key = switchval.substring(0, offset).trim();
-          String val = switchval.substring(offset + 1).trim(); // the branch location
-          Integer branchpt = Integer.parseUnsignedInt(val); // let's assume it was numeric
-          bc.switchinfo.put(key, branchpt);
-        }
-      }
-
-      // now make a reference of the byte offset to the line number and from the line number
-      // to the bytecode array index, then add the entry to the array
-      boff2Line.put(boffset, lineCount);
-      bytecode.add(bc);
+    if (entry == null || entry.isEmpty()) {
+      return;
     }
-  }
+    
+    String opcode = entry;
+    String param = "";
+    String comment = "";
+    // check for parameter
+    int offset = opcode.indexOf(" ");
+    if (offset > 0 ) {
+      param = opcode.substring(offset).trim();
+      opcode = opcode.substring(0, offset);
 
+      // check for comment
+      offset = param.indexOf("//");
+      if (offset > 0) {
+        comment = param.substring(offset);
+        param = param.substring(0, offset).trim();
+      }
+    }
+      
+    // check special case of tableswitch and lookupswitch - these are multiline cases
+    String switchList = "";
+    if (comment.startsWith(SWITCH_DELIMITER)) {
+      switchList = comment.substring(SWITCH_DELIMITER.length()).trim(); // remove the delimiter
+      offset = switchList.lastIndexOf("}");   // remove trailing end brace
+      if (offset > 0) {
+        switchList = switchList.substring(0, offset).trim();
+      }
+    }
+
+    // get current length of text generated for the starting offset
+    int startix = panel.getText().length();
+
+    // get the opcode type
+    OpcodeType optype = getOpcodeType(opcode);
+      
+    // if opcode is INVOKE, get the method being called (from the comment section)
+    boolean bIsInstr = false;
+    String callMethod = "";
+    if (optype == OpcodeType.INVOKE) {
+      param = ""; // clear out the param value, since it is too long to display
+      offset = comment.indexOf("Method ");
+      if (offset > 0) {
+        callMethod = comment.substring(offset + "Method ".length()).trim();
+        callMethod = callMethod.replaceAll("\"", ""); // remove any quotes placed around the <init>
+        offset = callMethod.indexOf(":");
+        if (offset > 0) {
+          callMethod = callMethod.substring(0, offset) + callMethod.substring(offset + 1);
+        }
+          
+        // check if method call is instrumented
+        bIsInstr = LauncherMain.isInstrumentedMethod(callMethod);
+      }
+
+      if (!bIsInstr) {
+        optype = OpcodeType.OTHER; // only count the calls to instrumented code
+      }
+    }
+      
+    // add the line to the text display
+    printBytecodeOpcode(boffset, opcode, optype, param, comment);
+    
+    // add entry to array
+    BytecodeInfo bc = new BytecodeInfo();
+    bc.line     = lineCount;
+    bc.offset   = boffset;
+    bc.opcode   = opcode;
+    bc.param    = param;
+    bc.comment  = comment;
+    bc.optype   = optype;
+    bc.ixStart  = startix;
+    bc.ixEnd    = panel.getText().length() - 1;
+    bc.mark     = 0;
+    bc.callMeth = callMethod;
+
+    // for switch statements, let's gather up the conditions and the corresponding branch locations
+    bc.switchinfo = new HashMap<>();
+    String[] entries = switchList.split(",");
+    for (String switchval : entries) {
+      offset = switchval.indexOf(":");
+      if (offset > 0) {
+        String key = switchval.substring(0, offset).trim();
+        String val = switchval.substring(offset + 1).trim(); // the branch location
+        Integer branchpt = Integer.parseUnsignedInt(val); // let's assume it was numeric
+        bc.switchinfo.put(key, branchpt);
+      }
+    }
+
+    // now make a reference of the byte offset to the line number and from the line number
+    // to the bytecode array index, then add the entry to the array
+    boff2Line.put(boffset, lineCount);
+    bytecode.add(bc);
+  }
+  
   /**
    * determine if line is valid opcode entry & return byte offset index if so.
    * check for line number followed by ": " followed by opcode, indicating this is bytecode.
@@ -943,17 +945,17 @@ public final class BytecodeViewer {
         if (bc.optype == OpcodeType.LOAD || bc.optype == OpcodeType.STORE) {
           // user selected a line containing a load/store to a local parameter.
           // First, determine which parameter is selected
-          int paramNum;
+          String paramStr = bc.param; // the case of a parameter being passed for the value
           int index = bc.opcode.indexOf("_");
           if (index > 0) {
-            paramNum = Integer.parseUnsignedInt(bc.opcode.substring(index + 1)); // should be an integer
-          } else {
-            // shucks, now we have to look at value of prev opcode that was pushed onto stack
-            // to determine the parameter index.
-            // NOTE: we make the assumption that the compiler isn't doing anything tricky on the
-            // stack and that we can rely on the last ICONST opcode was used to set this value
-            // immediately before this instruction.
-            // TODO
+            paramStr = bc.opcode.substring(index + 1);
+          }
+
+          int paramNum;
+          try {
+            paramNum = Integer.parseUnsignedInt(paramStr); // should be an integer
+          } catch (NumberFormatException ex) {
+            LauncherMain.printStatusError("Missing slot selection for parameter!");
             return;
           }
           // Next, attempt to find it in the local arg list
