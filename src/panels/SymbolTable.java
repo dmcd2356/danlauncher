@@ -6,8 +6,12 @@
 package panels;
 
 import java.awt.Component;
+import java.awt.Container;
+import java.awt.GridLayout;
 import java.awt.Rectangle;
 import java.awt.event.ActionEvent;
+import java.awt.event.ItemEvent;
+import java.awt.event.ItemListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -15,8 +19,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import javax.swing.AbstractAction;
+import javax.swing.AbstractButton;
+import javax.swing.ButtonGroup;
+import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
+import javax.swing.JRadioButton;
 import javax.swing.JTable;
 import javax.swing.KeyStroke;
 import javax.swing.SwingConstants;
@@ -46,19 +54,33 @@ public class SymbolTable {
   private static int      colSortSelection;
   private static int      rowSelection;
   private static JTable   table;
+  private static JFrame   menuFrame;
   private static ArrayList<TableListInfo> paramList = new ArrayList<>();
   private static ArrayList<String> paramNameList = new ArrayList<>();
 
   
-  private static class TableListInfo {
-    String  method;   // the name of the method that the local parameter belongs to
-    String  name;     // the moniker to call the parameter by (unique entry)
-    String  type;     // data type of the parameter
-    String  slot;     // slot within the method for the parameter
-    String  start;    // byte offset in method that specifies the starting range of the parameter
-    String  end;      // byte offset in method that specifies the ending   range of the parameter
-    int     opStart;  // starting opcode entry in method (cause danalyzer can't determine byte offset)
-    int     opEnd;    // ending   opcode entry in method (cause danalyzer can't determine byte offset)
+  public static class ConstraintInfo {
+    public String comptype;  // comparison type { EQ, NE, GT, GE, LT, LE }
+    public String compvalue; // the comparison value
+    
+    public ConstraintInfo(String type, String value) {
+      comptype = type;
+      compvalue = value;
+    }
+  }
+  
+  public static class TableListInfo {
+    public String  method;   // the name of the method that the local parameter belongs to
+    public String  name;     // the moniker to call the parameter by (unique entry)
+    public String  type;     // data type of the parameter
+    public String  slot;     // slot within the method for the parameter
+    public String  start;    // byte offset in method that specifies the starting range of the parameter
+    public String  end;      // byte offset in method that specifies the ending   range of the parameter
+    
+    // entries that are not placed in the table
+    public int     opStart;  // starting opcode entry in method (cause danalyzer can't determine byte offset)
+    public int     opEnd;    // ending   opcode entry in method (cause danalyzer can't determine byte offset)
+    public ArrayList<ConstraintInfo> constraints; // the user-defined constraint values for the symbolic entry
     
     public TableListInfo(String meth, String id, String typ, String slt, String strt, String last,
                          int opstrt, int oplast) {
@@ -71,6 +93,7 @@ public class SymbolTable {
       
       opStart = opstrt;
       opEnd = oplast;
+      constraints = new ArrayList<>();
     }
     
     public TableListInfo(String meth, String id, String typ, String slt, int opstrt, int oplast) {
@@ -83,6 +106,7 @@ public class SymbolTable {
       
       opStart = opstrt;
       opEnd = oplast;
+      constraints = new ArrayList<>();
     }
   } 
   
@@ -186,15 +210,20 @@ public class SymbolTable {
     return name;
   }
   
-  public String getSymbolicList() {
-    String content = "";
+  public void addConstraint(String id, String type, String value) {
     for (TableListInfo entry : paramList) {
-      // this is only used for generating the symbolic entry for danfig, so the range entries
-      // must be composed as opcode line numbers instead of bytecode offsets
-      content += entry.method + " " + entry.slot + " " + entry.opStart + " " + entry.opEnd +
-           " " + entry.name + " " + entry.type + Utils.NEWLINE;
+      if (entry.name.equals(id)) {
+        entry.constraints.add(new ConstraintInfo(type, value));
+        return;
+      }
     }
-    return content;
+  }
+  
+  public TableListInfo getSymbolicEntry(int ix) {
+    if (ix < paramList.size()) {
+      return paramList.get(ix);
+    }
+    return null;
   }
   
   private String getUniqueName(String name) {
@@ -343,87 +372,256 @@ public class SymbolTable {
     int col = table.columnAtPoint(evt.getPoint());
     String colname = getColumnName(col);
 
-    if (colname.equals("Method") || colname.equals("Slot")) {
-      // ask user if he wants to remove the variable from the symbolic list
-      // (also allow him to remove them all in one fell swoop.)
-      String[] selection = {"Remove All", "Yes", "No" };
-      int which = JOptionPane.showOptionDialog(null,
-        "Remove entry from list?",
-        "Remove entry", // title of pane
-        JOptionPane.YES_NO_CANCEL_OPTION, // DEFAULT_OPTION,
-        JOptionPane.QUESTION_MESSAGE, // PLAIN_MESSAGE
-        null, // icon
-        selection, selection[1]);
-
-      if (which >= 0 && !selection[which].equals("No")) {
-        if (selection[which].equals("Yes")) {
-          // remove selected symbolic parameter
-          String name = paramList.get(row).name;
-          paramList.remove(row);
-          paramNameList.remove(name);
-        } else {
-          // remove all symbolic parameters
-          paramList.clear();
-          paramNameList.clear();
-        }
-      
-        // update table display
-        tableSortAndDisplay();
-      }
-    } else {
-      // allow the user to modify the conditions of the symbolic parameter
-      String result;
-      TableListInfo entry;
-      switch (colname) {
-        default:
-        case "Name":
-          result = JOptionPane.showInputDialog(null, "Enter name to identify parameter:");
-          entry = paramList.get(row);
-          if (paramNameList.contains(result)) {
-            LauncherMain.printStatusError("Symbolic name is already used: " + result);
-          } else if (result.equals(entry.name)) {
-            LauncherMain.printStatusMessage("Symbolic name not changed");
-          } else {
-            paramNameList.remove(entry.name);
-            entry.name = result;
-            paramNameList.add(entry.name);
-            tableSortAndDisplay();
-          }
-          break;
-        case "Type":
-          result = JOptionPane.showInputDialog(null, "Enter parameter type:");
-          entry = paramList.get(row);
-          entry.type = result;
-          tableSortAndDisplay();
-          break;
-        case "Start":
-          result = JOptionPane.showInputDialog(null, "Enter start offset range in method:");
-          entry = paramList.get(row);
-          try {
-            int value = Integer.parseUnsignedInt(result);
-          } catch (NumberFormatException ex) {
-            LauncherMain.printStatusError("Invalid start offset for symbolic: " + result);
-            return;
-          }
-          entry.start = result;
-          tableSortAndDisplay();
-          break;
-        case "End":
-          result = JOptionPane.showInputDialog(null, "Enter end offset range in method:");
-          entry = paramList.get(row);
-          try {
-            int value = Integer.parseUnsignedInt(result);
-          } catch (NumberFormatException ex) {
-            LauncherMain.printStatusError("Invalid end offset for symbolic: " + result);
-            return;
-          }
-          entry.end = result;
-          tableSortAndDisplay();
-          break;
-      }
-    }
+    rowSelection = row;
+    
+//    if (colname.equals("Method") || colname.equals("Slot")) {
+//      showRemoveEntryPanel(row);
+//    } else {
+//      showEditColumnPanel(colname, row);
+//    }
+    showMenuSelection();
   }                                           
 
+  // implement ItemListener interface
+  class MyItemListener implements ItemListener {
+ 
+    @Override
+    public void itemStateChanged(ItemEvent ev) {
+      boolean selected = (ev.getStateChange() == ItemEvent.SELECTED);
+      AbstractButton button = (AbstractButton) ev.getItemSelectable();
+      String command = button.getActionCommand();
+      if (selected) {
+        switch (command) {
+          case "EDIT_NAME":
+            showEditColumnPanel("Name");
+            break;
+          case "EDIT_TYPE":
+            showEditColumnPanel("Type");
+            break;
+          case "EDIT_START":
+            showEditColumnPanel("Start");
+            break;
+          case "EDIT_END":
+            showEditColumnPanel("End");
+            break;
+          case "REMOVE":
+            showRemoveEntryPanel();
+            break;
+          case "REMOVE_ALL":
+            showRemoveAllPanel();
+            break;
+          case "ADD_CONSTR":
+            showAddConstraintPanel();
+            break;
+          case "REMOVE_CON":
+            showRemoveConstraintsPanel();
+            break;
+          case "SHOW_CONSTR":
+            String message = "";
+            TableListInfo tbl = paramList.get(rowSelection);
+            for (int ix = 0; ix < tbl.constraints.size(); ix++) {
+              ConstraintInfo con = tbl.constraints.get(ix);
+              message += tbl.name + " " + con.comptype + " " + con.compvalue + Utils.NEWLINE;
+            }
+            JOptionPane.showMessageDialog(null, message,
+                "Message Dialog", JOptionPane.INFORMATION_MESSAGE);
+            break;
+        }
+      }
+            
+      // now update the danfig file
+      if (!command.equals("SHOW_CONSTR")) {
+        LauncherMain.updateDanfigFile();
+      }
+
+      menuFrame.dispose();
+      menuFrame = null;
+    }
+  }
+ 
+  private void showMenuSelection() {
+    MyItemListener myItemListener = new MyItemListener();
+    final ButtonGroup group = new ButtonGroup();
+
+    menuFrame = new JFrame("JOptionPane Demo");
+    menuFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE); // EXIT_ON_CLOSE
+    menuFrame.setLocationRelativeTo(null);
+    //frame.setSize(300, 200);
+
+    Container cont = menuFrame.getContentPane();
+    cont.setLayout(new GridLayout(0, 1));
+    cont.add(new JLabel("Select the desired action to perform:"));
+
+    // add buttons
+    addRadioButton(group, cont, myItemListener, "EDIT_NAME"  , "Edit Name");
+    addRadioButton(group, cont, myItemListener, "EDIT_TYPE"  , "Edit Type");
+    addRadioButton(group, cont, myItemListener, "EDIT_START" , "Edit Start");
+    addRadioButton(group, cont, myItemListener, "EDIT_END"   , "Edit End");
+    addRadioButton(group, cont, myItemListener, "REMOVE"     , "Remove selection");
+    addRadioButton(group, cont, myItemListener, "REMOVE_ALL" , "Remove all symbolics");
+    addRadioButton(group, cont, myItemListener, "REMOVE_CON" , "Remove all constraints for this selection");
+    addRadioButton(group, cont, myItemListener, "ADD_CONSTR" , "Add constraint to selection");
+    TableListInfo tbl = paramList.get(rowSelection);
+    if (tbl != null && !tbl.constraints.isEmpty()) {
+      addRadioButton(group, cont, myItemListener, "SHOW_CONSTR", "Show added constraints for selection");
+    }
+
+    menuFrame.pack();
+    menuFrame.setVisible(true);
+  }
+
+  private void addRadioButton(ButtonGroup group, Container cont, MyItemListener itemListener, String action, String title) {
+    JRadioButton rb = new JRadioButton(title);
+    rb.setActionCommand(action);
+    rb.addItemListener(itemListener);
+    group.add(rb);
+    cont.add(rb);
+  }
+  
+  private void showRemoveEntryPanel() {
+    int row = rowSelection;
+    String[] selection = {"Yes", "No" };
+    int which = JOptionPane.showOptionDialog(null,
+      "Remove entry from list?",
+      "Remove entry", // title of pane
+      JOptionPane.YES_NO_CANCEL_OPTION, // DEFAULT_OPTION,
+      JOptionPane.QUESTION_MESSAGE, // PLAIN_MESSAGE
+      null, // icon
+      selection, selection[1]);
+
+    if (which >= 0 && selection[which].equals("Yes")) {
+      // remove selected symbolic parameter
+      String name = paramList.get(row).name;
+      paramList.remove(row);
+      paramNameList.remove(name);
+      
+      // update table display
+      tableSortAndDisplay();
+    }
+  }
+
+  private void showRemoveAllPanel() {
+    String[] selection = {"Yes", "No" };
+    int which = JOptionPane.showOptionDialog(null,
+      "Remove all symbolics from list?",
+      "Remove all", // title of pane
+      JOptionPane.YES_NO_CANCEL_OPTION, // DEFAULT_OPTION,
+      JOptionPane.QUESTION_MESSAGE, // PLAIN_MESSAGE
+      null, // icon
+      selection, selection[1]);
+
+    if (which >= 0 && selection[which].equals("Yes")) {
+      // remove all symbolic parameters
+      paramList.clear();
+      paramNameList.clear();
+      
+      // update table display
+      tableSortAndDisplay();
+    }
+  }
+
+  private void showAddConstraintPanel() {
+    int row = rowSelection;
+
+    String result = JOptionPane.showInputDialog(null, "Enter the constraint (e.g. GE 23):");
+    TableListInfo entry = paramList.get(row);
+
+    int offset = result.indexOf(" ");
+    if (offset < 0) {
+      LauncherMain.printStatusError("missing numeric comparison value");
+      return;
+    }
+
+    String comptype = result.substring(0, offset).trim().toUpperCase();
+    String compval  = result.substring(offset + 1).trim();
+    if (!comptype.equals("EQ") && !comptype.equals("GT") && !comptype.equals("LT") &&
+        !comptype.equals("NE") && !comptype.equals("GE") && !comptype.equals("LE")) {
+      LauncherMain.printStatusError("constraint must begin with { EQ, NE, GT, GE, LT, LE }");
+      return;
+    }
+    try {
+      double value = Double.parseDouble(compval);
+    } catch (NumberFormatException ex) {
+      LauncherMain.printStatusError("invalid comparison value (must be numeric)");
+      return;
+    }
+
+    // add constraint to symbolic
+    entry.constraints.add(new ConstraintInfo(comptype, compval));
+  }
+  
+  private void showRemoveConstraintsPanel() {
+    TableListInfo tbl = paramList.get(rowSelection);
+    String[] selection = {"Yes", "No" };
+    int which = JOptionPane.showOptionDialog(null,
+      "Remove all constraints from '" + tbl.name + "' ?",
+      "Remove constraints", // title of pane
+      JOptionPane.YES_NO_CANCEL_OPTION, // DEFAULT_OPTION,
+      JOptionPane.QUESTION_MESSAGE, // PLAIN_MESSAGE
+      null, // icon
+      selection, selection[1]);
+
+    if (which >= 0 && selection[which].equals("Yes")) {
+      // remove all constraints for the selected symbolic
+      tbl.constraints.clear();
+      
+      // update table display
+      tableSortAndDisplay();
+    }
+  }
+
+  private void showEditColumnPanel(String colname) {
+    int row = rowSelection;
+    // allow the user to modify the conditions of the symbolic parameter
+    String result;
+    TableListInfo entry;
+    switch (colname) {
+      default:
+      case "Name":
+        result = JOptionPane.showInputDialog(null, "Enter name to identify parameter:");
+        entry = paramList.get(row);
+        if (paramNameList.contains(result)) {
+          LauncherMain.printStatusError("Symbolic name is already used: " + result);
+        } else if (!result.equals(entry.name)) {
+          paramNameList.remove(entry.name);
+          entry.name = result;
+          paramNameList.add(entry.name);
+          tableSortAndDisplay();
+        }
+        break;
+      case "Type":
+        result = JOptionPane.showInputDialog(null, "Enter parameter type:");
+        entry = paramList.get(row);
+        entry.type = result;
+        tableSortAndDisplay();
+        break;
+      case "Start":
+        result = JOptionPane.showInputDialog(null, "Enter start offset range in method:");
+        entry = paramList.get(row);
+        try {
+          int value = Integer.parseUnsignedInt(result);
+        } catch (NumberFormatException ex) {
+          LauncherMain.printStatusError("Invalid start offset for symbolic: " + result);
+          return;
+        }
+        entry.start = result;
+        tableSortAndDisplay();
+        break;
+      case "End":
+        result = JOptionPane.showInputDialog(null, "Enter end offset range in method:");
+        entry = paramList.get(row);
+        try {
+          int value = Integer.parseUnsignedInt(result);
+        } catch (NumberFormatException ex) {
+          LauncherMain.printStatusError("Invalid end offset for symbolic: " + result);
+          return;
+        }
+        entry.end = result;
+        tableSortAndDisplay();
+        break;
+    }
+  }  
+  
   /**
    * action event when a key is pressed in the table.
    */
