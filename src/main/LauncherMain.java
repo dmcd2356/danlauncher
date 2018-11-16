@@ -90,7 +90,7 @@ public final class LauncherMain {
   private static final String JAVAPFILE_STORAGE = "javap";
 
   // default location for jre for running instrumented project
-  private static final String JAVA_HOME = "/usr/lib/jvm/java-8-oracle"; // /usr/lib/jvm/java-8-openjdk-amd64";
+  private static final String JAVA_HOME = "/usr/lib/jvm/java-8-openjdk-amd64";
 
   // location of danalyzer program
   private static final String DSEPATH = "/home/dan/Projects/isstac/dse/";
@@ -125,6 +125,7 @@ public final class LauncherMain {
   private static final GuiControls mainFrame = new GuiControls();
   private static final GuiControls graphSetupFrame = new GuiControls();
   private static final GuiControls debugSetupFrame = new GuiControls();
+  private static final GuiControls systemSetupFrame = new GuiControls();
   private static CallGraph       callGraph;
   private static BytecodeViewer  bytecodeViewer;
   private static BytecodeGraph   bytecodeGraph;
@@ -140,6 +141,7 @@ public final class LauncherMain {
   private static Visitor         makeConnection;
   private static Logger          commandLogger;
   private static JFileChooser    fileSelector;
+  private static JFileChooser    javaHomeSelector;
   private static JComboBox       mainClassCombo;
   private static JComboBox       classCombo;
   private static JComboBox       methodCombo;
@@ -319,7 +321,11 @@ public final class LauncherMain {
   }
   
   public static boolean isTabSelection(String select) {
-    JTabbedPane tabPanel = mainFrame.getTabbedPanel("PNL_TABBED");
+    GuiControls.PanelInfo panelInfo = mainFrame.getPanelInfo("PNL_TABBED");
+    if (panelInfo == null || panelInfo.type != GuiControls.PanelType.TABBED) {
+      return false;
+    }
+    JTabbedPane tabPanel = (JTabbedPane) panelInfo.panel;
     if (tabPanel == null || tabSelect.isEmpty()) {
       return false;
     }
@@ -418,40 +424,44 @@ public final class LauncherMain {
   }
 
   public static void runBytecodeViewer(String classSelect, String methodSelect) {
-      // check if bytecode for this method already displayed
-      if (bytecodeViewer.isMethodDisplayed(classSelect, methodSelect)) {
-        // just clear any highlighting
-        bytecodeViewer.highlightClear();
-        printStatusMessage("Bytecode already loaded");
+    // check if bytecode for this method already displayed
+    if (bytecodeViewer.isMethodDisplayed(classSelect, methodSelect)) {
+      // just clear any highlighting
+      bytecodeViewer.highlightClear();
+      printStatusMessage("Bytecode already loaded");
+    } else {
+      String content;
+      String fname = projectPathName + JAVAPFILE_STORAGE + "/" + classSelect + ".txt";
+      File file = new File(fname);
+      if (file.isFile()) {
+        // use the javap file already generated
+        content = Utils.readTextFile(fname);
       } else {
-        String content;
-        String fname = projectPathName + JAVAPFILE_STORAGE + "/" + classSelect + ".txt";
-        File file = new File(fname);
-        if (file.isFile()) {
-          // use the javap file already generated
-          content = Utils.readTextFile(fname);
-        } else {
-          // need to run javap to generate the bytecode source
-          content = generateBytecode(classSelect, methodSelect);
-          if (content == null) {
-            return;
-          }
+        // need to run javap to generate the bytecode source
+        content = generateBytecode(classSelect, methodSelect);
+        if (content == null) {
+          return;
         }
+      }
 
-        // if successful, load it in the Bytecode viewer
-        runBytecodeParser(classSelect, methodSelect, content);
-      }
+      // if successful, load it in the Bytecode viewer
+      runBytecodeParser(classSelect, methodSelect, content);
+    }
       
-      // swich tab to show bytecode
-      String selected = getTabSelect();
-      setTabSelect(PanelTabs.BYTECODE.toString());
+    // swich tab to show bytecode
+    String selected = getTabSelect();
+    setTabSelect(PanelTabs.BYTECODE.toString());
       
-      // this is an attempt to get the bytecode graph to update its display properly by
-      // switching to different panel and back again
-      String byteflowTab = PanelTabs.BYTEFLOW.toString();
-      if (selected.equals(byteflowTab)) {
-        setTabSelect(byteflowTab);
-      }
+    // this is an attempt to get the bytecode graph to update its display properly by
+    // switching to different panel and back again
+    String byteflowTab = PanelTabs.BYTEFLOW.toString();
+    if (selected.equals(byteflowTab)) {
+      setTabSelect(byteflowTab);
+    }
+
+    // make sure the sizing is correct on split screens
+    mainFrame.setSplitDivider("SPLIT_MAIN", 0.6);
+    mainFrame.setSplitDivider("SPLIT_PARAM", 0.6);
   }
 
   public void createMainPanel() {
@@ -476,10 +486,10 @@ public final class LauncherMain {
     panel = null; // this creates the entries in the main frame
     mainFrame.makePanel      (panel, "PNL_MESSAGES" , "Status"    , LEFT, true);
     mainFrame.makePanel      (panel, "PNL_CONTAINER", ""          , LEFT, true);
-    mainFrame.makeTabbedPanel(panel, "PNL_TABBED"   , ""          , LEFT, true);
+    mainFrame.makeTabbedPanel(panel, "PNL_TABBED"   , "");
 
     panel = "PNL_MESSAGES";
-    mainFrame.makeTextField (panel, "TXT_MESSAGES"  , ""          , LEFT, true, "", 150, false);
+    mainFrame.makeTextField (panel, "TXT_MESSAGES"  , ""          , LEFT, true, "", 138, false);
 
     panel = "PNL_CONTAINER";
     mainFrame.makePanel     (panel, "PNL_CONTROLS"  , "Controls"  , LEFT, false, 600, 170);
@@ -530,8 +540,8 @@ public final class LauncherMain {
     launcherMenuBar = new JMenuBar();
     mainFrame.getFrame().setJMenuBar(launcherMenuBar);
     JMenu menuProject = launcherMenuBar.add(new JMenu("Project"));
-    JMenu menuDebug   = launcherMenuBar.add(new JMenu("Debug"));
-    JMenu menuGraphs  = launcherMenuBar.add(new JMenu("Graphs"));
+    JMenu menuConfig  = launcherMenuBar.add(new JMenu("Config"));
+    JMenu menuSave    = launcherMenuBar.add(new JMenu("Save"));
 
     JMenu menu = menuProject; // selections for the Project Menu
     addMenuItem     (menu, "MENU_SEL_JAR"    , "Select Jar file", new Action_SelectJarFile());
@@ -544,11 +554,11 @@ public final class LauncherMain {
     addMenuItem     (menu, "MENU_CLR_DBASE"  , "Clear DATABASE", new Action_ClearDatabase());
     addMenuItem     (menu, "MENU_CLR_LOG"    , "Clear LOG", new Action_ClearLog());
     addMenuItem     (menu, "MENU_CLR_SOL"    , "Clear SOLUTIONS", new Action_ClearSolutions());
-    menu = menuDebug; // selections for the Debug Menu
+    menu = menuConfig; // selections for the Config Menu
+    addMenuItem     (menu, "MENU_SETUP_SYS"  , "System Configuration", new Action_SystemSetup());
     addMenuItem     (menu, "MENU_SETUP_DBUG" , "Debug Setup", new Action_DebugSetup());
-    menu = menuGraphs; // selections for the Graphs Menu
     addMenuItem     (menu, "MENU_SETUP_GRAF" , "Callgraph Setup", new Action_CallgraphSetup());
-    menu.addSeparator();
+    menu = menuSave; // selections for the Save Menu
     addMenuItem     (menu, "MENU_SAVE_PNG"   , "Save Callgraph (PNG)", new Action_SaveGraphPNG());
     addMenuItem     (menu, "MENU_SAVE_JSON"  , "Save Callgraph (JSON)", new Action_SaveGraphJSON());
     addMenuItem     (menu, "MENU_SAVE_BCODE" , "Save Bytecode Graph", new Action_SaveByteFlowGraph());
@@ -574,6 +584,7 @@ public final class LauncherMain {
     mainFrame.getButton("BTN_STOPTEST").setEnabled(false);
 
     // create the the setup frames, but initially hide them
+    createSystemConfigPanel();
     createGraphSetupPanel();
     createDebugSelectPanel();
   
@@ -595,8 +606,8 @@ public final class LauncherMain {
     // create a split panel for sharing the local variables and symbolic parameters in a tab
     JTable paramList = new JTable();        // the bytecode param list
     JTable symbolList = new JTable();       // the symbolic parameter list
-    String splitName = "SPLIT_PANE1";
-    JSplitPane splitPane1 = mainFrame.makeSplitPane(splitName, false, 0.5);
+    String splitName = "SPLIT_PARAM";
+    JSplitPane splitPane1 = mainFrame.makeRawSplitPane(splitName, false, 0.5);
     mainFrame.addSplitComponent(splitName, 0, "TBL_PARAMLIST", paramList, true);
     mainFrame.addSplitComponent(splitName, 1, "TBL_SYMBOLICS", symbolList, true);
 //    paramList.setBorder(new TitledBorder("Local variables"));
@@ -604,23 +615,26 @@ public final class LauncherMain {
 
     // now we're going to combine the BYTECODE entry with the parameter/symbolics split panel
     splitName = "SPLIT_MAIN";
-    JSplitPane splitMain = mainFrame.makeSplitPane(splitName, true, 0.5);
+    JSplitPane splitMain = mainFrame.makeRawSplitPane(splitName, true, 0.5);
     mainFrame.addSplitComponent(splitName, 0, "BYTECODE"  , noWrapBytecodePanel, true);
     mainFrame.addSplitComponent(splitName, 1, "PNL_PARAMS", splitPane1, false);
     
     // add the tabbed message panels and a listener to detect when a tab has been selected
-    JTabbedPane tabPanel = mainFrame.getTabbedPanel("PNL_TABBED");
-    addPanelToTab(tabPanel, PanelTabs.COMMAND  , commandLogger.getPanel(), true);
-    addPanelToTab(tabPanel, PanelTabs.DATABASE , dbtable.getPanel(), true);
-    addPanelToTab(tabPanel, PanelTabs.BYTECODE , splitMain, false);
-    addPanelToTab(tabPanel, PanelTabs.BYTEFLOW , bytecodeGraph.getPanel(), true);
-    addPanelToTab(tabPanel, PanelTabs.LOG      , debugLogger.getPanel(), true);
-    addPanelToTab(tabPanel, PanelTabs.CALLGRAPH, callGraph.getPanel(), true);
-    tabPanel.addChangeListener(new Change_TabPanelSelect());
+    GuiControls.PanelInfo panelInfo = mainFrame.getPanelInfo("PNL_TABBED");
+    if (panelInfo != null && panelInfo.type == GuiControls.PanelType.TABBED) {
+      JTabbedPane tabPanel = (JTabbedPane) panelInfo.panel;
+      addPanelToTab(tabPanel, PanelTabs.COMMAND  , commandLogger.getPanel(), true);
+      addPanelToTab(tabPanel, PanelTabs.DATABASE , dbtable.getPanel(), true);
+      addPanelToTab(tabPanel, PanelTabs.BYTECODE , splitMain, false);
+      addPanelToTab(tabPanel, PanelTabs.BYTEFLOW , bytecodeGraph.getPanel(), true);
+      addPanelToTab(tabPanel, PanelTabs.LOG      , debugLogger.getPanel(), true);
+      addPanelToTab(tabPanel, PanelTabs.CALLGRAPH, callGraph.getPanel(), true);
+      tabPanel.addChangeListener(new Change_TabPanelSelect());
+    }
 
     // update divider locations in split frame now that it has been placed (and the dimensions are set)
     mainFrame.setSplitDivider("SPLIT_MAIN", 0.6);
-    mainFrame.setSplitDivider("SPLIT_PANE1", 0.6);
+    mainFrame.setSplitDivider("SPLIT_PARAM", 0.6);
 
     // init the local variable and symbolic list tables
     localVarTbl = new ParamTable(paramList);
@@ -716,6 +730,13 @@ public final class LauncherMain {
     }
   }
   
+  private class Action_SystemSetup implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      systemSetupFrame.display();
+    }
+  }
+
   private class Action_SaveGraphPNG implements ActionListener {
     @Override
     public void actionPerformed(java.awt.event.ActionEvent evt) {
@@ -1190,6 +1211,109 @@ public final class LauncherMain {
     }
   }
 
+  private void createSystemConfigPanel() {
+    if (systemSetupFrame.isValidFrame()) {
+      return;
+    }
+
+    javaHomeSelector = new JFileChooser();
+    javaHomeSelector.setCurrentDirectory(new File("/usr/lib/jvm"));
+    
+    // these just make the gui entries cleaner
+    String panel;
+    GuiControls.Orient LEFT   = GuiControls.Orient.LEFT;
+    GuiControls.Orient CENTER = GuiControls.Orient.CENTER;
+    GuiControls.Orient RIGHT  = GuiControls.Orient.RIGHT;
+
+    // create the frame
+    JFrame frame = systemSetupFrame.newFrame("System Configuration", 500, 200, FrameSize.FIXEDSIZE);
+    frame.addWindowListener(new Window_SystemSetupListener());
+
+    // get current values from system properties
+    String curHome = systemProps.getPropertiesItem(SystemProperties.JAVA_HOME.toString(), "");
+    String curPort = systemProps.getPropertiesItem(SystemProperties.DEBUG_PORT.toString(), "");
+    String maxLength = systemProps.getPropertiesItem(SystemProperties.MAX_LOG_LENGTH.toString(), "");
+
+    // create the entries in the main frame
+    panel = null;
+    systemSetupFrame.makePanel (panel, "PNL_MAIN", "" , LEFT  , true);
+
+    // now add controls to the sub-panels
+    panel = "PNL_MAIN";
+    systemSetupFrame.makeButton   (panel, "BTN_JAVAHOME" , "JAVA_HOME" , LEFT, false);
+    systemSetupFrame.makeLabel    (panel, "LBL_JAVAHOME" , curHome     , LEFT, true);
+    systemSetupFrame.makeTextField(panel, "TXT_MYPORT"   , "Debug Port", LEFT, true, curPort, 8, true);
+    systemSetupFrame.makeTextField(panel, "TXT_MAXLEN"   , "Debug Max Len", LEFT, true, maxLength, 8, true);
+
+    // setup actions for controls
+    systemSetupFrame.getButton("BTN_JAVAHOME").addActionListener(new Action_SetJavaHome());
+    systemSetupFrame.getTextField("TXT_MYPORT").addActionListener(new Action_SetDebugPort());
+    systemSetupFrame.getTextField("TXT_MAXLEN").addActionListener(new Action_SetDebugMaxLength());
+  }
+
+  private class Window_SystemSetupListener extends java.awt.event.WindowAdapter {
+    @Override
+    public void windowClosing(java.awt.event.WindowEvent evt) {
+      // now put this frame back into hiding
+      systemSetupFrame.hide();
+    }
+  }
+  
+
+  private class Action_SetJavaHome implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      javaHomeSelector.setDialogTitle("JAVA_HOME");
+      javaHomeSelector.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+      //javaHomeSelector.setMultiSelectionEnabled(false);
+      javaHomeSelector.setApproveButtonText("Select");
+      int retVal = javaHomeSelector.showOpenDialog(mainFrame.getFrame());
+      if (retVal == JFileChooser.APPROVE_OPTION) {
+        // read the file
+        File file = javaHomeSelector.getSelectedFile();
+        String javaHomePathName = file.getAbsolutePath() + "/";
+      
+        // save location of project selection
+        systemProps.setPropertiesItem(SystemProperties.JAVA_HOME.toString(), javaHomePathName);
+        systemSetupFrame.getLabel("LBL_JAVAHOME").setText(javaHomePathName);
+      }
+    }
+  }
+
+  private class Action_SetDebugPort implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      String value = systemSetupFrame.getTextField("TXT_MYPORT").getText();
+      try {
+        int intval = Integer.parseUnsignedInt(value);
+        if (intval >= 100 && intval <= 65535) {
+          systemProps.setPropertiesItem(SystemProperties.DEBUG_PORT.toString(), value);
+          return;
+        }
+      } catch (NumberFormatException ex) { }
+      printStatusError("Invalid selection: must be value between 100 and 65535");
+      value = systemProps.getPropertiesItem(SystemProperties.DEBUG_PORT.toString(), "");
+      systemSetupFrame.getTextField("TXT_MYPORT").setText(value);
+    }
+  }
+  
+  private class Action_SetDebugMaxLength implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      String value = systemSetupFrame.getTextField("TXT_MAXLEN").getText();
+      try {
+        int intval = Integer.parseUnsignedInt(value);
+        if (intval >= 10000 && intval < 100000000) {
+          systemProps.setPropertiesItem(SystemProperties.MAX_LOG_LENGTH.toString(), value);
+          return;
+        }
+      } catch (NumberFormatException ex) { }
+      printStatusError("Invalid selection: must be value between 10000 and 100000000 (10k to 100M)");
+      value = systemProps.getPropertiesItem(SystemProperties.MAX_LOG_LENGTH.toString(), "");
+      systemSetupFrame.getTextField("TXT_MAXLEN").setText(value);
+    }
+  }
+  
   private static void addMenuItem(JMenu menucat, String id, String title, ActionListener action) {
     if (menuItems.containsKey(id)) {
       System.err.println("Menu Item '" + id + "' already defined!");
@@ -1257,11 +1381,12 @@ public final class LauncherMain {
   }
 
   private static String getTabSelect() {
-    JTabbedPane tabPanel = mainFrame.getTabbedPanel("PNL_TABBED");
-    if (tabPanel == null || tabSelect.isEmpty()) {
+    GuiControls.PanelInfo panelInfo = mainFrame.getPanelInfo("PNL_TABBED");
+    if (panelInfo == null || panelInfo.type != GuiControls.PanelType.TABBED || tabSelect.isEmpty()) {
       return null;
     }
 
+    JTabbedPane tabPanel = (JTabbedPane) panelInfo.panel;
     int curTab = tabPanel.getSelectedIndex();
     for (HashMap.Entry pair : tabSelect.entrySet()) {
       if ((Integer) pair.getValue() == curTab) {
@@ -1278,8 +1403,11 @@ public final class LauncherMain {
       System.exit(1);
     }
 
-    JTabbedPane tabPanel = mainFrame.getTabbedPanel("PNL_TABBED");
-    tabPanel.setSelectedIndex(index);
+    GuiControls.PanelInfo panelInfo = mainFrame.getPanelInfo("PNL_TABBED");
+    if (panelInfo != null && panelInfo.type == GuiControls.PanelType.TABBED) {
+      JTabbedPane tabPanel = (JTabbedPane) panelInfo.panel;
+      tabPanel.setSelectedIndex(index);
+    }
   }
   
   private void enableControlSelections(boolean enable) {
