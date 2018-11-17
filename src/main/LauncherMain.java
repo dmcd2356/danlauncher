@@ -539,6 +539,7 @@ public final class LauncherMain {
     mainFrame.getFrame().setJMenuBar(launcherMenuBar);
     JMenu menuProject = launcherMenuBar.add(new JMenu("Project"));
     JMenu menuConfig  = launcherMenuBar.add(new JMenu("Config"));
+    JMenu menuClear   = launcherMenuBar.add(new JMenu("Clear"));
     JMenu menuSave    = launcherMenuBar.add(new JMenu("Save"));
 
     JMenu menu = menuProject; // selections for the Project Menu
@@ -547,16 +548,16 @@ public final class LauncherMain {
     addMenuCheckbox (menu, "MENU_SERVER_TYPE", "Input using Post (server app)", true,
                       new ItemListener_EnablePost());
     addMenuCheckbox (menu, "MENU_LOAD_DANFIG", "Load symbolics from danfig", true, null);
-    addMenuItem     (menu, "MENU_SAVE_DANFIG", "Update danfig file", new Action_UpdateDanfigFile());
-    menu.addSeparator();
-    addMenuItem     (menu, "MENU_CLR_DBASE"  , "Clear DATABASE", new Action_ClearDatabase());
-    addMenuItem     (menu, "MENU_CLR_LOG"    , "Clear LOG", new Action_ClearLog());
-    addMenuItem     (menu, "MENU_CLR_SOL"    , "Clear SOLUTIONS", new Action_ClearSolutions());
     menu = menuConfig; // selections for the Config Menu
     addMenuItem     (menu, "MENU_SETUP_SYS"  , "System Configuration", new Action_SystemSetup());
     addMenuItem     (menu, "MENU_SETUP_DBUG" , "Debug Setup", new Action_DebugSetup());
     addMenuItem     (menu, "MENU_SETUP_GRAF" , "Callgraph Setup", new Action_CallgraphSetup());
+    menu = menuClear; // selections for the Clear Menu
+    addMenuItem     (menu, "MENU_CLR_DBASE"  , "Clear DATABASE", new Action_ClearDatabase());
+    addMenuItem     (menu, "MENU_CLR_LOG"    , "Clear LOG", new Action_ClearLog());
+    addMenuItem     (menu, "MENU_CLR_SOL"    , "Clear SOLUTIONS", new Action_ClearSolutions());
     menu = menuSave; // selections for the Save Menu
+    addMenuItem     (menu, "MENU_SAVE_DANFIG", "Update danfig file", new Action_UpdateDanfigFile());
     addMenuItem     (menu, "MENU_SAVE_PNG"   , "Save Callgraph (PNG)", new Action_SaveGraphPNG());
     addMenuItem     (menu, "MENU_SAVE_JSON"  , "Save Callgraph (JSON)", new Action_SaveGraphJSON());
     addMenuItem     (menu, "MENU_SAVE_BCODE" , "Save Bytecode Graph", new Action_SaveByteFlowGraph());
