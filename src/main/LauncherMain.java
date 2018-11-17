@@ -160,6 +160,7 @@ public final class LauncherMain {
   private static String          debugFlags = "";
   private static String          clientPort = "";
   private static String          javaHome;
+  private static String          maxLogLength;
   private static boolean         mainClassInitializing;
   private static boolean         runMode = false;
   
@@ -244,14 +245,11 @@ public final class LauncherMain {
 
     // check for the global danlauncher properties file and init default values if not found
     systemProps = new PropertiesFile(HOMEPATH + "/" + PROJ_CONFIG, "SYSTEM_PROPERTIES");
-    String projectPath = systemProps.getPropertiesItem(SystemProperties.PROJECT_PATH.toString(), HOMEPATH);
-    String maxLogLength = systemProps.getPropertiesItem(SystemProperties.MAX_LOG_LENGTH.toString(), "500000");
-    String myport = systemProps.getPropertiesItem(SystemProperties.DEBUG_PORT.toString(), "5000");
-    if (myport == null) {
-      myport = "5000";
-    }
-    debugPort = Integer.parseUnsignedInt(myport);
     javaHome = systemProps.getPropertiesItem(SystemProperties.JAVA_HOME.toString(), JAVA_HOME);
+    maxLogLength = systemProps.getPropertiesItem(SystemProperties.MAX_LOG_LENGTH.toString(), "500000");
+    String projectPath = systemProps.getPropertiesItem(SystemProperties.PROJECT_PATH.toString(), HOMEPATH);
+    String myport = systemProps.getPropertiesItem(SystemProperties.DEBUG_PORT.toString(), "5000");
+    debugPort = Integer.parseUnsignedInt(myport);
     
     // we need a filechooser and initialize it to the project path
     fileSelector = new JFileChooser();
@@ -1121,7 +1119,6 @@ public final class LauncherMain {
 
     // create the entries in the main frame
     debugSetupFrame.makePanel (panel, "PNL_DBGFLAGS", "Debug Flags" , LEFT  , false);
-    debugSetupFrame.makePanel (panel, "PNL_DEBUGOUT", "Debug Output", RIGHT , true);
     
     // now add controls to the sub-panels
     panel = "PNL_DBGFLAGS";
@@ -1135,9 +1132,6 @@ public final class LauncherMain {
     debugSetupFrame.makeCheckbox(panel, "DBG_LOCALS"  , "Locals"        , LEFT, true  , 0);
     debugSetupFrame.makeCheckbox(panel, "DBG_BRANCH"  , "Branch"        , LEFT, false , 0);
     debugSetupFrame.makeCheckbox(panel, "DBG_SOLVER"  , "Solver"        , LEFT, true  , 0);
-
-    panel = "PNL_DEBUGOUT";
-    debugSetupFrame.makeTextField(panel, "TEXT_PORT"   , "Port"         , LEFT, true, debugPort + "", 8, true);
   }
   
   private class Window_DebugSetupListener extends java.awt.event.WindowAdapter {
@@ -1145,7 +1139,6 @@ public final class LauncherMain {
     public void windowClosing(java.awt.event.WindowEvent evt) {
       // save current settings
       String oldDebugFlags = debugFlags;
-      int oldDebugPort = debugPort;
       
       // get the current debug selections
       debugFlags = "";
@@ -1164,50 +1157,15 @@ public final class LauncherMain {
       if (projectProps != null) {
         projectProps.setPropertiesItem(ProjectProperties.DEBUG_FLAGS.toString(), debugFlags);
       }
-
-      // get the current port selection (make sure it is valid)
-      String portstr = debugSetupFrame.getTextField("TEXT_PORT").getText();
-      int portint = 0;
-      try {
-        portint = Integer.parseUnsignedInt(portstr);
-        if (portint < 100 || portint > 65535) {
-          portint = 0;
-        }
-      } catch (NumberFormatException ex) { }
-      if (portint <= 0) {
-        // bad - restore previous value
-        printStatusError("Invalid value for port: " + portstr);
-        debugSetupFrame.getTextField("TEXT_PORT").setText(debugPort + "");
-      } else {
-        // valid - save value and update properties file
-        debugPort = portint;
-        systemProps.setPropertiesItem(SystemProperties.DEBUG_PORT.toString(), debugPort + "");
-      }
       
-      // now put this frame back into hiding
-      debugSetupFrame.hide();
-      
-      if (oldDebugPort == debugPort && oldDebugFlags.equals(debugFlags)) {
+      if (oldDebugFlags.equals(debugFlags)) {
         System.out.println("No changes to debug settings");
-        return;
-      }
-      
-      // ask user if he wants to update the danfig file so his changes will take effect
-      // the next time he runs the application
-      String[] selection = {"Yes", "No" };
-      int which = JOptionPane.showOptionDialog(null,
-        "Do you wish to update the 'danfig' file" + Utils.NEWLINE +
-        "with your changes so that they will take" + Utils.NEWLINE +
-        "effect the next time the application is run?",
-        "Update danfig", // title of pane
-        JOptionPane.YES_NO_CANCEL_OPTION, // DEFAULT_OPTION,
-        JOptionPane.QUESTION_MESSAGE, // PLAIN_MESSAGE
-        null, // icon
-        selection, selection[1]);
-
-      if (which >= 0 && selection[which].equals("Yes")) {
+      } else {
         updateDanfigFile();
       }
+
+      // now put this frame back into hiding
+      debugSetupFrame.hide();
     }
   }
 
@@ -1229,11 +1187,6 @@ public final class LauncherMain {
     JFrame frame = systemSetupFrame.newFrame("System Configuration", 500, 200, FrameSize.FIXEDSIZE);
     frame.addWindowListener(new Window_SystemSetupListener());
 
-    // get current values from system properties
-    String curHome = systemProps.getPropertiesItem(SystemProperties.JAVA_HOME.toString(), "");
-    String curPort = systemProps.getPropertiesItem(SystemProperties.DEBUG_PORT.toString(), "");
-    String maxLength = systemProps.getPropertiesItem(SystemProperties.MAX_LOG_LENGTH.toString(), "");
-
     // create the entries in the main frame
     panel = null;
     systemSetupFrame.makePanel (panel, "PNL_MAIN", "" , LEFT  , true);
@@ -1241,9 +1194,9 @@ public final class LauncherMain {
     // now add controls to the sub-panels
     panel = "PNL_MAIN";
     systemSetupFrame.makeButton   (panel, "BTN_JAVAHOME" , "JAVA_HOME" , LEFT, false);
-    systemSetupFrame.makeLabel    (panel, "LBL_JAVAHOME" , curHome     , LEFT, true);
-    systemSetupFrame.makeTextField(panel, "TXT_MYPORT"   , "Debug Port", LEFT, true, curPort, 8, true);
-    systemSetupFrame.makeTextField(panel, "TXT_MAXLEN"   , "Debug Max Len", LEFT, true, maxLength, 8, true);
+    systemSetupFrame.makeLabel    (panel, "LBL_JAVAHOME" , javaHome    , LEFT, true);
+    systemSetupFrame.makeTextField(panel, "TXT_MYPORT"   , "Debug Port", LEFT, true, debugPort + "", 8, true);
+    systemSetupFrame.makeTextField(panel, "TXT_MAXLEN"   , "Debug Max Len", LEFT, true, maxLogLength, 8, true);
 
     // setup actions for controls
     systemSetupFrame.getButton("BTN_JAVAHOME").addActionListener(new Action_SetJavaHome());
@@ -1271,11 +1224,11 @@ public final class LauncherMain {
       if (retVal == JFileChooser.APPROVE_OPTION) {
         // read the file
         File file = javaHomeSelector.getSelectedFile();
-        String javaHomePathName = file.getAbsolutePath() + "/";
+        javaHome = file.getAbsolutePath();
       
         // save location of project selection
-        systemProps.setPropertiesItem(SystemProperties.JAVA_HOME.toString(), javaHomePathName);
-        systemSetupFrame.getLabel("LBL_JAVAHOME").setText(javaHomePathName);
+        systemProps.setPropertiesItem(SystemProperties.JAVA_HOME.toString(), javaHome);
+        systemSetupFrame.getLabel("LBL_JAVAHOME").setText(javaHome);
       }
     }
   }
@@ -1287,13 +1240,13 @@ public final class LauncherMain {
       try {
         int intval = Integer.parseUnsignedInt(value);
         if (intval >= 100 && intval <= 65535) {
-          systemProps.setPropertiesItem(SystemProperties.DEBUG_PORT.toString(), value);
+          debugPort = intval;
+          systemProps.setPropertiesItem(SystemProperties.DEBUG_PORT.toString(), debugPort + "");
           return;
         }
       } catch (NumberFormatException ex) { }
       printStatusError("Invalid selection: must be value between 100 and 65535");
-      value = systemProps.getPropertiesItem(SystemProperties.DEBUG_PORT.toString(), "");
-      systemSetupFrame.getTextField("TXT_MYPORT").setText(value);
+      systemSetupFrame.getTextField("TXT_MYPORT").setText(debugPort + "");
     }
   }
   
@@ -1304,13 +1257,13 @@ public final class LauncherMain {
       try {
         int intval = Integer.parseUnsignedInt(value);
         if (intval >= 10000 && intval < 100000000) {
-          systemProps.setPropertiesItem(SystemProperties.MAX_LOG_LENGTH.toString(), value);
+          maxLogLength = value;
+          systemProps.setPropertiesItem(SystemProperties.MAX_LOG_LENGTH.toString(), maxLogLength);
           return;
         }
       } catch (NumberFormatException ex) { }
       printStatusError("Invalid selection: must be value between 10000 and 100000000 (10k to 100M)");
-      value = systemProps.getPropertiesItem(SystemProperties.MAX_LOG_LENGTH.toString(), "");
-      systemSetupFrame.getTextField("TXT_MAXLEN").setText(value);
+      systemSetupFrame.getTextField("TXT_MAXLEN").setText(maxLogLength);
     }
   }
   
