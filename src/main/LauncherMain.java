@@ -786,15 +786,20 @@ public final class LauncherMain {
       }
     }
   }
-  
+
   private class ItemListener_EnablePost implements ItemListener {
     @Override
     public void itemStateChanged(ItemEvent ie) {
       boolean isServerType = ie.getStateChange() == ItemEvent.SELECTED;
       
       // enable/disable "send to port" controls accordingly
-      mainFrame.getButton("BTN_SEND").setEnabled(isServerType);
-      mainFrame.getTextField("TXT_PORT").setEnabled(isServerType);
+      mainFrame.getButton("BTN_SEND").setVisible(isServerType);
+      mainFrame.getTextField("TXT_PORT").setVisible(isServerType);
+      mainFrame.getTextField("TXT_INPUT").setVisible(isServerType);
+
+      // resize the height accordingly
+      mainFrame.resizePanelHeight("PNL_CONTROLS", isServerType ? 170 : 120);
+      mainFrame.resizePanelHeight("PNL_SOLUTIONS", isServerType ? 170 : 120);
 
       if (projectProps != null) {
         projectProps.setPropertiesItem(ProjectProperties.IS_SERVER_TYPE.toString(),
@@ -1400,14 +1405,18 @@ public final class LauncherMain {
     mainFrame.getButton("BTN_RUNTEST").setEnabled(enable);
     mainFrame.getButton("BTN_SOLVER").setEnabled(enable);
     mainFrame.getTextField("TXT_ARGLIST").setEnabled(enable);
-    mainFrame.getTextField("TXT_INPUT").setEnabled(enable);
 
     // only enable these if the "Post message" is also enabled
-    if (enable) {
-      enable = isServerTypeMenuItem.isSelected();
-    }
+    boolean isServerType = isServerTypeMenuItem.isSelected();
+    enable = enable ? isServerType : enable;
+    
     mainFrame.getButton("BTN_SEND").setEnabled(enable);
     mainFrame.getTextField("TXT_PORT").setEnabled(enable);
+    mainFrame.getTextField("TXT_INPUT").setEnabled(enable);
+
+    // resize the height accordingly
+    mainFrame.resizePanelHeight("PNL_CONTROLS", isServerType ? 170 : 120);
+    mainFrame.resizePanelHeight("PNL_SOLUTIONS", isServerType ? 170 : 120);
   }  
 
   private static void setDebugFromProperties() {

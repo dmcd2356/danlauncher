@@ -1115,6 +1115,32 @@ public class GuiControls {
     return panel;
   }
 
+  public void resizePanelHeight(String panelname, int height) {
+    PanelInfo panelInfo = getPanelInfo(panelname);
+    if (panelInfo != null) {
+      Dimension size = panelInfo.panel.getSize();
+      if (size.height != height) {
+        size.height = height;
+        panelInfo.panel.setSize(size);
+        panelInfo.panel.setPreferredSize(size);
+        panelInfo.panel.setMinimumSize(size);
+      }
+    }
+  }
+  
+  public void resizePanelWidth(String panelname, int width) {
+    PanelInfo panelInfo = getPanelInfo(panelname);
+    if (panelInfo != null) {
+      Dimension size = panelInfo.panel.getSize();
+      if (size.width != width) {
+        size.width = width;
+        panelInfo.panel.setSize(size);
+        panelInfo.panel.setPreferredSize(size);
+        panelInfo.panel.setMinimumSize(size);
+      }
+    }
+  }
+  
   /**
    * This creates an empty JTabbedPanel and places it in the container.
    * 
