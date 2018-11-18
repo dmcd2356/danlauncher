@@ -548,6 +548,10 @@ public final class LauncherMain {
     addMenuCheckbox (menu, "MENU_SERVER_TYPE", "Input using Post (server app)", true,
                       new ItemListener_EnablePost());
     addMenuCheckbox (menu, "MENU_LOAD_DANFIG", "Load symbolics from danfig", true, null);
+    addMenuCheckbox (menu, "MENU_HIDE_CONTROL", "Hide Control Panel", false, 
+                      new ItemListener_HideControlsPanel());
+    addMenuCheckbox (menu, "MENU_HIDE_BCODE" , "Hide Bytecode Select Panel", false, 
+                      new ItemListener_HideBytecodePanel());
     menu = menuConfig; // selections for the Config Menu
     addMenuItem     (menu, "MENU_SETUP_SYS"  , "System Configuration", new Action_SystemSetup());
     addMenuItem     (menu, "MENU_SETUP_DBUG" , "Debug Setup", new Action_DebugSetup());
@@ -799,6 +803,30 @@ public final class LauncherMain {
     }
   }
     
+  private class ItemListener_HideControlsPanel implements ItemListener {
+    @Override
+    public void itemStateChanged(ItemEvent ie) {
+      JCheckBoxMenuItem item = (JCheckBoxMenuItem) ie.getItem();
+      boolean show = !item.isSelected();
+      GuiControls.PanelInfo panelInfo = mainFrame.getPanelInfo("PNL_CONTAINER");
+      if (panelInfo != null) {
+        ((JPanel)panelInfo.panel).setVisible(show);
+      }
+    }
+  }
+  
+  private class ItemListener_HideBytecodePanel implements ItemListener {
+    @Override
+    public void itemStateChanged(ItemEvent ie) {
+      JCheckBoxMenuItem item = (JCheckBoxMenuItem) ie.getItem();
+      boolean show = !item.isSelected();
+      GuiControls.PanelInfo panelInfo = mainFrame.getPanelInfo("PNL_BYTECODE");
+      if (panelInfo != null) {
+        ((JPanel)panelInfo.panel).setVisible(show);
+      }
+    }
+  }
+  
   private class Action_SendHttpMessage implements ActionListener {
     @Override
     public void actionPerformed(java.awt.event.ActionEvent evt) {
