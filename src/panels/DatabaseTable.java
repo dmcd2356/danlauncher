@@ -43,8 +43,6 @@ import org.bson.conversions.Bson;
  */
 public class DatabaseTable {
   
-  private static final ArrayList<String> SYMBOLIC_PARAMS = new ArrayList<>();
-  
   private static final String[] TABLE_COLUMNS = new String [] {
     "ID", "Method", "Offset", "Path", "Cost", "Solvable", "Solution" //, "Constraint"
   };
@@ -180,16 +178,6 @@ public class DatabaseTable {
     databaseTimer.stop();
   }
   
-  public void initSymbolic() {
-    SYMBOLIC_PARAMS.clear();
-  }
-
-  public void addSymbolic(String symname) {
-    // convert dot format of method name to slash format for Mongo
-    symname = symname.replace(".","/");
-    SYMBOLIC_PARAMS.add(symname);
-  }
-  
   public static void readDatabase() {
     // read data base for solutions to specified parameter that are solvable
     FindIterable<Document> iterdocs = collection.find() //(Bson) new BasicDBObject("solvable", true))
@@ -204,9 +192,6 @@ public class DatabaseTable {
         // String type = (String) solutions.get("type");
         String paramName = (String) solutions.get("name");
         String value = (String) solutions.get("value");
-//        if (SYMBOLIC_PARAMS.contains(paramName)) {
-//          paramName = "P" + SYMBOLIC_PARAMS.lastIndexOf(paramName);
-//        }
         solution = paramName + " = " + value;
       }
 

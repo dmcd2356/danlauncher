@@ -101,8 +101,8 @@ public class SymbolTable {
       name   = id   == null ? "" : id;
       type   = typ  == null ? "" : typ;
       slot   = slt  == null ? "" : slt;
-      start  = "";
-      end    = "";
+      start  = opstrt == 0 ? "0" : ""; // can't convert to byte offsets except for a value of 0
+      end    = oplast == 0 ? "0" : "";
       
       opStart = opstrt;
       opEnd = oplast;
@@ -192,6 +192,9 @@ public class SymbolTable {
     // if no name given, pick a default one
     name = getUniqueName(name);
     TableListInfo entry = new TableListInfo(meth, name, type, slot, start, end, opstrt, oplast);
+    if (isMatch(entry)) {
+      return null;
+    }
     paramList.add(entry);
     paramNameList.add(name);
     tableSortAndDisplay();
@@ -204,6 +207,9 @@ public class SymbolTable {
     // if no name given, pick a default one
     name = getUniqueName(name);
     TableListInfo entry = new TableListInfo(meth, name, type, slot, start, end);
+    if (isMatch(entry)) {
+      return null;
+    }
     paramList.add(entry);
     paramNameList.add(name);
     tableSortAndDisplay();
@@ -224,6 +230,18 @@ public class SymbolTable {
       return paramList.get(ix);
     }
     return null;
+  }
+  
+  private boolean isMatch(TableListInfo entry) {
+    String entryMethod = entry.method.replaceAll("/", ".");
+    for (TableListInfo tblval : paramList) {
+      String tblMethod = tblval.method.replaceAll("/", ".");
+      if (tblMethod.equals(entryMethod) && tblval.slot.equals(entry.slot) &&
+          tblval.opStart == entry.opStart && tblval.opEnd == entry.opEnd) {
+        return true;
+      }
+    }
+    return false;
   }
   
   private String getUniqueName(String name) {

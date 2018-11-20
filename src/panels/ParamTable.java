@@ -322,7 +322,10 @@ public class ParamTable {
       if (opstrt == null || oplast == null) {
         System.err.println("ERROR: No line found for start and end values: " + start + ", " + end);
       } else {
-        LauncherMain.addSymbVariable(methodname, name, type, slot, start, end, opstrt, oplast);
+        name = LauncherMain.addSymbVariable(methodname, name, type, slot, start, end, opstrt, oplast);
+        if (name == null) {
+          LauncherMain.printCommandMessage("This symbolic value already exists");
+        }
       }
     }
   }                                           

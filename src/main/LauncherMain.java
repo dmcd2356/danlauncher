@@ -2269,7 +2269,6 @@ public final class LauncherMain {
         FileReader fileReader = new FileReader(file);
         BufferedReader bufferedReader = new BufferedReader(fileReader);
         String line;
-        dbtable.initSymbolic();
         printCommandMessage("Reading danfig selections");
         while ((line = bufferedReader.readLine()) != null) {
           line = line.trim();
@@ -2307,26 +2306,27 @@ public final class LauncherMain {
                 type   = word[6].trim();
                 break;
               default:
-                printCommandError("ERROR: Invalid Symbolic word count (" + word.length + ") :" + line);
+                printCommandError("ERROR: Invalid Symbolic word count (" + word.length + "): " + line);
                 return;
             }
             int lineStart = Integer.parseUnsignedInt(start);
             int lineEnd   = Integer.parseUnsignedInt(end);
             name = addSymbVariableByLine(method, name, type, index, lineStart, lineEnd);
-            printCommandMessage("Symbol added - id: '" + name + "', method: " + method + ", slot: " + index +
-                ", type: " + type + ", range { " + start + ", " + end + " }");
+            if (name == null) {
+              printCommandMessage("This symbolic value already exists");
+            } else {
+              printCommandMessage("Symbol added - id: '" + name + "', method: " + method + ", slot: " + index +
+                  ", type: " + type + ", range { " + start + ", " + end + " }");
 
-            // add entry to list 
-            dbtable.addSymbolic(name);
-
-            // save line content
-            content += line + Utils.NEWLINE;
-            updateFile = true;
+              // save line content
+              content += line + Utils.NEWLINE;
+              updateFile = true;
+            }
           } else if (line.startsWith("Constraint:")) {
             // extract symbolic constraint
             String word[] = line.split("\\s+");
             if (word.length != 4) {
-              System.err.println("ERROR: Invalid Constraint word count (" + word.length + ") : " + line);
+              System.err.println("ERROR: Invalid Constraint word count (" + word.length + "): " + line);
               return;
             }
             // get the entries in the line

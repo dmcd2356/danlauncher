@@ -945,6 +945,7 @@ public final class BytecodeViewer {
         if (bc.optype == OpcodeType.LOAD || bc.optype == OpcodeType.STORE) {
           // user selected a line containing a load/store to a local parameter.
           // First, determine which parameter is selected
+          String dtype = bc.opcode.substring(0, 1).toUpperCase();
           String paramStr = bc.param; // the case of a parameter being passed for the value
           int index = bc.opcode.indexOf("_");
           if (index > 0) {
@@ -964,7 +965,7 @@ public final class BytecodeViewer {
             // not found - use default values (user can change them in SymbolTbl)
             entry = new ParamTable.LocalParamInfo();
             entry.name = "";
-            entry.type = "";
+            entry.type = dtype;
             entry.start = 0;
             entry.end = 0;
             entry.slot = paramNum;
@@ -993,11 +994,14 @@ public final class BytecodeViewer {
             int oplast = byteOffsetToLineNumber(entry.end);
             
             // add the entry to the current param list
-            LauncherMain.addSymbVariable(methodLoaded, entry.name, entry.type,
+            String name = LauncherMain.addSymbVariable(methodLoaded, entry.name, entry.type,
                 paramNum + "", entry.start + "", entry.end + "", opstrt, oplast);
-            
-            // now update the danfig file
-            LauncherMain.updateDanfigFile();
+            if (name == null) {
+              LauncherMain.printCommandMessage("This symbolic value already exists");
+            } else {
+              // now update the danfig file
+              LauncherMain.updateDanfigFile();
+            }
           }
         }
       }
