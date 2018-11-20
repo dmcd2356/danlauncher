@@ -160,7 +160,7 @@ public class DebugLogger {
         String[] splited = content.split(" ");
         if (splited.length < 2) {
           printDebug("invalid syntax for CALL command");
-          System.out.println("ERROR: invalid CALL message on line " + linecount);
+          LauncherMain.printCommandError("ERROR: invalid CALL message on line " + linecount);
           return CallGraph.getMethodCount(); // invalid syntax - ignore
         }
 

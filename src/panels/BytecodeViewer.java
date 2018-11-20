@@ -140,26 +140,28 @@ public final class BytecodeViewer {
   }
   
   public void highlightClear() {
-    System.out.println("BytecodeLogger: highlightClear");
+    LauncherMain.printCommandMessage("BytecodeLogger: highlightClear");
     panel.getHighlighter().removeAllHighlights();
     clearHighlighting(HIGHLIGHT_ALL);
   }
 
   public ArrayList<Integer> highlightBranch(int line, boolean branch) {
     ArrayList<Integer> branchMarks = new ArrayList<>();
-    System.out.println("BytecodeLogger: highlightBranch " + line + " (" + branch + ")");
+    LauncherMain.printCommandMessage("BytecodeLogger: highlightBranch " + line + " (" + branch + ")");
     // check for error conditions
     if (bytecode.isEmpty()) {
-      System.err.println("highlightBranch: no bytecode found");
+      LauncherMain.printCommandError("ERROR: highlightBranch: no bytecode found");
       return null;
     }
     if (bytecode.size() < line) {
-      System.err.println("highlightBranch: line " + line + " exceeds bytecode length " + bytecode.size());
+      LauncherMain.printCommandError("ERROR: highlightBranch: line " + line +
+          " exceeds bytecode length " + bytecode.size());
       return null;
     }
     BytecodeInfo bc = bytecode.get(line);
     if (bc.optype != OpcodeType.SYMBRA) {
-      System.err.println("highlightBranch: " + line + " not branch opcode: " + bc.opcode);
+      LauncherMain.printCommandError("ERROR: highlightBranch: " + line +
+          " not branch opcode: " + bc.opcode);
       return null;
     }
 
@@ -476,7 +478,7 @@ public final class BytecodeViewer {
           methName = words[2].trim();
           break;
         default:
-          System.err.println("invalid list for method: " + entry);
+          LauncherMain.printCommandError("ERROR: invalid list for method: " + entry);
           break;
       }
       LauncherMain.printCommandMessage("Line: " + curLine + " Type: " + words.length +
@@ -720,7 +722,7 @@ public final class BytecodeViewer {
         bc.mark = bc.mark | HIGHLIGHT_CURSOR;
         bytecode.set(line, bc);
         newpos = bc.ixStart;
-        //System.out.println("highlightCursorPosition: selected line " + line + ", offset = "
+        //LauncherMain.printCommandMessage("highlightCursorPosition: selected line " + line + ", offset = "
         //    + bc.ixStart + " - " + bc.ixEnd);
       } else {
         // remove mark from all other lines
@@ -769,7 +771,7 @@ public final class BytecodeViewer {
     try {
       offset = Integer.parseUnsignedInt(param);
     } catch (NumberFormatException ex) {
-      System.err.println("findBranchOffset: invalid branch location value: " + param);
+      LauncherMain.printCommandError("ERROR: findBranchLine: invalid branch location value: " + param);
       return -1;
     }
     
@@ -780,7 +782,7 @@ public final class BytecodeViewer {
       }
     }
 
-    System.err.println("findBranchOffset: branch location value not found in method: " + param);
+    LauncherMain.printCommandError("ERROR: findBranchLine: branch location value not found in method: " + param);
     return -1;
   }
   
@@ -920,7 +922,7 @@ public final class BytecodeViewer {
       // set caret to the mouse location and get the caret position (char offset within text)
       panel.setCaretPosition(panel.viewToModel(evt.getPoint()));
       int curpos = panel.getCaretPosition();
-      System.out.println("cursor = " + curpos);
+      //LauncherMain.printCommandMessage("BytecodeViewer: cursor = " + curpos);
       
       // now determine line number and offset within the line for the caret
       int line = 0;
@@ -941,7 +943,8 @@ public final class BytecodeViewer {
       line -= LINES_PRECEEDING_BYTECODE; // subtract off the lines preceeding the bytecode info
       if (line >= 0) {
         BytecodeInfo bc = bytecode.get(line);
-        System.out.println("line " + line + " Opcode: " + bc.opcode + ", type = " + bc.optype.toString());
+        //LauncherMain.printCommandMessage("BytecodeViewer: line " + line + " Opcode: " +
+        //    bc.opcode + ", type = " + bc.optype.toString());
         if (bc.optype == OpcodeType.LOAD || bc.optype == OpcodeType.STORE) {
           // user selected a line containing a load/store to a local parameter.
           // First, determine which parameter is selected
@@ -997,7 +1000,7 @@ public final class BytecodeViewer {
             String name = LauncherMain.addSymbVariable(methodLoaded, entry.name, entry.type,
                 paramNum + "", entry.start + "", entry.end + "", opstrt, oplast);
             if (name == null) {
-              LauncherMain.printCommandMessage("This symbolic value already exists");
+              LauncherMain.printStatusError("This symbolic value already exists");
             } else {
               // now update the danfig file
               LauncherMain.updateDanfigFile();
@@ -1013,27 +1016,27 @@ public final class BytecodeViewer {
     @Override
     public void keyPressed(KeyEvent ke) {
       // when the key is initially pressed
-      //System.out.println("keyPressed: " + ke.getKeyCode());
+      //LauncherMain.printCommandMessage("BytecodeViewer: keyPressed: " + ke.getKeyCode());
     }
 
     @Override
     public void keyTyped(KeyEvent ke) {
       // follows keyPressed and preceeds keyReleased when entered key is character type
-      //System.out.println("keyTyped: " + ke.getKeyCode() + " = '" + ke.getKeyChar() + "'");
+      //LauncherMain.printCommandMessage("BytecodeViewer: keyTyped: " + ke.getKeyCode() + " = '" + ke.getKeyChar() + "'");
     }
 
     @Override
     public void keyReleased(KeyEvent ke) {
       // when the key has been released
-      //System.out.println("keyReleased: " + ke.getKeyCode());
+      //LauncherMain.printCommandMessage("BytecodeViewer: keyReleased: " + ke.getKeyCode());
       int curpos = panel.getCaretPosition();
       switch (ke.getKeyCode()) {
         case KeyEvent.VK_UP:    // UP ARROW key
-          //System.out.println("UP key: at cursor " + curpos);
+          //LauncherMain.printCommandMessage("BytecodeViewer: UP key: at cursor " + curpos);
           highlightCursorPosition(curpos);
           break;
         case KeyEvent.VK_DOWN:  // DOWN ARROW key
-          //System.out.println("DN key: at cursor " + curpos);
+          //LauncherMain.printCommandMessage("BytecodeViewer: DN key: at cursor " + curpos);
           highlightCursorPosition(curpos);
           break;
         default:

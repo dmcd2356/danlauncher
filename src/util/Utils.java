@@ -26,7 +26,7 @@ public class Utils {
     String content = "";
     File file = new File(filename);
     if (!file.isFile()) {
-      LauncherMain.printCommandError("file not found: " + filename);
+      LauncherMain.printCommandError("ERROR: file not found: " + filename);
     } else {
       try {
         FileReader fileReader = new FileReader(file);
@@ -36,7 +36,7 @@ public class Utils {
           content += line + NEWLINE;
         }
       } catch (IOException ex) {
-        LauncherMain.printCommandError(ex.getMessage());
+        LauncherMain.printCommandError("ERROR: " + ex.getMessage());
       }
     }
 
@@ -67,13 +67,13 @@ public class Utils {
       bw = new BufferedWriter(fw);
       bw.write(content);
     } catch (IOException ex) {
-      LauncherMain.printCommandError(ex.getMessage());
+      LauncherMain.printCommandError("ERROR: " + ex.getMessage());
     } finally {
       if (bw != null) {
         try {
           bw.close();
         } catch (IOException ex) {
-          LauncherMain.printCommandError(ex.getMessage());
+          LauncherMain.printCommandError("ERROR: " + ex.getMessage());
         }
       }
     }

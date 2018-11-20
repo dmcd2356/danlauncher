@@ -322,7 +322,7 @@ public class GuiControls {
       case Button:
         return getButton(name);
       default:
-        System.err.println("Unhandled control type: " + type.toString());
+        System.err.println("ERROR: Unhandled control type: " + type.toString());
         break;
     }
     return null;
@@ -350,7 +350,7 @@ public class GuiControls {
       case Spinner:
         return (String) ((JSpinner)control).getValue();
       default:
-        System.err.println("Unhandled control type: " + type.toString());
+        System.err.println("ERROR: Unhandled control type: " + type.toString());
         break;
     }
     return "";
@@ -389,7 +389,7 @@ public class GuiControls {
         ((JSpinner)control).setValue(intval);
         break;
       default:
-        System.err.println("Unhandled control type: " + type.toString());
+        System.err.println("ERROR: Unhandled control type: " + type.toString());
         break;
     }
   }
@@ -530,7 +530,7 @@ public class GuiControls {
     if (panelname != null && !panelname.isEmpty()) {
       panelInfo = getPanelInfo(panelname);
       if (panelInfo == null) {
-        System.err.println("'" + panelname + "' container panel not found!");
+        System.err.println("ERROR: '" + panelname + "' container panel not found!");
         System.exit(1);
       }
       Component panel = gPanel.get(panelname).panel;
@@ -548,7 +548,7 @@ public class GuiControls {
     } else {
       PanelInfo panelInfo = gPanel.get(panelname);
       if (panelInfo == null) {
-        System.err.println("addPanelToPanel: '" + panelname + "' panel not found!");
+        System.err.println("ERROR: addPanelToPanel: '" + panelname + "' panel not found!");
         System.exit(1);
       }
       Component panel = panelInfo.panel;
@@ -583,7 +583,7 @@ public class GuiControls {
     if (panelname != null && !panelname.isEmpty()) {
       panel = gPanel.get(panelname).panel;
       if (panel == null) {
-        System.err.println("'" + panelname + "' panel not found!");
+        System.err.println("ERROR: '" + panelname + "' panel not found!");
         System.exit(1);
       }
     }
@@ -622,7 +622,7 @@ public class GuiControls {
       gridbag.setConstraints(label, setGbagConstraints(Orient.LEFT, true));
       mainFrame.add(label);
     } else if (gPanel.get(panelname).type != PanelType.PANEL) {
-      System.err.println("makeLineGap: Invalid panel type: " + gPanel.get(panelname).type.toString());
+      System.err.println("ERROR: makeLineGap: Invalid panel type: " + gPanel.get(panelname).type.toString());
     } else {
       JPanel panel = (JPanel) getSelectedPanel(panelname);
       gridbag = (GridBagLayout) panel.getLayout();
@@ -653,7 +653,7 @@ public class GuiControls {
       gridbag.setConstraints(label, setGbagConstraints(Orient.LEFT, false));
       mainFrame.add(label);
     } else if (gPanel.get(panelname).type != PanelType.PANEL) {
-      System.err.println("makeGap: Invalid panel type: " + gPanel.get(panelname).type.toString());
+      System.err.println("ERROR: makeGap: Invalid panel type: " + gPanel.get(panelname).type.toString());
     } else {
       JPanel panel = (JPanel) getSelectedPanel(panelname);
       gridbag = (GridBagLayout) panel.getLayout();
@@ -676,11 +676,11 @@ public class GuiControls {
       return;
     }
     if (name != null && !name.isEmpty() && gLabel.containsKey(name)) {
-      System.err.println("'" + name + "' label already added to container!");
+      System.err.println("ERROR: '" + name + "' label already added to container!");
       System.exit(1);
     }
     if (gPanel.get(panelname).type != PanelType.PANEL) {
-      System.err.println("makeLabel: Invalid panel type: " + gPanel.get(panelname).type.toString());
+      System.err.println("ERROR: makeLabel: Invalid panel type: " + gPanel.get(panelname).type.toString());
     }
     
     // get container panel if specified & get corresponding layout
@@ -732,11 +732,11 @@ public class GuiControls {
       return null;
     }
     if (gButton.containsKey(name)) {
-      System.err.println("'" + name + "' button already added to container!");
+      System.err.println("ERROR: '" + name + "' button already added to container!");
       System.exit(1);
     }
     if (gPanel.get(panelname).type != PanelType.PANEL) {
-      System.err.println("makeLabel: Invalid panel type: " + gPanel.get(panelname).type.toString());
+      System.err.println("ERROR: makeButton: Invalid panel type: " + gPanel.get(panelname).type.toString());
     }
 
     // get the layout for the container
@@ -745,7 +745,7 @@ public class GuiControls {
     if (panelname != null && !panelname.isEmpty()) {
       panel = (JPanel) gPanel.get(panelname).panel;
       if (panel == null) {
-        System.err.println("'" + panelname + "' panel not found!");
+        System.err.println("ERROR: '" + panelname + "' panel not found!");
         System.exit(1);
       }
       gridbag = (GridBagLayout) panel.getLayout();
@@ -783,11 +783,11 @@ public class GuiControls {
       return null;
     }
     if (gCheckbox.containsKey(name)) {
-      System.err.println("'" + name + "' checkbox already added to container!");
+      System.err.println("ERROR: '" + name + "' checkbox already added to container!");
       System.exit(1);
     }
     if (gPanel.get(panelname).type != PanelType.PANEL) {
-      System.err.println("makeLabel: Invalid panel type: " + gPanel.get(panelname).type.toString());
+      System.err.println("ERROR: makeCheckbox: Invalid panel type: " + gPanel.get(panelname).type.toString());
     }
 
     // get the layout for the container
@@ -796,7 +796,7 @@ public class GuiControls {
     if (panelname != null && !panelname.isEmpty()) {
       panel = (JPanel) gPanel.get(panelname).panel;
       if (panel == null) {
-        System.err.println("'" + panelname + "' panel not found!");
+        System.err.println("ERROR: '" + panelname + "' panel not found!");
         System.exit(1);
       }
       gridbag = (GridBagLayout) panel.getLayout();
@@ -839,11 +839,11 @@ public class GuiControls {
       return null;
     }
     if (gTextField.containsKey(name)) {
-      System.err.println("'" + name + "' textfield already added to container!");
+      System.err.println("ERROR: '" + name + "' textfield already added to container!");
       System.exit(1);
     }
     if (gPanel.get(panelname).type != PanelType.PANEL) {
-      System.err.println("makeLabel: Invalid panel type: " + gPanel.get(panelname).type.toString());
+      System.err.println("ERROR: makeTextField: Invalid panel type: " + gPanel.get(panelname).type.toString());
     }
 
     // get the layout for the container
@@ -852,7 +852,7 @@ public class GuiControls {
     if (panelname != null && !panelname.isEmpty()) {
       panel = (JPanel) gPanel.get(panelname).panel;
       if (panel == null) {
-        System.err.println("'" + panelname + "' panel not found!");
+        System.err.println("ERROR: '" + panelname + "' panel not found!");
         System.exit(1);
       }
       gridbag = (GridBagLayout) panel.getLayout();
@@ -903,11 +903,11 @@ public class GuiControls {
       return null;
     }
     if (gRadiobutton.containsKey(name)) {
-      System.err.println("'" + name + "' radiobutton already added to container!");
+      System.err.println("ERROR: '" + name + "' radiobutton already added to container!");
       System.exit(1);
     }
     if (gPanel.get(panelname).type != PanelType.PANEL) {
-      System.err.println("makeLabel: Invalid panel type: " + gPanel.get(panelname).type.toString());
+      System.err.println("ERROR: makeRadioButton: Invalid panel type: " + gPanel.get(panelname).type.toString());
     }
 
     // get the layout for the container
@@ -916,7 +916,7 @@ public class GuiControls {
     if (panelname != null && !panelname.isEmpty()) {
       panel = (JPanel) gPanel.get(panelname).panel;
       if (panel == null) {
-        System.err.println("'" + panelname + "' panel not found!");
+        System.err.println("ERROR: '" + panelname + "' panel not found!");
         System.exit(1);
       }
       gridbag = (GridBagLayout) panel.getLayout();
@@ -953,11 +953,11 @@ public class GuiControls {
       return null;
     }
     if (gCombobox.containsKey(name)) {
-      System.err.println("'" + name + "' combobox already added to container!");
+      System.err.println("ERROR: '" + name + "' combobox already added to container!");
       System.exit(1);
     }
     if (gPanel.get(panelname).type != PanelType.PANEL) {
-      System.err.println("makeLabel: Invalid panel type: " + gPanel.get(panelname).type.toString());
+      System.err.println("ERROR: makeCombobox: Invalid panel type: " + gPanel.get(panelname).type.toString());
     }
 
     // get the layout for the container
@@ -966,7 +966,7 @@ public class GuiControls {
     if (panelname != null && !panelname.isEmpty()) {
       panel = (JPanel) gPanel.get(panelname).panel;
       if (panel == null) {
-        System.err.println("'" + panelname + "' panel not found!");
+        System.err.println("ERROR: '" + panelname + "' panel not found!");
         System.exit(1);
       }
       gridbag = (GridBagLayout) panel.getLayout();
@@ -1011,11 +1011,11 @@ public class GuiControls {
       return null;
     }
     if (gSpinner.containsKey(name)) {
-      System.err.println("'" + name + "' spinner already added to container!");
+      System.err.println("ERROR: '" + name + "' spinner already added to container!");
       System.exit(1);
     }
     if (gPanel.get(panelname).type != PanelType.PANEL) {
-      System.err.println("makeLabel: Invalid panel type: " + gPanel.get(panelname).type.toString());
+      System.err.println("ERROR: makeSpinner: Invalid panel type: " + gPanel.get(panelname).type.toString());
     }
 
     // get the layout for the container
@@ -1024,7 +1024,7 @@ public class GuiControls {
     if (panelname != null && !panelname.isEmpty()) {
       panel = (JPanel) gPanel.get(panelname).panel;
       if (panel == null) {
-        System.err.println("'" + panelname + "' panel not found!");
+        System.err.println("ERROR: '" + panelname + "' panel not found!");
         System.exit(1);
       }
       gridbag = (GridBagLayout) panel.getLayout();
@@ -1064,7 +1064,7 @@ public class GuiControls {
       return null;
     }
     if (gPanel.containsKey(name)) {
-      System.err.println("'" + name + "' panel already added to container!");
+      System.err.println("ERROR: '" + name + "' panel already added to container!");
       System.exit(1);
     }
 
@@ -1154,7 +1154,7 @@ public class GuiControls {
       return null;
     }
     if (getPanelInfo(name) != null) {
-      System.err.println("'" + name + "' panel already added to container!");
+      System.err.println("ERROR: '" + name + "' panel already added to container!");
       System.exit(1);
     }
 
@@ -1186,7 +1186,7 @@ public class GuiControls {
       return null;
     }
     if (getPanelInfo(name) != null) {
-      System.err.println("'" + name + "' panel already added to container!");
+      System.err.println("ERROR: '" + name + "' panel already added to container!");
       System.exit(1);
     }
 
@@ -1221,7 +1221,7 @@ public class GuiControls {
       return null;
     }
     if (getPanelInfo(name) != null || gList.containsKey(name)) {
-      System.err.println("'" + name + "' scrolling list panel already added to container!");
+      System.err.println("ERROR: '" + name + "' scrolling list panel already added to container!");
       System.exit(1);
     }
 
@@ -1260,7 +1260,7 @@ public class GuiControls {
       return null;
     }
     if (getPanelInfo(name) != null || gTextPane.containsKey(name)) {
-      System.err.println("'" + name + "' scrolling textpanel already added to container!");
+      System.err.println("ERROR: '" + name + "' scrolling textpanel already added to container!");
       System.exit(1);
     }
 
@@ -1298,7 +1298,7 @@ public class GuiControls {
    */
   public JScrollPane makeRawScrollList(String name, String title, DefaultListModel list) {
     if (getPanelInfo(name) != null || gList.containsKey(name)) {
-      System.err.println("'" + name + "' scrolling list panel already added to container!");
+      System.err.println("ERROR: '" + name + "' scrolling list panel already added to container!");
       System.exit(1);
     }
 

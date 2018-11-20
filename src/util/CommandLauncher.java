@@ -32,7 +32,7 @@ public class CommandLauncher {
     private void logMessage(String type, String message) {
       if (logger == null) {
         if (type.equals("ERROR")) {
-          System.err.println(message);
+          System.err.println("ERROR: " + message);
         } else {
           System.out.println(message);
         }
@@ -103,7 +103,7 @@ public class CommandLauncher {
             try {
                 Thread.sleep(100);
             } catch (InterruptedException ex) {
-//                System.err.println("Thread.sleep failure: " + ex);
+//                System.err.println("ERROR: Thread.sleep failure: " + ex);
                 break;
             }
         }

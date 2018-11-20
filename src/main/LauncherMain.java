@@ -283,17 +283,8 @@ public final class LauncherMain {
     setThreadControls(button.isSelected());
   }
     
-  public static void setThreadControls(boolean enabled) {
-    JLabel label = graphSetupFrame.getLabel ("TXT_TH_SEL");
-    label.setText("0");
-    label.setEnabled(enabled);
-
-    graphSetupFrame.getButton("BTN_TH_UP").setEnabled(enabled);
-    graphSetupFrame.getButton("BTN_TH_DN").setEnabled(enabled);
-  }
-  
   public static void printStatusClear() {
-    mainFrame.getTextField("TXT_MESSAGES").setText("                   ");
+    mainFrame.getTextField("TXT_MESSAGES").setText("");
   }
   
   public static void printStatusMessage(String message) {
@@ -304,7 +295,8 @@ public final class LauncherMain {
   }
   
   public static void printStatusError(String message) {
-    mainFrame.getTextField("TXT_MESSAGES").setText("ERROR: " + message);
+    message = "ERROR: " + message;
+    mainFrame.getTextField("TXT_MESSAGES").setText(message);
       
     // echo status to command output window
     printCommandError(message);
@@ -328,7 +320,7 @@ public final class LauncherMain {
       return false;
     }
     if (!tabSelect.containsKey(select)) {
-      System.err.println("Tab selection '" + select + "' not found!");
+      System.err.println("ERROR: Tab selection '" + select + "' not found!");
       return false;
     }
 
@@ -489,8 +481,11 @@ public final class LauncherMain {
     panel = "PNL_MESSAGES";
     mainFrame.makeTextField (panel, "TXT_MESSAGES"  , ""          , LEFT, true, "", 138, false);
 
+    // TODO: for now, we'll disable the Solutions panel, since the data isn't valid anyway
+    boolean bDisableSolutions = true;
+    
     panel = "PNL_CONTAINER";
-    mainFrame.makePanel     (panel, "PNL_CONTROLS"  , "Controls"  , LEFT, false, 600, 170);
+    mainFrame.makePanel     (panel, "PNL_CONTROLS"  , "Controls"  , LEFT, bDisableSolutions, 600, 170);
     mainFrame.makePanel     (panel, "PNL_SOLUTIONS" , "Solutions" , LEFT, true, 400, 170);
     mainFrame.makePanel     (panel, "PNL_BYTECODE"  , "Bytecode"  , LEFT, true);
 
@@ -586,6 +581,9 @@ public final class LauncherMain {
     // initially disable STOP button
     mainFrame.getButton("BTN_STOPTEST").setEnabled(false);
 
+    // TODO: for now, we'll disable the Solutions panel, since the data isn't valid anyway
+    mainFrame.getPanelInfo("PNL_SOLUTIONS").panel.setVisible(!bDisableSolutions);
+        
     // create the the setup frames, but initially hide them
     createSystemConfigPanel();
     createGraphSetupPanel();
@@ -1193,7 +1191,7 @@ public final class LauncherMain {
       }
       
       if (oldDebugFlags.equals(debugFlags)) {
-        System.out.println("No changes to debug settings");
+        printCommandMessage("No changes to debug settings");
       } else {
         updateDanfigFile();
       }
@@ -1303,7 +1301,7 @@ public final class LauncherMain {
   
   private static void addMenuItem(JMenu menucat, String id, String title, ActionListener action) {
     if (menuItems.containsKey(id)) {
-      System.err.println("Menu Item '" + id + "' already defined!");
+      System.err.println("ERROR: Menu Item '" + id + "' already defined!");
       return;
     }
     JMenuItem item = new JMenuItem(title);
@@ -1318,7 +1316,7 @@ public final class LauncherMain {
   
   private static void addMenuCheckbox(JMenu menucat, String id, String title, boolean dflt, ItemListener action) {
     if (menuCheckboxes.containsKey(id)) {
-      System.err.println("Menu Checkbox '" + id + "' already defined!");
+      System.err.println("ERROR: Menu Checkbox '" + id + "' already defined!");
       return;
     }
     JCheckBoxMenuItem item = new JCheckBoxMenuItem(title);
@@ -1395,6 +1393,15 @@ public final class LauncherMain {
       JTabbedPane tabPanel = (JTabbedPane) panelInfo.panel;
       tabPanel.setSelectedIndex(index);
     }
+  }
+  
+  private static void setThreadControls(boolean enabled) {
+    JLabel label = graphSetupFrame.getLabel ("TXT_TH_SEL");
+    label.setText("0");
+    label.setEnabled(enabled);
+
+    graphSetupFrame.getButton("BTN_TH_UP").setEnabled(enabled);
+    graphSetupFrame.getButton("BTN_TH_DN").setEnabled(enabled);
   }
   
   private void enableControlSelections(boolean enable) {
@@ -1602,16 +1609,16 @@ public final class LauncherMain {
       if (debugPort != udpThread.getPort()) {
         // port change: we have to close the current server so we can create a new one using a different port
         udpThread.exit();
-        System.out.println("Changinng NetworkServer port from " + udpThread.getPort() + " to " + debugPort);
+        printCommandMessage("Changing NetworkServer port from " + udpThread.getPort() + " to " + debugPort);
         // continue onto starting a new server
       } else if (!projectPath.equals(udpThread.getOutputFile())) {
         // storage location changed - easy, we can just change the setting on the fly
-        System.out.println("Changing NetworkServer log location to: " + projectPath + "debug.log");
+        printCommandMessage("Changing NetworkServer log location to: " + projectPath + "debug.log");
         udpThread.setBufferFile(projectPath + "debug.log");
         return;
       } else {
         // no change - even easier. just exit.
-        System.out.println("No change in NetworkServer.");
+        printCommandMessage("No change in NetworkServer.");
         return;
       }
     }
@@ -1622,7 +1629,7 @@ public final class LauncherMain {
       System.err.println("ERROR: unable to start NetworkServer. " + ex);
     }
 
-    System.out.println("danlauncher receiving port: " + debugPort);
+    printCommandMessage("danlauncher receiving port: " + debugPort);
     udpThread.start();
     udpThread.setLoggingCallback(makeConnection);
     udpThread.setBufferFile(projectPath + "/debug.log");
@@ -1677,13 +1684,13 @@ public final class LauncherMain {
       }
       fileReader.close();
     } catch (IOException ex) {
-      System.err.println("ERROR: <GuiPanel.setupClassList> " + ex);
+      printCommandError("ERROR: setupClassList: " + ex);
       return;
     }
 
     // exit if no methods were found
     if (fullMethList.isEmpty()) {
-      System.err.println("ERROR: <GuiPanel.setupClassList> No methods found in methodlist.txt file!");
+      printCommandError("ERROR: setupClassList: No methods found in methodlist.txt file!");
       return;
     }
         
@@ -1717,7 +1724,7 @@ public final class LauncherMain {
 
     // setup the class and method selections
     setClassSelections();
-    System.out.println(classList.size() + " classes and " + fullMethList.size() + " methods found");
+    printCommandMessage(classList.size() + " classes and " + fullMethList.size() + " methods found");
   }
 
   private static void setClassSelections() {
@@ -1940,7 +1947,7 @@ public final class LauncherMain {
       FileUtils.deleteDirectory(new File(projectPathName + CLASSFILE_STORAGE));
       FileUtils.deleteDirectory(new File(projectPathName + JAVAPFILE_STORAGE));
     } catch (IOException ex) {
-      printCommandError(ex.getMessage());
+      printCommandError("ERROR: " + ex.getMessage());
     }
       
     // determine if jar file needs instrumenting
@@ -2144,7 +2151,7 @@ public final class LauncherMain {
     } catch (IOException ex) {
       // display error
       printStatusMessage("Post failure");
-      printCommandError(ex.getMessage());
+      printCommandError("ERROR: " + ex.getMessage());
     } finally {
       if (connection != null) {
         connection.disconnect();
@@ -2261,7 +2268,7 @@ public final class LauncherMain {
     
     File file = new File(projectPathName + "danfig");
     if (!file.isFile()) {
-      printCommandError("danfig file not found at path: " + projectPathName);
+      printCommandMessage("danfig file not found at path: " + projectPathName);
       printCommandMessage("No symbolic parameters");
       updateFile = true;
     } else {
@@ -2326,7 +2333,7 @@ public final class LauncherMain {
             // extract symbolic constraint
             String word[] = line.split("\\s+");
             if (word.length != 4) {
-              System.err.println("ERROR: Invalid Constraint word count (" + word.length + "): " + line);
+              printCommandError("ERROR: Invalid Constraint word count (" + word.length + "): " + line);
               return;
             }
             // get the entries in the line
@@ -2345,7 +2352,7 @@ public final class LauncherMain {
         }
         fileReader.close();
       } catch (IOException ex) {
-        printCommandError(ex.getMessage());
+        printCommandError("ERROR: " + ex.getMessage());
       }
     }
 

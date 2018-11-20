@@ -314,17 +314,17 @@ public class ParamTable {
         startVal = Integer.parseUnsignedInt(start);
         endVal   = Integer.parseUnsignedInt(end);
       } catch (NumberFormatException ex) {
-        System.err.println("ERROR: Invalid format for start and end values: " + start + ", " + end);
+        LauncherMain.printCommandError("ERROR: Invalid format for start and end values: " + start + ", " + end);
         return;
       }
       Integer opstrt = BytecodeViewer.byteOffsetToLineNumber(startVal);
       Integer oplast = BytecodeViewer.byteOffsetToLineNumber(endVal);
       if (opstrt == null || oplast == null) {
-        System.err.println("ERROR: No line found for start and end values: " + start + ", " + end);
+        LauncherMain.printCommandError("ERROR: No line found for start and end values: " + start + ", " + end);
       } else {
         name = LauncherMain.addSymbVariable(methodname, name, type, slot, start, end, opstrt, oplast);
         if (name == null) {
-          LauncherMain.printCommandMessage("This symbolic value already exists");
+          LauncherMain.printStatusError("This symbolic value already exists");
         }
       }
     }

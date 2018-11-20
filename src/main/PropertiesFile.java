@@ -140,7 +140,6 @@ public class PropertiesFile {
         props.store(out, "---No Comment---");
         out.close();
       } catch (FileNotFoundException ex) {
-        logError("FileNotFoundException: " + propFile);
         logError("ERROR: FileNotFoundException - " + propFile);
       } catch (IOException ex) {
         logError("ERROR: IOException on FileOutputStream - " + propFile);

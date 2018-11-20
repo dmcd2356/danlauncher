@@ -218,7 +218,7 @@ public class CallGraph {
         }
 
         CallGraph.callGraph.colorVertex(mthNode, color);
-        //System.out.println(color + " for: " + mthNode.getFullName());
+        //LauncherMain.printCommandMessage(color + " for: " + mthNode.getFullName());
       }
   }
   
@@ -230,7 +230,7 @@ public class CallGraph {
   private static void drawCG(List<MethodInfo> methList) {
     CallGraph.callGraph = new BaseGraph<>();
 
-    System.out.println("drawCG: Methods = " + methList.size());
+    LauncherMain.printCommandMessage("drawCG: Methods = " + methList.size());
     // add vertexes to graph
     for(MethodInfo mthNode : methList) {
       CallGraph.callGraph.addVertex(mthNode, mthNode.getCGName());
@@ -491,7 +491,7 @@ public class CallGraph {
     try {
       ImageIO.write(bi,"png",file);
     } catch (Exception ex) {
-      System.err.println(ex.getMessage());
+      LauncherMain.printCommandError("ERROR: " + ex.getMessage());
     }
   }
 
@@ -512,7 +512,7 @@ public class CallGraph {
     try {
       bw = new BufferedWriter(new FileWriter(file));
     } catch (IOException ex) {
-      System.err.println(ex.getMessage());
+      LauncherMain.printCommandError("ERROR: " + ex.getMessage());
       return;
     }
 
@@ -532,7 +532,7 @@ public class CallGraph {
     try {
       bw.close();
     } catch (IOException ex) {
-      System.err.println(ex.getMessage());
+      LauncherMain.printCommandError("ERROR: " + ex.getMessage());
     }
   }
   
@@ -547,7 +547,7 @@ public class CallGraph {
     try {
       br = new BufferedReader(new FileReader(file));
     } catch (FileNotFoundException ex) {
-      System.err.println(ex.getMessage());
+      LauncherMain.printCommandError("ERROR: " + ex.getMessage());
       return 0;
     }
     
@@ -556,7 +556,7 @@ public class CallGraph {
 		Gson gson = builder.create();
     Type methodListType = new TypeToken<List<MethodInfo>>() {}.getType();
     CallGraph.graphMethList = gson.fromJson(br, methodListType);
-    System.out.println("loaded: " + CallGraph.graphMethList.size() + " methods");
+    LauncherMain.printCommandMessage("loaded: " + CallGraph.graphMethList.size() + " methods");
 
     // draw the new graph (always do the full list)
     clearGraph();
@@ -674,7 +674,7 @@ public class CallGraph {
    */  
   public static void methodExit(int tid, long tstamp, String icount) {
     if (CallGraph.graphMethList == null) {
-      //System.out.println("Return: " + method + " - NOT FOUND!");
+      //LauncherMain.printCommandMessage("Return: " + method + " - NOT FOUND!");
       return;
     }
 
@@ -692,7 +692,7 @@ public class CallGraph {
       if (ix >= 0 && ix < CallGraph.graphMethList.size()) {
         MethodInfo mthNode = CallGraph.graphMethList.get(ix);
         mthNode.exit(tid, tstamp, insCount);
-        //System.out.println("Return: (" + mthNode.getDuration() + ") " + mthNode.getClassAndMethod());
+        //LauncherMain.printCommandMessage("Return: (" + mthNode.getDuration() + ") " + mthNode.getClassAndMethod());
       }
     }
   }

@@ -175,7 +175,7 @@ public class ThreadLauncher {
                 if (exitcode == 0)
                     System.out.println("All tasks finished.");
                 else
-                    System.err.println("Failure executing command: exitcode = " + exitcode);
+                    System.err.println("ERROR: Failure executing command: exitcode = " + exitcode);
 
                 // empty queue
                 runner = null;

@@ -87,12 +87,12 @@ public class BytecodeGraph {
     try {
       ImageIO.write(bi,"png",file);
     } catch (Exception ex) {
-      System.err.println(ex.getMessage());
+      LauncherMain.printCommandError("ERROR: " + ex.getMessage());
     }
   }
 
   private void drawGraph() {
-    System.out.println("drawGraph: Bytecode entries = " + BytecodeViewer.bytecode.size());
+    LauncherMain.printCommandMessage("drawGraph: Bytecode entries = " + BytecodeViewer.bytecode.size());
     
     // clear the current graph
     clearGraph();
@@ -199,7 +199,8 @@ public class BytecodeGraph {
             nextflow = branchMap.get(nextloc);
           }
           if (nextflow == null) {
-            System.out.println("Failed Connection: " + flow.offset + "_" + flow.opcode + " to offset " + nextloc);
+            LauncherMain.printCommandError("ERROR: Failed Connection: " + flow.offset + "_" +
+                flow.opcode + " to offset " + nextloc);
             continue;
           }
           
@@ -219,7 +220,8 @@ public class BytecodeGraph {
             nextflow = branchMap.get(nextflow.nextloc.get(0));
           }
           if (nextflow == null) {
-            System.out.println("Failed Connection: " + flow.offset + "_" + flow.opcode + " to offset " + nextloc);
+            LauncherMain.printCommandError("ERROR: Failed Connection: " + flow.offset + "_" +
+                flow.opcode + " to offset " + nextloc);
             continue;
           }
           // skip if this block has already been connected to the branch location
@@ -372,7 +374,7 @@ public class BytecodeGraph {
 
         default:
           // indicate error
-          System.err.println("Unhandled OpcodeType: " + bc.optype.toString());
+          LauncherMain.printCommandError("ERROR: Unhandled OpcodeType: " + bc.optype.toString());
           break;
       }
     }

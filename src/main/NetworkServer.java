@@ -138,7 +138,7 @@ public final class NetworkServer extends Thread implements NetworkListener {
 
     // setup the file to save to
     if (fileSaver == null) {
-      System.err.println("fileSaver not started yet!");
+      System.out.println("setBufferFile: fileSaver not started yet!");
     } else {
       FileSaver.setFile(storageFileName);
     }
@@ -158,7 +158,7 @@ public final class NetworkServer extends Thread implements NetworkListener {
 
     // setup the file to save to (deletes old file first)
     if (fileSaver == null) {
-      System.err.println("fileSaver not started yet!");
+      System.out.println("eraseBufferFile: fileSaver not started yet!");
     } else {
       FileSaver.setFile(storageFileName);
     }

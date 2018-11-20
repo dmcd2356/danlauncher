@@ -61,7 +61,7 @@ public class RunnerThread extends Thread {
             proc.destroyForcibly();
             running = false;
         } catch (Exception e) {
-            System.err.println("Failure in issueCommand for: " + this.command[0]);
+            System.err.println("ERROR: Failure in issueCommand for: " + this.command[0]);
         }
     }
     	
@@ -188,7 +188,7 @@ public class RunnerThread extends Thread {
         }
 
         retcode = proc.exitValue();
-        System.err.println("exit code = " + retcode);
+        System.out.println("exit code = " + retcode);
         proc.destroy();
 
         return retcode;
