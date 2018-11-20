@@ -249,7 +249,13 @@ public final class LauncherMain {
     maxLogLength = systemProps.getPropertiesItem(SystemProperties.MAX_LOG_LENGTH.toString(), "500000");
     String projectPath = systemProps.getPropertiesItem(SystemProperties.PROJECT_PATH.toString(), HOMEPATH);
     String myport = systemProps.getPropertiesItem(SystemProperties.DEBUG_PORT.toString(), "5000");
-    debugPort = Integer.parseUnsignedInt(myport);
+    try {
+      debugPort = Integer.parseUnsignedInt(myport);
+    } catch (NumberFormatException ex) {
+      printCommandError("ERROR: invalid value for Systemproperties DEBUG_PORT: " + myport);
+      debugPort = 5000;
+      systemProps.setPropertiesItem(SystemProperties.DEBUG_PORT.toString(), debugPort + "");
+    }
     
     // we need a filechooser and initialize it to the project path
     fileSelector = new JFileChooser();
@@ -259,7 +265,12 @@ public final class LauncherMain {
     createMainPanel();
 
     if (debugLogger != null && !maxLogLength.isEmpty()) {
-      debugLogger.setMaxBufferSize(Integer.parseUnsignedInt(maxLogLength));
+      try {
+        int size = Integer.parseUnsignedInt(maxLogLength);
+        debugLogger.setMaxBufferSize(size);
+      } catch (NumberFormatException ex) {
+        printCommandError("ERROR: invalid value for Systemproperties MAX_LOG_LENGTH: " + maxLogLength);
+      }
     }
 
     // this creates a command launcher that can run on a separate thread
@@ -1575,7 +1586,13 @@ public final class LauncherMain {
   private static void saveByteFlowGraph() {
     DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd-");
     Date date = new Date();
-    String defaultName = dateFormat.format(date) + "callgraph";
+    String classSelect  = (String) classCombo.getSelectedItem();
+    classSelect = classSelect.replaceAll("/", "-");
+    classSelect = classSelect.replaceAll("\\.", "-");
+    classSelect = classSelect.replaceAll("\\$", "-");
+    String methodSelect = (String) methodCombo.getSelectedItem();
+    methodSelect = methodSelect.substring(0, methodSelect.indexOf("("));
+    String defaultName = dateFormat.format(date) + classSelect + "-" + methodSelect;
     FileNameExtensionFilter filter = new FileNameExtensionFilter("PNG Files", "png");
     String fileExtension = ".png";
     fileSelector.setFileFilter(filter);
@@ -2316,9 +2333,14 @@ public final class LauncherMain {
                 printCommandError("ERROR: Invalid Symbolic word count (" + word.length + "): " + line);
                 return;
             }
-            int lineStart = Integer.parseUnsignedInt(start);
-            int lineEnd   = Integer.parseUnsignedInt(end);
-            name = addSymbVariableByLine(method, name, type, index, lineStart, lineEnd);
+            try {
+              int lineStart = Integer.parseUnsignedInt(start);
+              int lineEnd   = Integer.parseUnsignedInt(end);
+              name = addSymbVariableByLine(method, name, type, index, lineStart, lineEnd);
+            } catch (NumberFormatException ex) {
+              printCommandError("ERROR: Invalid numeric values for lineStart and lineEnd: " + line);
+              return;
+            }
             if (name == null) {
               printCommandMessage("This symbolic value already exists");
             } else {

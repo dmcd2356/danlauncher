@@ -178,7 +178,13 @@ public final class BytecodeViewer {
       int branchLine = findBranchLine(bc.param);
       if (branchLine >= 0) {
         highlightSetMark(branchLine, HIGHLIGHT_BRANCH);
-        branchMarks.add(Integer.parseUnsignedInt(bc.param));
+        try {
+          int nextLine = Integer.parseUnsignedInt(bc.param);
+          branchMarks.add(nextLine);
+        } catch (NumberFormatException ex) {
+          LauncherMain.printCommandError("ERROR: highlightBranch: " + line +
+              " invalid branch location: " + bc.param);
+        }
       }
     } else {
       highlightSetMark(line + 1, HIGHLIGHT_BRANCH); // the line following the branch opcode
@@ -878,8 +884,12 @@ public final class BytecodeViewer {
       if (offset > 0) {
         String key = switchval.substring(0, offset).trim();
         String val = switchval.substring(offset + 1).trim(); // the branch location
-        Integer branchpt = Integer.parseUnsignedInt(val); // let's assume it was numeric
-        bc.switchinfo.put(key, branchpt);
+        try {
+          Integer branchpt = Integer.parseUnsignedInt(val);
+          bc.switchinfo.put(key, branchpt);
+        } catch (NumberFormatException ex) {
+          LauncherMain.printCommandError("ERROR: invalid branch location on line " + lineCount + ": " + val);
+        }
       }
     }
 

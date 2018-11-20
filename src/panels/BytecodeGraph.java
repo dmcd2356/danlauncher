@@ -330,22 +330,30 @@ public class BytecodeGraph {
           break;
 
         case SYMBRA:
-          branchix = Integer.parseUnsignedInt(bc.param); // let's assume it is a numeric
+          try {
+            branchix = Integer.parseUnsignedInt(bc.param);
 
-          type = FlowType.SymBranch;
-          color = BlockColor.VIOLET;
-          title = bc.offset + Utils.NEWLINE + bc.opcode.toUpperCase();
-          nextloc.add(branchix);
+            type = FlowType.SymBranch;
+            color = BlockColor.VIOLET;
+            title = bc.offset + Utils.NEWLINE + bc.opcode.toUpperCase();
+            nextloc.add(branchix);
+          } catch (NumberFormatException ex) {
+            LauncherMain.printCommandError("ERROR: Invalid Symbolic Branch location: " + bc.param);
+          }
           break;
 
         case BRANCH:
         case GOTO:
-          branchix = Integer.parseUnsignedInt(bc.param); // let's assume it is a numeric
+          try {
+            branchix = Integer.parseUnsignedInt(bc.param);
 
-          type = FlowType.Branch;
-          color = BlockColor.NONE;
-          title = bc.offset + Utils.NEWLINE + bc.opcode.toUpperCase();
-          nextloc.add(branchix);
+            type = FlowType.Branch;
+            color = BlockColor.NONE;
+            title = bc.offset + Utils.NEWLINE + bc.opcode.toUpperCase();
+            nextloc.add(branchix);
+          } catch (NumberFormatException ex) {
+            LauncherMain.printCommandError("ERROR: Invalid Branch location: " + bc.param);
+          }
           break;
 
         case SWITCH:

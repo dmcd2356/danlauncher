@@ -163,7 +163,10 @@ public class ParamTable {
             retval.slot  = slot;
             return retval;
           }
-        } catch (NumberFormatException ex) { }
+        } catch (NumberFormatException ex) {
+          LauncherMain.printCommandError("ERROR: Invalid format for start and end values: " +
+              entry.start + ", " + entry.end);
+        }
       }
     }
     return null;
