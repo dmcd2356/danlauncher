@@ -27,6 +27,7 @@ import util.Utils;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.FocusEvent;
@@ -513,6 +514,14 @@ public final class LauncherMain {
     mainFrame.makeTextField (panel, "TXT_INPUT"    , ""            , LEFT, true, "", 40, true);
     mainFrame.makeButton    (panel, "BTN_SOLVER"   , "Solver"      , LEFT, false);
 
+    // set these buttons to the same width
+    ArrayList<String> buttonList = new ArrayList<>();
+    buttonList.add("BTN_RUNTEST");
+    buttonList.add("BTN_STOPTEST");
+    buttonList.add("BTN_SEND");
+    buttonList.add("BTN_SOLVER");
+    mainFrame.setGroupSameMinSize(GuiControls.DimType.WIDTH, buttonList);
+    
     // set color of STOP button
     mainFrame.getButton("BTN_STOPTEST").setBackground(Color.pink);
 
@@ -548,10 +557,10 @@ public final class LauncherMain {
     addMenuCheckbox (menu, "MENU_SERVER_TYPE", "Input using Post (server app)", true,
                       new ItemListener_EnablePost());
     addMenuCheckbox (menu, "MENU_LOAD_DANFIG", "Load symbolics from danfig", true, null);
-    addMenuCheckbox (menu, "MENU_HIDE_CONTROL", "Hide Control Panel", false, 
-                      new ItemListener_HideControlsPanel());
-    addMenuCheckbox (menu, "MENU_HIDE_BCODE" , "Hide Bytecode Select Panel", false, 
-                      new ItemListener_HideBytecodePanel());
+    addMenuCheckbox (menu, "MENU_SHOW_CONTROL", "Show Control Panel", true, 
+                      new ItemListener_ShowControlPanel());
+    addMenuCheckbox (menu, "MENU_SHOW_BCODE" , "Show Bytecode Select Panel", true, 
+                      new ItemListener_ShowBytecodePanel());
 
     menu = menuConfig; // selections for the Config Menu
     addMenuItem     (menu, "MENU_SETUP_SYS"  , "System Configuration", new Action_SystemSetup());
@@ -561,7 +570,7 @@ public final class LauncherMain {
     menu = menuClear; // selections for the Clear Menu
     addMenuItem     (menu, "MENU_CLR_DBASE"  , "Clear DATABASE", new Action_ClearDatabase());
     addMenuItem     (menu, "MENU_CLR_LOG"    , "Clear LOG", new Action_ClearLog());
-    if (bDisableSolutions) {
+    if (!bDisableSolutions) {
       addMenuItem     (menu, "MENU_CLR_SOL"    , "Clear SOLUTIONS", new Action_ClearSolutions());
     }
 
@@ -816,11 +825,11 @@ public final class LauncherMain {
     }
   }
     
-  private class ItemListener_HideControlsPanel implements ItemListener {
+  private class ItemListener_ShowControlPanel implements ItemListener {
     @Override
     public void itemStateChanged(ItemEvent ie) {
       JCheckBoxMenuItem item = (JCheckBoxMenuItem) ie.getItem();
-      boolean show = !item.isSelected();
+      boolean show = item.isSelected();
       GuiControls.PanelInfo panelInfo = mainFrame.getPanelInfo("PNL_CONTAINER");
       if (panelInfo != null) {
         ((JPanel)panelInfo.panel).setVisible(show);
@@ -828,11 +837,11 @@ public final class LauncherMain {
     }
   }
   
-  private class ItemListener_HideBytecodePanel implements ItemListener {
+  private class ItemListener_ShowBytecodePanel implements ItemListener {
     @Override
     public void itemStateChanged(ItemEvent ie) {
       JCheckBoxMenuItem item = (JCheckBoxMenuItem) ie.getItem();
-      boolean show = !item.isSelected();
+      boolean show = item.isSelected();
       GuiControls.PanelInfo panelInfo = mainFrame.getPanelInfo("PNL_BYTECODE");
       if (panelInfo != null) {
         ((JPanel)panelInfo.panel).setVisible(show);

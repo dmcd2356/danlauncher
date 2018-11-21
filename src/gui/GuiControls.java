@@ -13,6 +13,7 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.Toolkit;
+import java.util.ArrayList;
 import java.util.HashMap;
 import javax.swing.BorderFactory;
 import javax.swing.DefaultListModel;
@@ -50,6 +51,8 @@ public class GuiControls {
   
   public enum FrameSize { NOLIMIT, FIXEDSIZE, FULLSCREEN }
 
+  public enum DimType { WIDTH, HEIGHT, BOTH }
+  
   // types of controls for user-entry
   public enum InputControl { Label, TextField, CheckBox, RadioButton, ComboBox, Spinner, Button }
   
@@ -105,12 +108,12 @@ public class GuiControls {
   public GuiControls() {
   }
   
-  public GuiControls(String title, int height, int width) {
+  public GuiControls(String title, int width, int height) {
     // limit height and width to max of screen dimensions
-    height = (height > SCREEN_SIZE.height) ? SCREEN_SIZE.height : height;
     width  = (width  > SCREEN_SIZE.width)  ? SCREEN_SIZE.width  : width;
+    height = (height > SCREEN_SIZE.height) ? SCREEN_SIZE.height : height;
 
-    framesize = new Dimension(height, width);
+    framesize = new Dimension(width, height);
     mainFrame = new JFrame(title);
     mainFrame.setSize(framesize);
     mainFrame.setMinimumSize(framesize);
@@ -145,13 +148,13 @@ public class GuiControls {
     return mainFrame;
   }
 
-  public JFrame newFrame(String title, int height, int width, FrameSize size) {
+  public JFrame newFrame(String title, int width, int height, FrameSize size) {
     if (mainFrame == null) {
       // limit height and width to max of screen dimensions
-      height = (height > SCREEN_SIZE.height) ? SCREEN_SIZE.height : height;
       width  = (width  > SCREEN_SIZE.width)  ? SCREEN_SIZE.width  : width;
+      height = (height > SCREEN_SIZE.height) ? SCREEN_SIZE.height : height;
 
-      framesize = new Dimension(height, width);
+      framesize = new Dimension(width, height);
       mainFrame = new JFrame(title);
       mainFrame.setSize(framesize);
       mainFrame.setMinimumSize(framesize);
@@ -307,6 +310,35 @@ public class GuiControls {
     return gSpinner.get(name);
   }
 
+  public Component getComponent(String name) {
+    if (gPanel.containsKey(name)) {
+      return gPanel.get(name).panel;
+    }
+    if (gLabel.containsKey(name)) {
+      return gLabel.get(name);
+    }
+    if (gButton.containsKey(name)) {
+      return gButton.get(name);
+    }
+    if (gCheckbox.containsKey(name)) {
+      return gCheckbox.get(name);
+    }
+    if (gCombobox.containsKey(name)) {
+      return gCombobox.get(name);
+    }
+    if (gTextField.containsKey(name)) {
+      return gTextField.get(name);
+    }
+    if (gRadiobutton.containsKey(name)) {
+      return gRadiobutton.get(name);
+    }
+    if (gSpinner.containsKey(name)) {
+      return gSpinner.get(name);
+    }
+    System.err.println("ERROR: Control not found: " + name);
+    return null;
+  }
+  
   public Component getInputDevice(String name, InputControl type) {
     switch(type) {
       case Label:
@@ -394,6 +426,46 @@ public class GuiControls {
     }
   }
   
+  public void setGroupSameMinSize(DimType which, ArrayList<String> components) {
+    int height = 0;
+    int width = 0;
+
+    // get the max width and height of all of the components
+    for (String compname : components) {
+      Dimension dim = getComponent(compname).getPreferredSize();
+      if (dim.width > 0 && dim.height > 0) {
+        width = (width < dim.width) ? dim.width : width;
+        height = (height < dim.height) ? dim.height : height;
+      }
+    }
+
+    // exit if we couldn't get the size
+    if (width <= 0 || height <= 0) {
+      return;
+    }
+    
+    // now modify the specified dimension of each component
+    for (String compname : components) {
+      Component comp = getComponent(compname);
+      Dimension dim;
+      switch (which) {
+        case WIDTH:
+          dim = new Dimension(width, comp.getPreferredSize().height);
+          break;
+        case HEIGHT:
+          dim = new Dimension(comp.getPreferredSize().width, height);
+          break;
+        default:
+        case BOTH:
+          dim = new Dimension(width, height);
+          break;
+      }
+      comp.setMinimumSize(dim);
+      comp.setPreferredSize(dim);
+      comp.setSize(dim);
+    }
+  }
+  
   /**
    * This modifies the dimensions of the specified JPanel.
    * 
@@ -402,7 +474,7 @@ public class GuiControls {
    * @param width   - minimum width of panel
    * @return the panel
    */
-  public Component setPanelSize(String panelname, int height, int width) {
+  public Component setPanelSize(String panelname, int width, int height) {
     // limit height and width to max of screen dimensions
     height = (height > SCREEN_SIZE.height) ? SCREEN_SIZE.height : height;
     width  = (width  > SCREEN_SIZE.width)  ? SCREEN_SIZE.width  : width;
@@ -643,7 +715,7 @@ public class GuiControls {
     }
 
     JLabel label = new JLabel("");
-    Dimension dim = new Dimension(25, width);
+    Dimension dim = new Dimension(width, 25);
     label.setPreferredSize(dim);
     label.setMinimumSize(dim);
 
@@ -1096,18 +1168,18 @@ public class GuiControls {
    * @param title   - the name to display as a label preceeding the widget (null if no border)
    * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
    * @param end     - true if this is last widget in the line
-   * @param height  - desired height of panel
    * @param width   - desired width of panel
+   * @param height  - desired height of panel
    * @return the panel
    */
-  public JPanel makePanel(String panelname, String name, String title, Orient pos, boolean end, int height, int width) {
+  public JPanel makePanel(String panelname, String name, String title, Orient pos, boolean end, int width, int height) {
     JPanel panel = makePanel(panelname, name, title, pos, end);
     if (panel != null) {
       // limit height and width to max of screen dimensions
-      height = (height > SCREEN_SIZE.height) ? SCREEN_SIZE.height : height;
       width  = (width  > SCREEN_SIZE.width)  ? SCREEN_SIZE.width  : width;
+      height = (height > SCREEN_SIZE.height) ? SCREEN_SIZE.height : height;
 
-      Dimension fsize = new Dimension(height, width);
+      Dimension fsize = new Dimension(width, height);
       panel.setSize(fsize);
       panel.setPreferredSize(fsize);
       panel.setMinimumSize(fsize);
@@ -1448,9 +1520,9 @@ public class GuiControls {
     return comp.panel;
   }
   
-  public static JFrame makeFrameWithText(String title, String text, int height, int width) {
+  public static JFrame makeFrameWithText(String title, String text, int width, int height) {
     // define size of panel
-    Dimension dim = new Dimension(height, width);
+    Dimension dim = new Dimension(width, height);
 
     // create a text panel component and place the text message in it
     JTextArea tpanel = new JTextArea();
