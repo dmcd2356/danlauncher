@@ -172,10 +172,39 @@ public class ThreadLauncher {
                 t.stop();
             		
                 // display potential errors
-                if (exitcode == 0)
+                switch (exitcode) {
+                  case 0:
                     System.out.println("All tasks finished.");
-                else
-                    System.err.println("ERROR: Failure executing command: exitcode = " + exitcode);
+                    break;
+                  case 129:
+                    System.out.println("SIGHUP on pid " + threadInfo.pid);
+                    break;
+                  case 130:
+                    System.out.println("SIGINT on pid " + threadInfo.pid);
+                    break;
+                  case 131:
+                    System.out.println("SIGQUIT on pid " + threadInfo.pid);
+                    break;
+                  case 134:
+                    System.out.println("SIGABRT on pid " + threadInfo.pid);
+                    break;
+                  case 137:
+                    System.out.println("SIGKILL on pid " + threadInfo.pid);
+                    break;
+                  case 139:
+                    System.out.println("SIGSEGV on pid " + threadInfo.pid);
+                    break;
+                  case 141:
+                    System.out.println("SIGPIPE on pid " + threadInfo.pid);
+                    break;
+                  case 143:
+                    System.out.println("SIGTERM on pid " + threadInfo.pid);
+                    break;
+                  default:
+                    System.err.println("ERROR: Failure executing command for pid " + threadInfo.pid
+                        + ": exitcode = " + exitcode);
+                    break;
+                }
 
                 // empty queue
                 runner = null;

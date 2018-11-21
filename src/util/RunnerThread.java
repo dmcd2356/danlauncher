@@ -142,6 +142,7 @@ public class RunnerThread extends Thread {
      */
     private int issueCommand(String[] command) throws InterruptedException, IOException {
         int retcode;
+        PrintStream printStream = null;
 
         // build up the command and argument string
         ProcessBuilder builder = new ProcessBuilder(command);
@@ -155,7 +156,7 @@ public class RunnerThread extends Thread {
         if (this.stdout != null) {
             // merge stderr into stdout so both go to the specified text area
             builder.redirectErrorStream(true);
-            PrintStream printStream = new PrintStream(new RedirectOutputStream(this.stdout));
+            printStream = new PrintStream(new RedirectOutputStream(this.stdout));
             System.setOut(printStream);
             System.setErr(printStream);
         }
@@ -183,12 +184,16 @@ public class RunnerThread extends Thread {
                 proc.getOutputStream().close();	
                 proc.getErrorStream().close();
                 proc.destroyForcibly();
+                // flush the output stream, so it isn't sent to next command and restore streams
+                if (printStream != null) {
+                  printStream.flush();
+                }
             }
             Thread.sleep(100);
         }
 
         retcode = proc.exitValue();
-        System.out.println("exit code = " + retcode);
+        System.out.println("process " + pid + " exit code = " + retcode);
         proc.destroy();
 
         return retcode;

@@ -5,9 +5,9 @@
  */
 package panels;
 
+import gui.GuiControls;
+import static gui.GuiControls.Orient.LEFT;
 import java.awt.Component;
-import java.awt.Container;
-import java.awt.GridLayout;
 import java.awt.Rectangle;
 import java.awt.event.ActionEvent;
 import java.awt.event.ItemEvent;
@@ -21,7 +21,6 @@ import java.util.Comparator;
 import javax.swing.AbstractAction;
 import javax.swing.AbstractButton;
 import javax.swing.ButtonGroup;
-import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JRadioButton;
@@ -54,9 +53,9 @@ public class SymbolTable {
   private static int      colSortSelection;
   private static int      rowSelection;
   private static JTable   table;
-  private static JFrame   menuFrame;
   private static ArrayList<TableListInfo> paramList = new ArrayList<>();
   private static ArrayList<String> paramNameList = new ArrayList<>();
+  private static final GuiControls optionsPanel = new GuiControls();
 
   
   public static class ConstraintInfo {
@@ -391,12 +390,6 @@ public class SymbolTable {
     String colname = getColumnName(col);
 
     rowSelection = row;
-    
-//    if (colname.equals("Method") || colname.equals("Slot")) {
-//      showRemoveEntryPanel(row);
-//    } else {
-//      showEditColumnPanel(colname, row);
-//    }
     showMenuSelection();
   }                                           
 
@@ -452,8 +445,7 @@ public class SymbolTable {
         LauncherMain.updateDanfigFile();
       }
 
-      menuFrame.dispose();
-      menuFrame = null;
+      optionsPanel.close();
     }
   }
  
@@ -461,39 +453,47 @@ public class SymbolTable {
     MyItemListener myItemListener = new MyItemListener();
     final ButtonGroup group = new ButtonGroup();
 
-    menuFrame = new JFrame("JOptionPane Demo");
-    menuFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE); // EXIT_ON_CLOSE
-    menuFrame.setLocationRelativeTo(null);
-    //frame.setSize(300, 200);
+    optionsPanel.newFrame("Symbolic Parameter Modification", 300, 200, GuiControls.FrameSize.FIXEDSIZE);
 
-    Container cont = menuFrame.getContentPane();
-    cont.setLayout(new GridLayout(0, 1));
-    cont.add(new JLabel("Select the desired action to perform:"));
+    String panel = null;
+    optionsPanel.makePanel (panel, "PNL_SELECT", ""   , LEFT, true);
 
-    // add buttons
-    addRadioButton(group, cont, myItemListener, "EDIT_NAME"  , "Edit Name");
-    addRadioButton(group, cont, myItemListener, "EDIT_TYPE"  , "Edit Type");
-    addRadioButton(group, cont, myItemListener, "EDIT_START" , "Edit Start");
-    addRadioButton(group, cont, myItemListener, "EDIT_END"   , "Edit End");
-    addRadioButton(group, cont, myItemListener, "REMOVE"     , "Remove selection");
-    addRadioButton(group, cont, myItemListener, "REMOVE_ALL" , "Remove all symbolics");
-    addRadioButton(group, cont, myItemListener, "REMOVE_CON" , "Remove all constraints for this selection");
-    addRadioButton(group, cont, myItemListener, "ADD_CONSTR" , "Add constraint to selection");
+    panel = "PNL_SELECT";
+    optionsPanel.makeLabel      (panel, "LBL_1"      , "Select the desired action to perform:", LEFT, true);
+    optionsPanel.makeRadiobutton(panel, "EDIT_NAME"  , "Edit Name"  , LEFT, true, 0);
+    optionsPanel.makeRadiobutton(panel, "EDIT_TYPE"  , "Edit Type"  , LEFT, true, 0);
+    optionsPanel.makeRadiobutton(panel, "EDIT_START" , "Edit Start" , LEFT, true, 0);
+    optionsPanel.makeRadiobutton(panel, "EDIT_END"   , "Edit End"   , LEFT, true, 0);
+    optionsPanel.makeLineGap    (panel);
+    optionsPanel.makeRadiobutton(panel, "REMOVE"     , "Remove selection"    , LEFT, true, 0);
+    optionsPanel.makeRadiobutton(panel, "REMOVE_ALL" , "Remove all symbolics", LEFT, true, 0);
+    optionsPanel.makeLineGap    (panel);
     TableListInfo tbl = paramList.get(rowSelection);
     if (tbl != null && !tbl.constraints.isEmpty()) {
-      addRadioButton(group, cont, myItemListener, "SHOW_CONSTR", "Show added constraints for selection");
+      optionsPanel.makeRadiobutton(panel, "SHOW_CONSTR", "Show added constraints for selection", LEFT, true, 0);
+      optionsPanel.makeRadiobutton(panel, "REMOVE_CON" , "Remove all constraints for this selection", LEFT, true, 0);
     }
+    optionsPanel.makeRadiobutton(panel, "ADD_CONSTR" , "Add constraint to selection"         , LEFT, true, 0);
 
-    menuFrame.pack();
-    menuFrame.setVisible(true);
+    // add each button to the group and set the listener
+    addListener(group, myItemListener, "EDIT_NAME");
+    addListener(group, myItemListener, "EDIT_TYPE");
+    addListener(group, myItemListener, "EDIT_START");
+    addListener(group, myItemListener, "EDIT_END");
+    addListener(group, myItemListener, "REMOVE");
+    addListener(group, myItemListener, "REMOVE_ALL");
+    addListener(group, myItemListener, "SHOW_CONSTR");
+    addListener(group, myItemListener, "REMOVE_CON");
+    addListener(group, myItemListener, "ADD_CONSTR");
+
+    optionsPanel.display();
   }
 
-  private void addRadioButton(ButtonGroup group, Container cont, MyItemListener itemListener, String action, String title) {
-    JRadioButton rb = new JRadioButton(title);
+  private void addListener(ButtonGroup group, MyItemListener itemListener, String action) {
+    JRadioButton rb = optionsPanel.getRadiobutton(action);
     rb.setActionCommand(action);
     rb.addItemListener(itemListener);
     group.add(rb);
-    cont.add(rb);
   }
   
   private void showRemoveEntryPanel() {

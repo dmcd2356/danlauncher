@@ -231,13 +231,21 @@ public final class BytecodeViewer {
     int linesRead = 0;
     String switchInProcess = "";
     int switchOffset = 0;
-    boolean bStatic = false;
+    boolean validLine = false;
 
     String[] lines = content.split(Utils.NEWLINE);
     for (String entry : lines) {
       ++curLine;
       entry = entry.replace("\t", " ").trim();
 
+      // look for start of file - skip anything before this as it may be a remnant of a terminated run.
+      if (!validLine) {
+        if (entry.startsWith("Compiled from ")) {
+          validLine = true;
+        }
+        continue;
+      }
+      
       // modify this entry - it indicates the static initializer method
       if (entry.equals("static {};")) {
         entry = "<clinit>()";
@@ -249,9 +257,11 @@ public final class BytecodeViewer {
       }
       if (entry.startsWith("static ")) {
         entry = entry.substring(entry.indexOf(" ") + 1).trim();
-        bStatic = true;
       }
       if (entry.startsWith("final ")) {
+        entry = entry.substring(entry.indexOf(" ") + 1).trim();
+      }
+      if (entry.startsWith("synchronized ")) {
         entry = entry.substring(entry.indexOf(" ") + 1).trim();
       }
 

@@ -8,6 +8,8 @@ package main;
 import gui.GuiControls;
 import gui.GuiControls.FrameSize;
 import gui.GuiControls.InputControl;
+import static gui.GuiControls.Orient.LEFT;
+import static gui.GuiControls.Orient.CENTER;
 import logging.FontInfo;
 import logging.Logger;
 import panels.BytecodeViewer;
@@ -115,7 +117,7 @@ public final class LauncherMain {
     DEBUG_FLAGS,      // the debug flags enabled
   }
   
-  private enum ElapsedMode { OFF, RUN, RESET }
+  private enum RunMode { IDLE, RUNNING, TERMINATING, KILLING }
 
   // tab panel selections
   private enum PanelTabs { COMMAND, DATABASE, BYTECODE, BYTEFLOW, LOG, CALLGRAPH }
@@ -137,7 +139,6 @@ public final class LauncherMain {
   private static SolutionTable   solutionTbl;
   private static NetworkServer   udpThread = null;
   private static NetworkListener networkListener = null;
-  private static DebugInputListener inputListener;
   private static Visitor         makeConnection;
   private static Logger          commandLogger;
   private static JFileChooser    fileSelector;
@@ -150,6 +151,7 @@ public final class LauncherMain {
   private static JMenuBar        launcherMenuBar;
   private static Timer           debugMsgTimer;
   private static Timer           graphTimer;
+  private static Timer           killTimer;
   private static long            elapsedStart;
   private static GraphHighlight  graphMode;
   private static String          projectPathName;
@@ -162,7 +164,7 @@ public final class LauncherMain {
   private static String          javaHome;
   private static String          maxLogLength;
   private static boolean         mainClassInitializing;
-  private static boolean         runMode = false;
+  private static RunMode         runMode = RunMode.IDLE;
   
   private static final HashMap<String, JCheckBoxMenuItem> menuCheckboxes = new HashMap<>();
   private static final HashMap<String, JMenuItem> menuItems = new HashMap<>();
@@ -276,12 +278,10 @@ public final class LauncherMain {
     // this creates a command launcher that can run on a separate thread
     threadLauncher = new ThreadLauncher((JTextArea) getTabPanel(PanelTabs.COMMAND));
 
-    // create a timer for reading and displaying the messages received (from either network or file)
-    inputListener = new DebugInputListener();
-    debugMsgTimer = new Timer(1, inputListener);
-
-    // create a slow timer for updating the call graph
-    graphTimer = new Timer(1000, new GraphUpdateListener());
+    // create a timers
+    debugMsgTimer = new Timer(1, new DebugInputListener()); // reads debug msgs from instrumented code
+    graphTimer = new Timer(1000, new GraphUpdateListener());  // updates the call graph
+    killTimer = new Timer(2000, new KillTimerListener());  // issues kill to instrumented code
 }
 
   public static boolean isInstrumentedMethod(String methName) {
@@ -471,12 +471,6 @@ public final class LauncherMain {
       mainFrame.close();
     }
 
-    // these just make the gui entries cleaner
-    String panel;
-    GuiControls.Orient LEFT = GuiControls.Orient.LEFT;
-    GuiControls.Orient CENTER = GuiControls.Orient.CENTER;
-    GuiControls.Orient RIGHT = GuiControls.Orient.RIGHT;
-    
     // init the solutions tried to none
 //    solutionList = new DefaultListModel();
     
@@ -484,7 +478,7 @@ public final class LauncherMain {
     JFrame frame = mainFrame.newFrame("danlauncher", 1200, 800, FrameSize.FULLSCREEN);
     frame.addWindowListener(new Window_MainListener());
 
-    panel = null; // this creates the entries in the main frame
+    String panel = null; // this creates the entries in the main frame
     mainFrame.makePanel      (panel, "PNL_MESSAGES" , "Status"    , LEFT, true);
     mainFrame.makePanel      (panel, "PNL_CONTAINER", ""          , LEFT, true);
     mainFrame.makeTabbedPanel(panel, "PNL_TABBED"   , "");
@@ -558,14 +552,19 @@ public final class LauncherMain {
                       new ItemListener_HideControlsPanel());
     addMenuCheckbox (menu, "MENU_HIDE_BCODE" , "Hide Bytecode Select Panel", false, 
                       new ItemListener_HideBytecodePanel());
+
     menu = menuConfig; // selections for the Config Menu
     addMenuItem     (menu, "MENU_SETUP_SYS"  , "System Configuration", new Action_SystemSetup());
     addMenuItem     (menu, "MENU_SETUP_DBUG" , "Debug Setup", new Action_DebugSetup());
     addMenuItem     (menu, "MENU_SETUP_GRAF" , "Callgraph Setup", new Action_CallgraphSetup());
+
     menu = menuClear; // selections for the Clear Menu
     addMenuItem     (menu, "MENU_CLR_DBASE"  , "Clear DATABASE", new Action_ClearDatabase());
     addMenuItem     (menu, "MENU_CLR_LOG"    , "Clear LOG", new Action_ClearLog());
-    addMenuItem     (menu, "MENU_CLR_SOL"    , "Clear SOLUTIONS", new Action_ClearSolutions());
+    if (bDisableSolutions) {
+      addMenuItem     (menu, "MENU_CLR_SOL"    , "Clear SOLUTIONS", new Action_ClearSolutions());
+    }
+
     menu = menuSave; // selections for the Save Menu
     addMenuItem     (menu, "MENU_SAVE_DANFIG", "Update danfig file", new Action_UpdateDanfigFile());
     addMenuItem     (menu, "MENU_SAVE_PNG"   , "Save Callgraph (PNG)", new Action_SaveGraphPNG());
@@ -898,23 +897,15 @@ public final class LauncherMain {
     public void actionPerformed(java.awt.event.ActionEvent evt) {
       // stop the running process
       ThreadLauncher.ThreadInfo threadInfo = threadLauncher.stopAll();
-      if (threadInfo.pid >= 0) {
+      if (threadInfo != null && threadInfo.pid >= 0 && runMode == RunMode.RUNNING) {
         printCommandMessage("Terminating job " + threadInfo.jobid + ": pid " + threadInfo.pid);
-
-        // send SIGTERM to process
-        String[] command = { "term", "-15", threadInfo.pid.toString() };
+        String[] command = { "kill", "-15", threadInfo.pid.toString() }; // SIGTERM
         CommandLauncher commandLauncher = new CommandLauncher(commandLogger);
         commandLauncher.start(command, null);
-        
-        // give it a few seconds and if it hasn't terminated, send SIGKILL
-        try {
-          Thread.sleep(3000);
-        } catch (InterruptedException ex) { }
-        if (runMode) {
-          printCommandMessage("Killing job " + threadInfo.jobid + ": pid " + threadInfo.pid);
-          String[] command2 = { "kill", "-9", threadInfo.pid.toString() };
-          commandLauncher.start(command2, null);
-        }
+        runMode = RunMode.TERMINATING;
+
+        // check on progress and take further action if necessary
+        killTimer.start();
       }
     }
   }
@@ -958,17 +949,11 @@ public final class LauncherMain {
       return;
     }
 
-    // these just make the gui entries cleaner
-    String panel;
-    GuiControls.Orient LEFT   = GuiControls.Orient.LEFT;
-    GuiControls.Orient CENTER = GuiControls.Orient.CENTER;
-    GuiControls.Orient RIGHT  = GuiControls.Orient.RIGHT;
-    
     // create the frame
     JFrame frame = graphSetupFrame.newFrame("Graph Setup", 350, 250, FrameSize.FIXEDSIZE);
     frame.addWindowListener(new Window_GraphSetupListener());
   
-    panel = null;
+    String panel = null;
     graphSetupFrame.makePanel (panel, "PNL_HIGHLIGHT", "Graph Highlight"   , LEFT, false);
     graphSetupFrame.makePanel (panel, "PNL_ADJUST"   , ""                  , LEFT, true);
 
@@ -1148,19 +1133,12 @@ public final class LauncherMain {
       return;
     }
 
-    // these just make the gui entries cleaner
-    String panel;
-    GuiControls.Orient LEFT   = GuiControls.Orient.LEFT;
-    GuiControls.Orient CENTER = GuiControls.Orient.CENTER;
-    GuiControls.Orient RIGHT  = GuiControls.Orient.RIGHT;
-
     // create the frame
     JFrame frame = debugSetupFrame.newFrame("Debug Setup", 350, 250, FrameSize.FIXEDSIZE);
     frame.addWindowListener(new Window_DebugSetupListener());
   
-    panel = null;
-
     // create the entries in the main frame
+    String panel = null;
     debugSetupFrame.makePanel (panel, "PNL_DBGFLAGS", "Debug Flags" , LEFT  , false);
     
     // now add controls to the sub-panels
@@ -1220,18 +1198,12 @@ public final class LauncherMain {
     javaHomeSelector = new JFileChooser();
     javaHomeSelector.setCurrentDirectory(new File("/usr/lib/jvm"));
     
-    // these just make the gui entries cleaner
-    String panel;
-    GuiControls.Orient LEFT   = GuiControls.Orient.LEFT;
-    GuiControls.Orient CENTER = GuiControls.Orient.CENTER;
-    GuiControls.Orient RIGHT  = GuiControls.Orient.RIGHT;
-
     // create the frame
     JFrame frame = systemSetupFrame.newFrame("System Configuration", 500, 200, FrameSize.FIXEDSIZE);
     frame.addWindowListener(new Window_SystemSetupListener());
 
     // create the entries in the main frame
-    panel = null;
+    String panel = null;
     systemSetupFrame.makePanel (panel, "PNL_MAIN", "" , LEFT  , true);
 
     // now add controls to the sub-panels
@@ -2096,7 +2068,7 @@ public final class LauncherMain {
     String[] fullcmd = new String[cmdlist.size()];
     fullcmd = cmdlist.toArray(fullcmd);
 
-    runMode = true;
+    runMode = RunMode.RUNNING;
     threadLauncher.init(new ThreadTermination());
     threadLauncher.launch(fullcmd, projectPathName, "run_" + projectName, null);
 
@@ -2440,10 +2412,44 @@ public final class LauncherMain {
       }
       
       // disable stop key abd re-enable the Run and Get Bytecode buttons
-      runMode = false;
+      runMode = RunMode.IDLE;
       mainFrame.getButton("BTN_STOPTEST").setEnabled(false);
       mainFrame.getButton("BTN_RUNTEST").setEnabled(true);
       mainFrame.getButton("BTN_BYTECODE").setEnabled(true);
+    }
+  }
+        
+  private class KillTimerListener implements ActionListener {
+    @Override
+    public void actionPerformed(ActionEvent e) {
+      ThreadLauncher.ThreadInfo threadInfo = threadLauncher.stopAll();
+      if (threadInfo == null || threadInfo.pid < 0) {
+        runMode = RunMode.IDLE;
+        killTimer.stop();
+        return;
+      }
+      
+      switch (runMode) {
+        case IDLE:
+        case RUNNING:
+          // should not have gotten here, but let's kill the kill timer just to be safe
+          killTimer.stop();
+          break;
+
+        case TERMINATING:
+          printCommandMessage("Killing job " + threadInfo.jobid + ": pid " + threadInfo.pid);
+          String[] command2 = { "kill", "-9", threadInfo.pid.toString() }; // SIGKILL
+          CommandLauncher commandLauncher = new CommandLauncher(commandLogger);
+          commandLauncher.start(command2, null);
+          runMode = RunMode.KILLING;
+          break;
+
+        case KILLING:
+          // didn't work - let's give up
+          runMode = RunMode.IDLE;
+          killTimer.stop();
+          break;
+      }
     }
   }
         
