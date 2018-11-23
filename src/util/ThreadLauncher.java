@@ -36,6 +36,7 @@ public class ThreadLauncher {
         public int        jobid;      // the job id
         public String     jobname;    // type of job being run
         public String     fname;      // filename being processed
+        public String     signal;     // terminating signal (if any)
         public JTextArea  stdout;     // text widget to output stdout & stderr to
         
         ThreadInfo (String[] command, String workdir, JTextArea  stdout, String jobname, String fname) {
@@ -46,6 +47,7 @@ public class ThreadLauncher {
             this.jobname   = jobname;
             this.fname     = (fname == null) ? "" : fname;
             this.exitcode  = -1;
+            this.signal    = "";
             this.pid       = -1L;
         }
     }
@@ -172,40 +174,30 @@ public class ThreadLauncher {
                 t.stop();
             		
                 // display potential errors
+                String signal = "";
                 switch (exitcode) {
-                  case 0:
-                    System.out.println("All tasks finished.");
-                    break;
-                  case 129:
-                    System.out.println("SIGHUP on pid " + threadInfo.pid);
-                    break;
-                  case 130:
-                    System.out.println("SIGINT on pid " + threadInfo.pid);
-                    break;
-                  case 131:
-                    System.out.println("SIGQUIT on pid " + threadInfo.pid);
-                    break;
-                  case 134:
-                    System.out.println("SIGABRT on pid " + threadInfo.pid);
-                    break;
-                  case 137:
-                    System.out.println("SIGKILL on pid " + threadInfo.pid);
-                    break;
-                  case 139:
-                    System.out.println("SIGSEGV on pid " + threadInfo.pid);
-                    break;
-                  case 141:
-                    System.out.println("SIGPIPE on pid " + threadInfo.pid);
-                    break;
-                  case 143:
-                    System.out.println("SIGTERM on pid " + threadInfo.pid);
-                    break;
+                  case 129:   signal = "SIGHUP";   break;
+                  case 130:   signal = "SIGINT";   break;
+                  case 131:   signal = "SIGQUIT";  break;
+                  case 134:   signal = "SIGABRT";  break;
+                  case 137:   signal = "SIGKILL";  break;
+                  case 139:   signal = "SIGSEGV";  break;
+                  case 141:   signal = "SIGPIPE";  break;
+                  case 143:   signal = "SIGTERM";  break;
                   default:
-                    System.err.println("ERROR: Failure executing command for pid " + threadInfo.pid
-                        + ": exitcode = " + exitcode);
                     break;
                 }
 
+                if (!signal.isEmpty()) {
+                  threadInfo.signal = signal;
+                  System.out.println(threadInfo.signal + " on pid " + threadInfo.pid);
+                } else if (exitcode == 0) {
+                  System.out.println("All tasks finished.");
+                } else {
+                  System.err.println("ERROR: Failure executing command for pid " + threadInfo.pid
+                      + ": exitcode = " + exitcode);
+                }
+                
                 // empty queue
                 runner = null;
                 commandQueue.clear();

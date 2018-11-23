@@ -24,7 +24,7 @@ public class MethodInfo {
 
   private ThreadInfo getThreadInfo(int tid) {
     if (tid < 0) {
-      return total;
+      return null;
     }
 
     return threadInfo.get(tid);
@@ -77,7 +77,7 @@ public class MethodInfo {
       if (!tinfo.parents.contains(parent)) {
         tinfo.addParent(parent);
       }
-    } else {
+    } else if (tid >= 0) {
       // else, this is 1st time this method was called on this thread - create a new entry for it
       threadId.add(tid);
       tinfo = new ThreadInfo(tid, tstamp, insCount, line, parent);
@@ -107,16 +107,16 @@ public class MethodInfo {
     ThreadInfo tinfo = getThreadInfo(tid);
     if (tinfo != null) {
       tinfo.lineExcept = line;
-      total.lineExcept = line;
     }
+    total.lineExcept = line;
   }
   
   public void setError(int tid, int line) {
     ThreadInfo tinfo = getThreadInfo(tid);
     if (tinfo != null) {
       tinfo.lineError = line;
-      total.lineError = line;
     }
+    total.lineError = line;
   }
   
   public String getFullName() {
@@ -144,6 +144,9 @@ public class MethodInfo {
   }
   
   public ArrayList<String> getParents(int tid) {
+    if (tid < 0) {
+      return total.parents;
+    }
     ThreadInfo tinfo = getThreadInfo(tid);
     if (tinfo == null) {
       return new ArrayList<>();
@@ -152,6 +155,9 @@ public class MethodInfo {
   }
   
   public int getInstructionCount(int tid) {
+    if (tid < 0) {
+      return total.instrCount;
+    }
     ThreadInfo tinfo = getThreadInfo(tid);
     if (tinfo == null) {
       return 0;
@@ -160,6 +166,9 @@ public class MethodInfo {
   }
   
   public boolean isReturned(int tid) {
+    if (tid < 0) {
+      return total.exit;
+    }
     ThreadInfo tinfo = getThreadInfo(tid);
     if (tinfo == null) {
       return false;
@@ -168,6 +177,9 @@ public class MethodInfo {
   }
   
   public int getCount(int tid) {
+    if (tid < 0) {
+      return total.callCount;
+    }
     ThreadInfo tinfo = getThreadInfo(tid);
     if (tinfo == null) {
       return 0;
@@ -176,6 +188,9 @@ public class MethodInfo {
   }
   
   public int getExecption(int tid) {
+    if (tid < 0) {
+      return total.lineExcept;
+    }
     ThreadInfo tinfo = getThreadInfo(tid);
     if (tinfo == null) {
       return -1;
@@ -184,6 +199,9 @@ public class MethodInfo {
   }
   
   public int getError(int tid) {
+    if (tid < 0) {
+      return total.lineError;
+    }
     ThreadInfo tinfo = getThreadInfo(tid);
     if (tinfo == null) {
       return -1;
@@ -192,6 +210,9 @@ public class MethodInfo {
   }
   
   public int getFirstLine(int tid) {
+    if (tid < 0) {
+      return total.lineFirst;
+    }
     ThreadInfo tinfo = getThreadInfo(tid);
     if (tinfo == null) {
       return 0;
@@ -200,6 +221,9 @@ public class MethodInfo {
   }
   
   public long getDuration(int tid) {
+    if (tid < 0) {
+      return total.duration_ms;
+    }
     ThreadInfo tinfo = getThreadInfo(tid);
     if (tinfo == null) {
       return 0;

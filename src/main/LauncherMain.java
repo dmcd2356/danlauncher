@@ -27,7 +27,6 @@ import util.Utils;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
-import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.FocusEvent;
@@ -64,7 +63,6 @@ import javax.swing.JLabel;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
-import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
@@ -506,21 +504,21 @@ public final class LauncherMain {
 
     panel = "PNL_CONTROLS";
     mainFrame.makeCombobox  (panel, "COMBO_MAINCLS", "Main Class"  , LEFT, true);
-    mainFrame.makeButton    (panel, "BTN_RUNTEST"  , "Run"         , LEFT, false);
+    mainFrame.makeButton    (panel, "BTN_RUNTEST"  , "RUN"         , LEFT, false);
     mainFrame.makeButton    (panel, "BTN_STOPTEST" , "STOP"        , LEFT, false);
     mainFrame.makeTextField (panel, "TXT_ARGLIST"  , ""            , LEFT, true, "", 40, true);
     mainFrame.makeButton    (panel, "BTN_SEND"     , "Post"        , LEFT, false);
     mainFrame.makeTextField (panel, "TXT_PORT"     , ""            , LEFT, false, "8080", 8, true);
     mainFrame.makeTextField (panel, "TXT_INPUT"    , ""            , LEFT, true, "", 40, true);
-    mainFrame.makeButton    (panel, "BTN_SOLVER"   , "Solver"      , LEFT, false);
+    mainFrame.makeButton    (panel, "BTN_SOLVER"   , "Solve"       , LEFT, false);
 
     // set these buttons to the same width
-    ArrayList<String> buttonList = new ArrayList<>();
-    buttonList.add("BTN_RUNTEST");
-    buttonList.add("BTN_STOPTEST");
-    buttonList.add("BTN_SEND");
-    buttonList.add("BTN_SOLVER");
-    mainFrame.setGroupSameMinSize(GuiControls.DimType.WIDTH, buttonList);
+    ArrayList<String> groupList = new ArrayList<>();
+    groupList.add("BTN_RUNTEST");
+    groupList.add("BTN_STOPTEST");
+    groupList.add("BTN_SEND");
+    groupList.add("BTN_SOLVER");
+    mainFrame.setGroupSameMinSize(GuiControls.DimType.WIDTH, groupList);
     
     // set color of STOP button
     mainFrame.getButton("BTN_STOPTEST").setBackground(Color.pink);
@@ -1921,7 +1919,7 @@ public final class LauncherMain {
 
     String content = initDanfigInfo();
     
-    // read the symbolic parameter definitions from danfig file (if present)
+    // read the symbolic parame0.00ter definitions from danfig file (if present)
     if (loadDanfigMenuItem.isSelected()) {
       readSymbolicList(content);
     }
@@ -2266,8 +2264,7 @@ public final class LauncherMain {
     
     File file = new File(projectPathName + "danfig");
     if (!file.isFile()) {
-      printCommandMessage("danfig file not found at path: " + projectPathName);
-      printCommandMessage("No symbolic parameters");
+      printCommandMessage("No danfig file found at path: " + projectPathName);
       updateFile = true;
     } else {
       try {
@@ -2360,9 +2357,7 @@ public final class LauncherMain {
     }
 
     // if a change is needed, rename the old file and write the modified file back
-    if (updateFile) {
-      printCommandMessage("Updating danfig file: " + symbolTbl.getSize() + " symbolics added");
-      
+    if (updateFile || makeBackup) {
       // backup current file if it was not one we made just for danlauncher
       if (makeBackup) {
         printCommandMessage("Making backup of original danfig file");
@@ -2370,6 +2365,7 @@ public final class LauncherMain {
       }
       
       // create the new file
+      printCommandMessage("Updating danfig file: " + symbolTbl.getSize() + " symbolics added");
       Utils.saveTextFile(projectPathName + "danfig", content);
     }
   }
@@ -2401,23 +2397,16 @@ public final class LauncherMain {
     @Override
     public void jobfinished(ThreadLauncher.ThreadInfo threadInfo) {
       printCommandMessage("jobfinished - " + threadInfo.jobname + ": status = " + threadInfo.exitcode);
-      switch (threadInfo.exitcode) {
-        case 0:
-          if (!isServerTypeMenuItem.isSelected()) {
-            // TODO: need to get the actual cost here
-            solutionTbl.addEntry(inputAttempt, "" + (System.currentTimeMillis() - elapsedStart));
-          }
-          printStatusMessage(threadInfo.jobname + " command (pid " + threadInfo.pid + ") completed successfully");
-          break;
-        case 137:
-          printStatusMessage(threadInfo.jobname + " command terminated with SIGKILL");
-          break;
-        case 143:
-          printStatusMessage(threadInfo.jobname + " command terminated with SIGTERM");
-          break;
-        default:
-          printStatusMessage("Failure executing command: " + threadInfo.jobname);
-          break;
+      if (threadInfo.exitcode == 0) {
+        if (!isServerTypeMenuItem.isSelected()) {
+          // TODO: need to get the actual cost here
+          solutionTbl.addEntry(inputAttempt, "" + (System.currentTimeMillis() - elapsedStart));
+        }
+        printStatusMessage(threadInfo.jobname + " command (pid " + threadInfo.pid + ") completed successfully");
+      } else if (!threadInfo.signal.isEmpty()) {
+        printStatusMessage(threadInfo.jobname + " command terminated with " + threadInfo.signal);
+      } else {
+        printStatusMessage("Failure executing command: " + threadInfo.jobname);
       }
       
       // disable stop key abd re-enable the Run and Get Bytecode buttons
