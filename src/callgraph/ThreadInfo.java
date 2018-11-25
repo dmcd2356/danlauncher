@@ -63,13 +63,19 @@ public class ThreadInfo {
     }
   }
   
-  public void exit(long tstamp, int insCount) {
-    long elapsedTime = (tstamp > start_ref) ? tstamp - start_ref : 0;
-    incElapsed(elapsedTime);
+  public long getElapsedTime(long tstamp) {
+    return (tstamp > start_ref) ? tstamp - start_ref : 0;
+  }
+  
+  public int getElapsedCount(int insCount) {
+    return (insCount > instrEntry) ? insCount - instrEntry : 0;
+  }
+  
+  public void exit(long elapsed, int delta) {
+    incElapsed(elapsed);
     
     // if instruction count was defined, calc the time spent in the method & add it to current value
-    if (insCount >= 0 && instrEntry >= 0) {
-      int delta = (insCount > instrEntry) ? insCount - instrEntry : 0;
+    if (instrEntry >= 0) {
       incInstructions(delta);
     }
     exit = true;

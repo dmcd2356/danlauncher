@@ -176,6 +176,7 @@ public class ThreadLauncher {
                 // display potential errors
                 String signal = "";
                 switch (exitcode) {
+                  // error codes when terminated by signals are 128 + signal value
                   case 129:   signal = "SIGHUP";   break;
                   case 130:   signal = "SIGINT";   break;
                   case 131:   signal = "SIGQUIT";  break;

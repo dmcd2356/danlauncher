@@ -69,7 +69,12 @@ public class MethodInfo {
 
     // get the method info for the specified thread id
     ThreadInfo tinfo = getThreadInfo(tid);
-    if (tinfo != null) {
+    if (tinfo == null) {
+      // this is 1st time this method was called on this thread - create a new entry for it
+      tinfo = new ThreadInfo(tid, tstamp, insCount, line, parent);
+      threadInfo.put(tid, tinfo);
+      threadId.add(tid);
+    } else {
       // if found, reset the reference values for elapsed time and instruction counts,
       // increment the # times called, and add the parent if not already listed
       tinfo.resetReference(tstamp, insCount);
@@ -77,11 +82,6 @@ public class MethodInfo {
       if (!tinfo.parents.contains(parent)) {
         tinfo.addParent(parent);
       }
-    } else if (tid >= 0) {
-      // else, this is 1st time this method was called on this thread - create a new entry for it
-      threadId.add(tid);
-      tinfo = new ThreadInfo(tid, tstamp, insCount, line, parent);
-      threadInfo.put(tid, tinfo);
     }
     
     // update total info for method
@@ -94,12 +94,14 @@ public class MethodInfo {
   public void exit(int tid, long tstamp, int insCount) {
     ThreadInfo tinfo = getThreadInfo(tid);
     if (tinfo != null) {
+      long elapsed = tinfo.getElapsedTime(tstamp);
+      int  insdelta = tinfo.getElapsedCount(insCount);
+      
       // update elapsed time and instruction count for specified thread
-      tinfo.exit(tstamp, insCount);
+      tinfo.exit(elapsed, insdelta);
 
       // update the total elapsed and instructions
-      total.incElapsed(tinfo.duration_ms);
-      total.incInstructions(tinfo.instrCount);
+      total.exit(elapsed, insdelta);
     }
   }
   
@@ -137,6 +139,14 @@ public class MethodInfo {
 
   public String getMethodName() {
     return methName;
+  }
+
+  public String getMethodSignature() {
+    int offset = fullName.indexOf("(");
+    if (offset <= 0) {
+      return "";
+    }
+    return fullName.substring(offset);
   }
 
   public ArrayList<Integer> getThread() {

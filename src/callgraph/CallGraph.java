@@ -420,46 +420,43 @@ public class CallGraph {
     mxCell cell = (mxCell) handler.getGraphComponent().getCellAt(x, y);
     if (cell != null && cell.isVertex()) {
       MethodInfo selected = CallGraph.callGraph.getSelectedNode();
-      String parentList = "";
-      if (selected.getParents(tid).isEmpty()) {
-        parentList = "<none>";
-      } else if(selected.getParents(tid).size() == 1) {
-        parentList += selected.getParents(tid).get(0);
-        int offset = parentList.indexOf('(');
-        if (offset > 0) {
-          parentList = parentList.substring(0, offset);
-        }
-      } else {
-        for(String name : selected.getParents(tid)) {
-          if (name != null && !name.isEmpty() && !name.equals("null")) {
-            int offset = name.indexOf('(');
-            if (name.equals(selected.getFullName())) {
-              name = "<self>";
-            } else if (offset > 0) {
-              name = name.substring(0, offset);
+      
+      // setup the message contents to display
+      String message = "";
+      if (!selected.getThread().isEmpty()) {
+        message += "Thread: " + selected.getThread().toString() + Utils.NEWLINE;
+      }
+      message += "Class: " + selected.getClassName()+ Utils.NEWLINE;
+      message += "Method: " + selected.getMethodName() + selected.getMethodSignature() + Utils.NEWLINE;
+      message += "Execution Time: " + (selected.getDuration(tid) < 0 ?
+              "(never returned)" : selected.getDuration(tid) + " msec") + Utils.NEWLINE;
+      message += "Instruction Count: " + (selected.getInstructionCount(tid) < 0 ?
+              "(no info)" : selected.getInstructionCount(tid)) + Utils.NEWLINE;
+      message += "Iterations: " + selected.getCount(tid) + Utils.NEWLINE;
+      message += "1st called @ line: " + selected.getFirstLine(tid) + Utils.NEWLINE;
+      if (selected.getExecption(tid) > 1) {
+        message += "exception @ line: " + selected.getExecption(tid) + Utils.NEWLINE;
+      }
+      if (selected.getError(tid) > 1) {
+        message += "error @ line: " + selected.getError(tid) + Utils.NEWLINE;
+      }
+      
+      if (!selected.getParents(tid).isEmpty()) {
+        if (selected.getParents(tid).size() == 1) {
+          message += Utils.NEWLINE + "Caller: " + selected.getParents(tid).get(0) + Utils.NEWLINE;
+        } else {
+          message += Utils.NEWLINE + "Calling Methods: " + Utils.NEWLINE;
+          for(String name : selected.getParents(tid)) {
+            if (name != null && !name.isEmpty() && !name.equals("null")) {
+              message += "   " + name + Utils.NEWLINE;
             }
-            parentList += Utils.NEWLINE + "   " + name;
           }
         }
       }
 
       String[] selection = {"Yes", "No" };
       int which = JOptionPane.showOptionDialog(graphPanel,
-          "Thread: " + ((selected.getThread().isEmpty()) ?
-              "<no info>" : selected.getThread().toString()) + Utils.NEWLINE +
-          "Method: " + selected.getFullName() + Utils.NEWLINE +
-          "Calling Methods: " + parentList + Utils.NEWLINE +
-          "Execution Time: " + (selected.getDuration(tid) < 0 ?
-              "(never returned)" : selected.getDuration(tid) + " msec") + Utils.NEWLINE +
-          "Instruction Count: " + (selected.getInstructionCount(tid) < 0 ?
-              "(no info)" : selected.getInstructionCount(tid)) + Utils.NEWLINE +
-          "Iterations: " + selected.getCount(tid) + Utils.NEWLINE +
-          "1st called @ line: " + selected.getFirstLine(tid) + Utils.NEWLINE +
-          (selected.getExecption(tid) <= 1 ?
-              "" : "exception @ line: " + selected.getExecption(tid) + Utils.NEWLINE) +
-          (selected.getError(tid) <= 1 ?
-              "" : "error @ line: " + selected.getError(tid)) + Utils.NEWLINE + Utils.NEWLINE +
-          "Show Bytecode for selected method?",
+          message + Utils.NEWLINE + "Show Bytecode for selected method?",
           "Method Info", // title of pane
           JOptionPane.YES_NO_CANCEL_OPTION, // DEFAULT_OPTION,
           JOptionPane.QUESTION_MESSAGE, // PLAIN_MESSAGE
