@@ -56,7 +56,7 @@ public class SymbolTable {
   private static JTable   table;
   private static ArrayList<TableListInfo> paramList = new ArrayList<>();
   private static ArrayList<String> paramNameList = new ArrayList<>();
-  private static final GuiControls optionsPanel = new GuiControls();
+  private static GuiControls optionsPanel = new GuiControls();
 
   
   public static class ConstraintInfo {

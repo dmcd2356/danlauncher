@@ -743,9 +743,9 @@ public class GuiControls {
    * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
    * @param end     - true if this is last widget in the line
    */
-  public void makeLabel(String panelname, String name, String title, Orient pos, boolean end) {
+  public JLabel makeLabel(String panelname, String name, String title, Orient pos, boolean end) {
     if (mainFrame == null || mainLayout == null) {
-      return;
+      return null;
     }
     if (name != null && !name.isEmpty() && gLabel.containsKey(name)) {
       System.err.println("ERROR: '" + name + "' label already added to container!");
@@ -776,6 +776,8 @@ public class GuiControls {
     if (name != null && !name.isEmpty()) {
       gLabel.put(name, label);
     }
+    
+    return label;
   }
 
   /**

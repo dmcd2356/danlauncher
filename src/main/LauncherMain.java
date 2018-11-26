@@ -678,7 +678,7 @@ public final class LauncherMain {
     public void stateChanged(ChangeEvent e) {
       // if we switched to the graph display tab, update the graph
       if (isTabSelection(PanelTabs.CALLGRAPH.toString())) {
-        if (CallGraph.updateCallGraph(graphMode, false)) {
+        if (callGraph.updateCallGraph(graphMode, false)) {
 //          mainFrame.repack();
         }
       }
@@ -1068,11 +1068,11 @@ public final class LauncherMain {
         value++;
         label.setText("" + value);
           
-        CallGraph.setThreadSelection(value);
+        callGraph.setThreadSelection(value);
 
         // if CallGraph is selected, update the graph
         if (isTabSelection(PanelTabs.CALLGRAPH.toString())) {
-          CallGraph.updateCallGraph(GraphHighlight.THREAD, true);
+          callGraph.updateCallGraph(GraphHighlight.THREAD, true);
         }
       }
     }
@@ -1087,11 +1087,11 @@ public final class LauncherMain {
         value--;
         label.setText("" + value);
           
-        CallGraph.setThreadSelection(value);
+        callGraph.setThreadSelection(value);
 
         // if CallGraph is selected, update the graph
         if (isTabSelection(PanelTabs.CALLGRAPH.toString())) {
-          CallGraph.updateCallGraph(GraphHighlight.THREAD, true);
+          callGraph.updateCallGraph(GraphHighlight.THREAD, true);
         }
       }
     }
@@ -1106,11 +1106,11 @@ public final class LauncherMain {
         step++;
         label.setText("" + step);
           
-        CallGraph.setRangeStepSize(step);
+        callGraph.setRangeStepSize(step);
 
         // if CallGraph is selected, update the graph
         if (isTabSelection(PanelTabs.CALLGRAPH.toString())) {
-          CallGraph.updateCallGraph(graphMode, true);
+          callGraph.updateCallGraph(graphMode, true);
         }
       }
     }
@@ -1125,11 +1125,11 @@ public final class LauncherMain {
         step--;
         label.setText("" + step);
           
-        CallGraph.setRangeStepSize(step);
+        callGraph.setRangeStepSize(step);
 
         // if CallGraph is selected, update the graph
         if (isTabSelection(PanelTabs.CALLGRAPH.toString())) {
-          CallGraph.updateCallGraph(graphMode, true);
+          callGraph.updateCallGraph(graphMode, true);
         }
       }
     }
@@ -1450,7 +1450,7 @@ public final class LauncherMain {
         // send the thread selection to the CallGraph
         JLabel label = graphSetupFrame.getLabel("TXT_TH_SEL");
         int select = Integer.parseInt(label.getText().trim());
-        CallGraph.setThreadSelection(select);
+        callGraph.setThreadSelection(select);
         break;
       case TIME:
         threadSelBtn.setSelected(false);
@@ -1498,7 +1498,7 @@ public final class LauncherMain {
     // set the mode flag & update graph
     graphMode = mode;
     if (isTabSelection(PanelTabs.CALLGRAPH.toString())) {
-      CallGraph.updateCallGraph(graphMode, false);
+      callGraph.updateCallGraph(graphMode, false);
     }
   }
   
@@ -1513,9 +1513,9 @@ public final class LauncherMain {
     }
 
     // clear the graphics panel
-    CallGraph.clearGraphAndMethodList();
+    callGraph.clearGraphAndMethodList();
     if (isTabSelection(PanelTabs.CALLGRAPH.toString())) {
-      CallGraph.updateCallGraph(GraphHighlight.NONE, false);
+      callGraph.updateCallGraph(GraphHighlight.NONE, false);
     }
 
     // force the highlight selection back to NONE
@@ -1553,11 +1553,11 @@ public final class LauncherMain {
       if (type.equals("json")) {
         File graphFile = new File(basename + fileExtension);
         graphFile.delete();
-        CallGraph.saveAsJSONFile(graphFile, true);
+        callGraph.saveAsJSONFile(graphFile, true);
       } else {
         File pngFile = new File(basename + fileExtension);
         pngFile.delete();
-        CallGraph.saveAsImageFile(pngFile);
+        callGraph.saveAsImageFile(pngFile);
       }
     }
   }
@@ -2456,7 +2456,7 @@ public final class LauncherMain {
     public void actionPerformed(ActionEvent e) {
       // if Call Graph tab selected, update graph
       if (isTabSelection(PanelTabs.CALLGRAPH.toString())) {
-        if (CallGraph.updateCallGraph(graphMode, false)) {
+        if (callGraph.updateCallGraph(graphMode, false)) {
 //          mainFrame.repack();
         }
       }
@@ -2470,7 +2470,7 @@ public final class LauncherMain {
       if (udpThread != null) {
         String message = udpThread.getNextMessage();
         if (message != null) {
-          int methodCount = debugLogger.processMessage(message);
+          int methodCount = debugLogger.processMessage(message, callGraph);
           // enable/disable Call Graph save buttons based on whether there is anything to save
           getMenuItem("MENU_SAVE_PNG").setEnabled(methodCount > 0);
           getMenuItem("MENU_SAVE_JSON").setEnabled(methodCount > 0);
