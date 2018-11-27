@@ -10,6 +10,9 @@ import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Frame;
 import java.awt.GridBagConstraints;
+import static java.awt.GridBagConstraints.BOTH;
+import static java.awt.GridBagConstraints.HORIZONTAL;
+import static java.awt.GridBagConstraints.VERTICAL;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.Toolkit;
@@ -466,6 +469,20 @@ public class GuiControls {
     }
   }
   
+  private Dimension getPanelSize(String panelname) {
+    if (panelname == null || panelname.isEmpty()) {
+      return mainFrame.getSize();
+    }
+    PanelInfo panelInfo = gPanel.get(panelname);
+    if (panelInfo == null) {
+      System.err.println("ERROR: getPanelSize: '" + panelname + "' panel not found!");
+      System.exit(1);
+    }
+    
+//    return panelInfo.panel.getSize();
+    return panelInfo.panel.getPreferredSize();
+  }
+  
   /**
    * This modifies the dimensions of the specified JPanel.
    * 
@@ -509,18 +526,19 @@ public class GuiControls {
    * 
    * @param pos - the orientation on the line
    * @param end - true if this is the last (or only) entry on the line
+   * @param fillStype - NONE, HORIZONTAL, VERTICAL, BOTH
    * @return the constraints
    */
-  private GridBagConstraints setGbagConstraints(Orient pos, boolean end) {
+  private GridBagConstraints setGbagConstraints(Orient pos, boolean end, int fillStype) {
     GridBagConstraints c = new GridBagConstraints();
     c.insets = new Insets(GAPSIZE, GAPSIZE, GAPSIZE, GAPSIZE);
 
     switch(pos) {
       case LEFT:
-        c.anchor = GridBagConstraints.BASELINE_LEADING;
+        c.anchor = GridBagConstraints.LINE_START;  // .BASELINE_LEADING;
         break;
       case RIGHT:
-        c.anchor = GridBagConstraints.BASELINE_TRAILING;
+        c.anchor = GridBagConstraints.LINE_END;  // .BASELINE_TRAILING;
         break;
       case CENTER:
         c.anchor = GridBagConstraints.CENTER;
@@ -533,8 +551,8 @@ public class GuiControls {
         c.weighty = 1.0;
         return c;
     }
-    c.fill = GridBagConstraints.NONE;
     
+    c.fill = fillStype;
     c.gridheight = 1;
     if (end) {
       c.gridwidth = GridBagConstraints.REMAINDER; //end row
@@ -691,14 +709,14 @@ public class GuiControls {
     GridBagLayout gridbag;
     if (panelname == null) {
       gridbag = mainLayout;
-      gridbag.setConstraints(label, setGbagConstraints(Orient.LEFT, true));
+      gridbag.setConstraints(label, setGbagConstraints(Orient.LEFT, true, GridBagConstraints.NONE));
       mainFrame.add(label);
     } else if (gPanel.get(panelname).type != PanelType.PANEL) {
       System.err.println("ERROR: makeLineGap: Invalid panel type: " + gPanel.get(panelname).type.toString());
     } else {
       JPanel panel = (JPanel) getSelectedPanel(panelname);
       gridbag = (GridBagLayout) panel.getLayout();
-      gridbag.setConstraints(label, setGbagConstraints(Orient.LEFT, true));
+      gridbag.setConstraints(label, setGbagConstraints(Orient.LEFT, true, GridBagConstraints.NONE));
       panel.add(label);
     }
   }
@@ -722,14 +740,14 @@ public class GuiControls {
     GridBagLayout gridbag;
     if (panelname == null) {
       gridbag = mainLayout;
-      gridbag.setConstraints(label, setGbagConstraints(Orient.LEFT, false));
+      gridbag.setConstraints(label, setGbagConstraints(Orient.LEFT, false, GridBagConstraints.NONE));
       mainFrame.add(label);
     } else if (gPanel.get(panelname).type != PanelType.PANEL) {
       System.err.println("ERROR: makeGap: Invalid panel type: " + gPanel.get(panelname).type.toString());
     } else {
       JPanel panel = (JPanel) getSelectedPanel(panelname);
       gridbag = (GridBagLayout) panel.getLayout();
-      gridbag.setConstraints(label, setGbagConstraints(Orient.LEFT, false));
+      gridbag.setConstraints(label, setGbagConstraints(Orient.LEFT, false, GridBagConstraints.NONE));
       panel.add(label);
     }
   }
@@ -764,7 +782,7 @@ public class GuiControls {
 
     // create the component
     JLabel label = new JLabel(title);
-    gridbag.setConstraints(label, setGbagConstraints(pos, end));
+    gridbag.setConstraints(label, setGbagConstraints(pos, end, GridBagConstraints.NONE));
 
     // place component in container & add entry to components list
     if (panel != null) {
@@ -827,7 +845,7 @@ public class GuiControls {
 
     // create the component
     JButton button = new JButton(title);
-    gridbag.setConstraints(button, setGbagConstraints(pos, end));
+    gridbag.setConstraints(button, setGbagConstraints(pos, end, GridBagConstraints.NONE));
 
     // place component in container & add entry to components list
     if (panel != null) {
@@ -879,7 +897,7 @@ public class GuiControls {
     // create the component
     JCheckBox cbox = new JCheckBox(title);
     cbox.setSelected(value != 0);
-    gridbag.setConstraints(cbox, setGbagConstraints(pos, end));
+    gridbag.setConstraints(cbox, setGbagConstraints(pos, end, GridBagConstraints.NONE));
 
     // place component in container & add entry to components list
     if (panel != null) {
@@ -935,7 +953,7 @@ public class GuiControls {
     // insert a label before the component
     GridBagConstraints c;
     if (title.isEmpty()) {
-      c = setGbagConstraints(pos, end);
+      c = setGbagConstraints(pos, end, GridBagConstraints.NONE);
     } else {
       c = setGbagInsertLabel(panel, gridbag, pos, end, true, name, title);
     }
@@ -999,7 +1017,7 @@ public class GuiControls {
     // create the component
     JRadioButton rbutton = new JRadioButton(title);
     rbutton.setSelected(value != 0);
-    gridbag.setConstraints(rbutton, setGbagConstraints(pos, end));
+    gridbag.setConstraints(rbutton, setGbagConstraints(pos, end, GridBagConstraints.NONE));
 
     // place component in container & add entry to components list
     if (panel != null) {
@@ -1131,9 +1149,10 @@ public class GuiControls {
    * @param title   - the name to display as a label preceeding the widget (null if no border)
    * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
    * @param end     - true if this is last widget in the line
+   * @param fillStyle - NONE, HORIZONTAL, VERTICAL, BOTH
    * @return the panel
    */
-  public JPanel makePanel(String panelname, String name, String title, Orient pos, boolean end) {
+  public JPanel makePanel(String panelname, String name, String title, Orient pos, boolean end, int fillStyle) {
     if (mainFrame == null || mainLayout == null) {
       return null;
     }
@@ -1141,9 +1160,6 @@ public class GuiControls {
       System.err.println("ERROR: '" + name + "' panel already added to container!");
       System.exit(1);
     }
-
-    // get the layout for the container
-    GridBagLayout gridbag = GetGridBagLayout(panelname);
 
     // create the panel and apply constraints
     JPanel newpanel = new JPanel();
@@ -1158,8 +1174,25 @@ public class GuiControls {
 
     // place component in container & add entry to components list
     addPanelToPanel(panelname, new PanelInfo(name, PanelType.PANEL, newpanel));
-    gridbag.setConstraints(newpanel, setGbagConstraints(pos, end));
+
+    // get the layout for the container
+    GridBagLayout gridbag = GetGridBagLayout(panelname);
+    gridbag.setConstraints(newpanel, setGbagConstraints(pos, end, fillStyle));
     return newpanel;
+  }
+
+  /**
+   * This creates an empty JPanel and places it in the container.
+   * 
+   * @param panelname - the name of the jPanel container to place the component in (null if use main frame)
+   * @param name    - the name id of the component
+   * @param title   - the name to display as a label preceeding the widget (null if no border)
+   * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
+   * @param end     - true if this is last widget in the line
+   * @return the panel
+   */
+  public JPanel makePanel(String panelname, String name, String title, Orient pos, boolean end) {
+    return makePanel(panelname, name, title, pos, end, GridBagConstraints.NONE);
   }
 
   /**
@@ -1175,7 +1208,26 @@ public class GuiControls {
    * @return the panel
    */
   public JPanel makePanel(String panelname, String name, String title, Orient pos, boolean end, int width, int height) {
-    JPanel panel = makePanel(panelname, name, title, pos, end);
+    // determine if we want to fill container's width or height
+    Dimension dim = getPanelSize(panelname);
+    //System.out.println("Panel size = { " + dim.width + ", " + dim.height + " }");
+    width  = (width == 0) ? dim.width : width;
+    height = (height == 0) ? dim.height : height;
+
+    int expand = GridBagConstraints.NONE;
+    if (width >= dim.width && height >= dim.height) {
+      width = dim.width;
+      height = dim.height;
+      expand = GridBagConstraints.BOTH;
+    } else if (width >= dim.width) {
+      width = dim.width;
+      expand = GridBagConstraints.HORIZONTAL;
+    } else if (height >= dim.height) {
+      height = dim.height;
+      expand = GridBagConstraints.VERTICAL;
+    }
+      
+    JPanel panel = makePanel(panelname, name, title, pos, end, expand);
     if (panel != null) {
       // limit height and width to max of screen dimensions
       width  = (width  > SCREEN_SIZE.width)  ? SCREEN_SIZE.width  : width;

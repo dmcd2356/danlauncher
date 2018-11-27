@@ -18,7 +18,6 @@ import panels.DatabaseTable;
 import panels.DebugLogger;
 import panels.ParamTable;
 import panels.SymbolTable;
-import panels.SolutionTable;
 import callgraph.CallGraph;
 import util.CommandLauncher;
 import util.ThreadLauncher;
@@ -135,7 +134,6 @@ public final class LauncherMain {
   private static DatabaseTable   dbtable;
   private static ParamTable      localVarTbl;
   private static SymbolTable     symbolTbl;
-  private static SolutionTable   solutionTbl;
   private static NetworkServer   udpThread = null;
   private static NetworkListener networkListener = null;
   private static Visitor         makeConnection;
@@ -474,7 +472,7 @@ public final class LauncherMain {
 //    solutionList = new DefaultListModel();
     
     // create the frame
-    JFrame frame = mainFrame.newFrame("danlauncher", 1200, 800, FrameSize.FULLSCREEN);
+    JFrame frame = mainFrame.newFrame("danlauncher", 1200, 800, FrameSize.NOLIMIT); //.FULLSCREEN);
     frame.addWindowListener(new Window_MainListener());
 
     String panel = null; // this creates the entries in the main frame
@@ -485,16 +483,9 @@ public final class LauncherMain {
     panel = "PNL_MESSAGES";
     mainFrame.makeTextField (panel, "TXT_MESSAGES"  , ""          , LEFT, true, "", 138, false);
 
-    // TODO: for now, we'll disable the Solutions panel, since the data isn't valid anyway
-    boolean bDisableSolutions = true;
-    
     panel = "PNL_CONTAINER";
-    mainFrame.makePanel     (panel, "PNL_CONTROLS"  , "Controls"  , LEFT, bDisableSolutions, 600, 170);
-    mainFrame.makePanel     (panel, "PNL_SOLUTIONS" , "Solutions" , LEFT, true, 400, 170);
+    mainFrame.makePanel     (panel, "PNL_CONTROLS"  , "Controls"  , LEFT, true);
     mainFrame.makePanel     (panel, "PNL_BYTECODE"  , "Bytecode"  , LEFT, true);
-
-    panel = "PNL_SOLUTIONS";
-    mainFrame.makeScrollTable(panel, "TBL_SOLUTIONS", "");
 
     panel = "PNL_BYTECODE";
     mainFrame.makeCombobox  (panel, "COMBO_CLASS"  , "Class"       , LEFT, true);
@@ -568,9 +559,7 @@ public final class LauncherMain {
     menu = menuClear; // selections for the Clear Menu
     addMenuItem     (menu, "MENU_CLR_DBASE"  , "Clear DATABASE", new Action_ClearDatabase());
     addMenuItem     (menu, "MENU_CLR_LOG"    , "Clear LOG", new Action_ClearLog());
-    if (!bDisableSolutions) {
-      addMenuItem     (menu, "MENU_CLR_SOL"    , "Clear SOLUTIONS", new Action_ClearSolutions());
-    }
+//    addMenuItem     (menu, "MENU_CLR_SOL"    , "Clear SOLUTIONS", new Action_ClearSolutions());
 
     menu = menuSave; // selections for the Save Menu
     addMenuItem     (menu, "MENU_SAVE_DANFIG", "Update danfig file", new Action_UpdateDanfigFile());
@@ -598,9 +587,6 @@ public final class LauncherMain {
     // initially disable STOP button
     mainFrame.getButton("BTN_STOPTEST").setEnabled(false);
 
-    // TODO: for now, we'll disable the Solutions panel, since the data isn't valid anyway
-    mainFrame.getPanelInfo("PNL_SOLUTIONS").panel.setVisible(!bDisableSolutions);
-        
     // create the the setup frames, but initially hide them
     createSystemConfigPanel();
     createGraphSetupPanel();
@@ -657,7 +643,6 @@ public final class LauncherMain {
     // init the local variable and symbolic list tables
     localVarTbl = new ParamTable(paramList);
     symbolTbl   = new SymbolTable(symbolList);
-    solutionTbl = new SolutionTable(mainFrame.getTable("TBL_SOLUTIONS"));
   }
 
   private class Window_MainListener extends java.awt.event.WindowAdapter {
@@ -723,14 +708,6 @@ public final class LauncherMain {
     @Override
     public void actionPerformed(java.awt.event.ActionEvent evt) {
       clearDebugLogger();
-    }
-  }
-
-  private class Action_ClearSolutions implements ActionListener {
-    @Override
-    public void actionPerformed(java.awt.event.ActionEvent evt) {
-      // clear out the debug logger
-      solutionTbl.clear();
     }
   }
 
@@ -811,10 +788,6 @@ public final class LauncherMain {
       mainFrame.getButton("BTN_SEND").setVisible(isServerType);
       mainFrame.getTextField("TXT_PORT").setVisible(isServerType);
       mainFrame.getTextField("TXT_INPUT").setVisible(isServerType);
-
-      // resize the height accordingly
-      mainFrame.resizePanelHeight("PNL_CONTROLS", isServerType ? 170 : 120);
-      mainFrame.resizePanelHeight("PNL_SOLUTIONS", isServerType ? 170 : 120);
 
       if (projectProps != null) {
         projectProps.setPropertiesItem(ProjectProperties.IS_SERVER_TYPE.toString(),
@@ -1410,10 +1383,6 @@ public final class LauncherMain {
     mainFrame.getButton("BTN_SEND").setEnabled(enable);
     mainFrame.getTextField("TXT_PORT").setEnabled(enable);
     mainFrame.getTextField("TXT_INPUT").setEnabled(enable);
-
-    // resize the height accordingly
-    mainFrame.resizePanelHeight("PNL_CONTROLS", isServerType ? 170 : 120);
-    mainFrame.resizePanelHeight("PNL_SOLUTIONS", isServerType ? 170 : 120);
   }  
 
   private static void setDebugFromProperties() {
@@ -1911,7 +1880,6 @@ public final class LauncherMain {
     // as well as the bytecode data, byteflow graph, solutions and debug/call graph info.
     symbolTbl.clear();
     localVarTbl.clear("");
-    solutionTbl.clear();
     bytecodeHistory.clear();
     bytecodeViewer.clear();
     bytecodeGraph.clear();
@@ -2015,6 +1983,9 @@ public final class LauncherMain {
 
   private void runTest(String arglist) {
     printStatusClear();
+    
+    // clear out the debugger so we don't add onto existing call graph
+    clearDebugLogger();
 
     String instrJarFile = projectName.substring(0, projectName.lastIndexOf(".")) + "-dan-ed.jar";
     
@@ -2139,11 +2110,6 @@ public final class LauncherMain {
       // display response.toString()
       printStatusMessage("Post successful");
       printCommandMessage("Post RESPONSE: " + response.toString());
-
-      // add input value to solutions tried
-      // TODO: this is not really the elapsed time - we need to read from the debug output to
-      // determine when the terminating condition has been reached.
-      solutionTbl.addEntry(inputAttempt, "" + (System.currentTimeMillis() - elapsedStart));
     } catch (IOException ex) {
       // display error
       printStatusMessage("Post failure");
@@ -2398,10 +2364,6 @@ public final class LauncherMain {
     public void jobfinished(ThreadLauncher.ThreadInfo threadInfo) {
       printCommandMessage("jobfinished - " + threadInfo.jobname + ": status = " + threadInfo.exitcode);
       if (threadInfo.exitcode == 0) {
-        if (!isServerTypeMenuItem.isSelected()) {
-          // TODO: need to get the actual cost here
-          solutionTbl.addEntry(inputAttempt, "" + (System.currentTimeMillis() - elapsedStart));
-        }
         printStatusMessage(threadInfo.jobname + " command (pid " + threadInfo.pid + ") completed successfully");
       } else if (!threadInfo.signal.isEmpty()) {
         printStatusMessage(threadInfo.jobname + " command terminated with " + threadInfo.signal);

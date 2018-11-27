@@ -57,14 +57,14 @@ public class CallGraph {
   private static BaseGraph<MethodInfo> callGraph = new BaseGraph<>();
   private static List<MethodInfo> graphMethList = new ArrayList<>(); // list of all methods found
   private static List<MethodInfo> threadMethList = new ArrayList<>(); // list of all methods for selected thread
+  private static HashMap<Integer, MethodInfo> clinitMethods = new HashMap<>(); // last clinit method for selected thread
   private static final HashMap<Integer, Stack<Integer>> callStack = new HashMap<>(); // stack for each thread
   private static long rangeStepsize;  // the stepsize to use for highlighting
   private static int numNodes;
   private static int numEdges;
   private static int threadSel;
   private static LauncherMain.GraphHighlight curGraphMode;
-  private static boolean graphShowAllThreads;
-  private static final GuiControls methInfoPanel = new GuiControls();
+  private static GuiControls methInfoPanel;
   private static MethodInfo selectedMethod;
   
   public CallGraph(String name) {
@@ -74,7 +74,6 @@ public class CallGraph {
     clearGraph();
     graphMethList = new ArrayList<>();
     curGraphMode = LauncherMain.GraphHighlight.NONE;
-    graphShowAllThreads = true;
     rangeStepsize = 20;
   }
   
@@ -281,7 +280,6 @@ public class CallGraph {
   public void clearGraphAndMethodList() {
     clearGraph();
     curGraphMode = LauncherMain.GraphHighlight.NONE;
-    graphShowAllThreads = true;
     graphMethList = new ArrayList<>();
   }
   
@@ -314,35 +312,6 @@ public class CallGraph {
   public void setRangeStepSize(long step) {
     rangeStepsize = step;
   }
-  
-//  /**
-//   * generates the call graph for the selected thread.
-//   * 
-//   * @param tid
-//   * @return true if graph was updated
-//   */  
-//  public boolean generateCallGraph(int tid) {
-//    clearGraph();
-//
-//    // create a new method list if we are only doiung a single thread
-//    if (tid >= 0) {
-//      threadMethList = new ArrayList<>();
-//      for(MethodInfo mthNode : graphMethList) {
-//        ArrayList<Integer> threadList = mthNode.getThread();
-//        if (threadList.contains(tid)) {
-//          threadMethList.add(mthNode);
-//        }
-//      }
-//      drawCG(threadMethList);
-//    } else {
-//      drawCG(graphMethList);
-//    }
-//
-//    updateCallGraph(curGraphMode, true);
-//
-//    graphShowAllThreads = tid < 0;
-//    return true;
-//  }
   
   /**
    * updates the call graph display
@@ -390,16 +359,8 @@ public class CallGraph {
         graphPanel.add(graphComponent);
       }
 
-      int tid = ALL_THREADS;
-      if (graphShowAllThreads == false) {
-        tid = threadSel;
-        if (gmode == LauncherMain.GraphHighlight.THREAD) {
-          gmode = LauncherMain.GraphHighlight.NONE;
-        }
-      }
-
       // set the colors of the method blocks based on the mode selection
-      setGraphBlockColors(gmode, tid);
+      setGraphBlockColors(gmode, ALL_THREADS);
       
       // update the contents of the graph component
       Graphics graphics = graphPanel.getGraphics();
@@ -457,7 +418,14 @@ public class CallGraph {
   }
   
   public void displayMethodInfoPanel(MethodInfo selected) {
-    JFrame frame = methInfoPanel.newFrame("Method Info", 520, 350, GuiControls.FrameSize.NOLIMIT);
+    // if panel is currently displayed for another method, close that one before opening the new one
+    if (methInfoPanel != null) {
+      methInfoPanel.close();
+    }
+    
+    // create the panel to display the selected method info on
+    methInfoPanel = new GuiControls();
+    JFrame frame = methInfoPanel.newFrame("Method Info", 600, 400, GuiControls.FrameSize.FIXEDSIZE); // GuiControls.FrameSize.NOLIMIT);
     frame.addWindowListener(new Window_ExitListener());
 
     selectedMethod = selected;
@@ -465,26 +433,23 @@ public class CallGraph {
     int threadInit = selected.getThread().get(0);
 
     String panel = null;
-    methInfoPanel.makePanel (panel, "PNL_INFO"  , "", LEFT, true, 500, 290);
+    methInfoPanel.makePanel (panel, "PNL_INFO"  , "", LEFT, true, 600, 400);
     
     panel = "PNL_INFO";
+    // if we have more than 1 thread, add in the controls for selecting which to view
     if (threadCount > 1) {
       JCheckBox cboxAll = 
           methInfoPanel.makeCheckbox(panel, "CBOX_ALLTHREADS", "All threads", LEFT, false, 1);
+      JButton nextButton =
+          methInfoPanel.makeButton  (panel, "BTN_TH_NEXT" , "Next" , LEFT, false);
       JLabel threadVal =
-          methInfoPanel.makeLabel   (panel, "TXT_TH_SEL", "" + threadInit, LEFT, false);
-      JButton upButton =
-          methInfoPanel.makeButton  (panel, "BTN_TH_UP" , "UP" , LEFT, false);
-      JButton dnButton =
-          methInfoPanel.makeButton  (panel, "BTN_TH_DN" , "DN" , LEFT, true);
+          methInfoPanel.makeLabel   (panel, "TXT_TH_SEL", "" + threadInit, LEFT, true);
 
       cboxAll.addActionListener(new Action_AllThreadSelect());
-      upButton.addActionListener(new Action_ThreadUp());
-      dnButton.addActionListener(new Action_ThreadDown());
+      nextButton.addActionListener(new Action_ThreadNext());
       
       threadVal.setEnabled(false);
-      upButton.setEnabled(false);
-      dnButton.setEnabled(false);
+      nextButton.setEnabled(false);
     }
     JTextPane textPanel =
         methInfoPanel.makeScrollText(panel, "TXT_METHINFO", "");
@@ -535,50 +500,32 @@ public class CallGraph {
       }
 
       methInfoPanel.getLabel("TXT_TH_SEL").setEnabled(threadEnable);
-      methInfoPanel.getButton("BTN_TH_UP").setEnabled(threadEnable);
-      methInfoPanel.getButton("BTN_TH_DN").setEnabled(threadEnable);
+      methInfoPanel.getButton("BTN_TH_NEXT").setEnabled(threadEnable);
       
       methInfoPanel.getTextPane("TXT_METHINFO").setText(message);
     }
   }
-  
-  private class Action_ThreadUp implements ActionListener{
+
+  private class Action_ThreadNext implements ActionListener{
     @Override
     public void actionPerformed(java.awt.event.ActionEvent evt) {
       JLabel label = methInfoPanel.getLabel("TXT_TH_SEL");
       int value = Integer.parseInt(label.getText().trim());
 
       // search for current value in thread list
-      int threadCount = selectedMethod.getThread().size();
-      for (int ix = 0; ix < threadCount - 1; ix++) {
-        if (selectedMethod.getThread().get(ix) == value) {
-          value = selectedMethod.getThread().get(ix + 1);
-          label.setText("" + value);
-          
-          String message = getSelectedMethodInfo(selectedMethod, value);
-          methInfoPanel.getTextPane("TXT_METHINFO").setText(message);
-        }
+      int next = 0;
+      ArrayList<Integer> list = selectedMethod.getThread();
+      if (list.contains(value)) {
+        next = list.indexOf(value);
+        ++next;
+        next = (next >= list.size()) ? 0 : next;
       }
-    }
-  }
-  
-  private class Action_ThreadDown implements ActionListener{
-    @Override
-    public void actionPerformed(java.awt.event.ActionEvent evt) {
-      JLabel label = methInfoPanel.getLabel("TXT_TH_SEL");
-      int value = Integer.parseInt(label.getText().trim());
 
-      // search for current value in thread list
-      int threadCount = selectedMethod.getThread().size();
-      for (int ix = 1; ix < threadCount; ix++) {
-        if (selectedMethod.getThread().get(ix) == value) {
-          value = selectedMethod.getThread().get(ix - 1);
-          label.setText("" + value);
+      value = list.get(next);
+      label.setText("" + value);
           
-          String message = getSelectedMethodInfo(selectedMethod, value);
-          methInfoPanel.getTextPane("TXT_METHINFO").setText(message);
-        }
-      }
+      String message = getSelectedMethodInfo(selectedMethod, value);
+      methInfoPanel.getTextPane("TXT_METHINFO").setText(message);
     }
   }
   
@@ -720,11 +667,6 @@ public class CallGraph {
     MethodInfo parNode = null;
     if (!parent.isEmpty()) {
       parNode = findMethodEntry(ALL_THREADS, parent, graphMethList);
-//      if (parNode == null && method.contains("<clinit>")) {
-//        parNode = new MethodInfo(tid, method, parent, tstamp, insCount, line);
-//        graphMethList.add(parNode);
-//        callGraph.addVertex(parNode, parNode.getCGName());
-//      }
     }
 
     // find called method in list and create (or update) info
@@ -740,6 +682,7 @@ public class CallGraph {
 
         // update saved stack for this thread
         stack.push(ix);
+        break;
       }
     }
     // if not found, create new one and add it to list
@@ -754,16 +697,25 @@ public class CallGraph {
       
       // update saved stack for this thread
       stack.push(count);
+
+      // add the node
+      callGraph.addVertex(mthNode, mthNode.getCGName());
+      
+      // if <clinit> method found without a parent, save it for the current thread.
+      // These methods are called prior to the method that they are a part of, so the next method
+      // that gets called in this thread will be assigned as the parent.
+      if (method.endsWith("<clinit>()V") && parNode == null) {
+        clinitMethods.put(tid, mthNode);
+      } else if (clinitMethods.containsKey(tid)) {
+        MethodInfo chldNode = clinitMethods.get(tid);
+        callGraph.addEdge(mthNode, chldNode, null);
+        clinitMethods.remove(tid);
+      }
     }
 
-    // add node (if not previously defined) and/or edge (if parent defined) to graph
-    if (graphShowAllThreads == true || threadSel == tid) {
-      if (newnode) {
-        callGraph.addVertex(mthNode, mthNode.getCGName());
-      }
-      if (parNode != null && callGraph.getEdge(parNode, mthNode) == null) {
-        callGraph.addEdge(parNode, mthNode, null);
-      }
+    // add the edge if parent defined (don't add if a connection already exists)
+    if (parNode != null && callGraph.getEdge(parNode, mthNode) == null) {
+      callGraph.addEdge(parNode, mthNode, null);
     }
   }
 
