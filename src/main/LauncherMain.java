@@ -162,13 +162,14 @@ public final class LauncherMain {
   private static String          maxLogLength;
   private static boolean         mainClassInitializing;
   private static RunMode         runMode = RunMode.IDLE;
+  private static String          currentTab;
   
   private static final HashMap<String, JCheckBoxMenuItem> menuCheckboxes = new HashMap<>();
   private static final HashMap<String, JMenuItem> menuItems = new HashMap<>();
   private static ArrayList<String> fullMethList = new ArrayList<>();
   private static ArrayList<String> classList = new ArrayList<>();
   private static HashMap<String, ArrayList<String>>  clsMethMap = new HashMap<>(); // maps the list of methods to each class
-  private static final HashMap<String, Integer>   tabSelect = new HashMap<>();
+  private static final HashMap<String, Integer>      tabSelect = new HashMap<>();
   private static final HashMap<String, FontInfo>     bytecodeFontTbl = new HashMap<>();
   private static final HashMap<String, FontInfo>     debugFontTbl = new HashMap<>();
   private static final HashMap<PanelTabs, Component> tabbedPanels = new HashMap<>();
@@ -318,25 +319,6 @@ public final class LauncherMain {
     commandLogger.printLine(message);
   }
   
-  public static boolean isTabSelection(String select) {
-    GuiControls.PanelInfo panelInfo = mainFrame.getPanelInfo("PNL_TABBED");
-    if (panelInfo == null || panelInfo.type != GuiControls.PanelType.TABBED) {
-      return false;
-    }
-    JTabbedPane tabPanel = (JTabbedPane) panelInfo.panel;
-    if (tabPanel == null || tabSelect.isEmpty()) {
-      return false;
-    }
-    if (!tabSelect.containsKey(select)) {
-      System.err.println("ERROR: Tab selection '" + select + "' not found!");
-      return false;
-    }
-
-    int graphTab = tabSelect.get(select);
-    int curTab = tabPanel.getSelectedIndex();
-    return curTab == graphTab;
-  }
-
   public static void highlightBranch(int start, boolean branch) {
     ArrayList<Integer> branchMarks = bytecodeViewer.highlightBranch(start, branch);
     bytecodeGraph.drawGraphHighlights(branchMarks);
@@ -595,6 +577,9 @@ public final class LauncherMain {
     // display the frame
     mainFrame.display();
 
+    // init current tab selection to 1st entry
+    currentTab = PanelTabs.COMMAND.toString();
+
     // create the panel classes
     commandLogger = new Logger(new JTextArea(), PanelTabs.COMMAND.toString(), null);
     debugLogger = new DebugLogger(PanelTabs.LOG.toString());
@@ -602,7 +587,7 @@ public final class LauncherMain {
     bytecodeGraph = new BytecodeGraph(bytecodeViewer);
     callGraph = new CallGraph(PanelTabs.CALLGRAPH.toString());
     dbtable = new DatabaseTable(PanelTabs.DATABASE.toString());
-
+    
     // wrap the bytecode logger in another pane to prevent line wrapping on a JTextPane
     JPanel noWrapBytecodePanel = new JPanel(new BorderLayout());
     noWrapBytecodePanel.add(bytecodeViewer.getTextPane());
@@ -661,15 +646,30 @@ public final class LauncherMain {
   private class Change_TabPanelSelect implements ChangeListener{
     @Override
     public void stateChanged(ChangeEvent e) {
-      // if we switched to the graph display tab, update the graph
-      if (isTabSelection(PanelTabs.CALLGRAPH.toString())) {
-        if (callGraph.updateCallGraph(graphMode, false)) {
-//          mainFrame.repack();
-        }
+      // get the tab selection
+      GuiControls.PanelInfo panelInfo = mainFrame.getPanelInfo("PNL_TABBED");
+      if (panelInfo == null || panelInfo.type != GuiControls.PanelType.TABBED) {
+        return;
+      }
+      JTabbedPane tabPanel = (JTabbedPane) panelInfo.panel;
+      if (tabPanel == null || tabSelect.isEmpty()) {
+        return;
+      }
+      int curTab = tabPanel.getSelectedIndex();
+      currentTab = tabPanel.getTitleAt(curTab);
+      
+      // now inform panels of the selection
+      debugLogger.setTabSelection(currentTab);
+      callGraph.setTabSelection(currentTab);
+      dbtable.setTabSelection(currentTab);
+
+      // special actions
+      if (currentTab.equals("CALLGRAPH")) {
+        callGraph.updateCallGraph(graphMode, false);
       }
     }
   }
-    
+  
   private class Action_SelectJarFile implements ActionListener{
     @Override
     public void actionPerformed(java.awt.event.ActionEvent evt) {
@@ -1044,7 +1044,7 @@ public final class LauncherMain {
         callGraph.setThreadSelection(value);
 
         // if CallGraph is selected, update the graph
-        if (isTabSelection(PanelTabs.CALLGRAPH.toString())) {
+        if (currentTab.equals(PanelTabs.CALLGRAPH.toString())) {
           callGraph.updateCallGraph(GraphHighlight.THREAD, true);
         }
       }
@@ -1063,7 +1063,7 @@ public final class LauncherMain {
         callGraph.setThreadSelection(value);
 
         // if CallGraph is selected, update the graph
-        if (isTabSelection(PanelTabs.CALLGRAPH.toString())) {
+        if (currentTab.equals(PanelTabs.CALLGRAPH.toString())) {
           callGraph.updateCallGraph(GraphHighlight.THREAD, true);
         }
       }
@@ -1082,7 +1082,7 @@ public final class LauncherMain {
         callGraph.setRangeStepSize(step);
 
         // if CallGraph is selected, update the graph
-        if (isTabSelection(PanelTabs.CALLGRAPH.toString())) {
+        if (currentTab.equals(PanelTabs.CALLGRAPH.toString())) {
           callGraph.updateCallGraph(graphMode, true);
         }
       }
@@ -1101,7 +1101,7 @@ public final class LauncherMain {
         callGraph.setRangeStepSize(step);
 
         // if CallGraph is selected, update the graph
-        if (isTabSelection(PanelTabs.CALLGRAPH.toString())) {
+        if (currentTab.equals(PanelTabs.CALLGRAPH.toString())) {
           callGraph.updateCallGraph(graphMode, true);
         }
       }
@@ -1467,7 +1467,7 @@ public final class LauncherMain {
 
     // set the mode flag & update graph
     graphMode = mode;
-    if (isTabSelection(PanelTabs.CALLGRAPH.toString())) {
+    if (currentTab.equals(PanelTabs.CALLGRAPH.toString())) {
       callGraph.updateCallGraph(graphMode, false);
     }
   }
@@ -1484,7 +1484,7 @@ public final class LauncherMain {
 
     // clear the graphics panel
     callGraph.clearGraphAndMethodList();
-    if (isTabSelection(PanelTabs.CALLGRAPH.toString())) {
+    if (currentTab.equals(PanelTabs.CALLGRAPH.toString())) {
       callGraph.updateCallGraph(GraphHighlight.NONE, false);
     }
 
@@ -2400,10 +2400,8 @@ public final class LauncherMain {
     @Override
     public void actionPerformed(ActionEvent e) {
       // if Call Graph tab selected, update graph
-      if (isTabSelection(PanelTabs.CALLGRAPH.toString())) {
-        if (callGraph.updateCallGraph(graphMode, false)) {
-//          mainFrame.repack();
-        }
+      if (currentTab.equals(PanelTabs.CALLGRAPH.toString())) {
+        callGraph.updateCallGraph(graphMode, false);
       }
     }
   }

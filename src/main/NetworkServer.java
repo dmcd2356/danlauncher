@@ -176,7 +176,6 @@ public final class NetworkServer extends Thread implements NetworkListener {
         // read input from client and add to buffer
         String message = inFromClient.readLine();
         if (message != null) {
-          // recvBuffer.add(message);
           try {
             recvBuffer.put(message);
           } catch (InterruptedException ex) { /* ignore */ }

@@ -51,7 +51,7 @@ public class CallGraph {
   
   private static final int ALL_THREADS = -1;
 
-  private static String  pnlname;
+  private static String  tabName;
   private static JPanel  graphPanel;
   private static mxGraphComponent graphComponent;
   private static BaseGraph<MethodInfo> callGraph = new BaseGraph<>();
@@ -65,16 +65,22 @@ public class CallGraph {
   private static int threadSel;
   private static LauncherMain.GraphHighlight curGraphMode;
   private static GuiControls methInfoPanel;
-  private static MethodInfo selectedMethod;
+  private static MethodInfo  selectedMethod;
+  private static boolean     tabSelected;
   
   public CallGraph(String name) {
-    pnlname = name;
+    tabName = name;
     graphPanel = new JPanel();
 
     clearGraph();
     graphMethList = new ArrayList<>();
     curGraphMode = LauncherMain.GraphHighlight.NONE;
     rangeStepsize = 20;
+    tabSelected = false;
+  }
+  
+  public void setTabSelection(String selected) {
+    tabSelected = selected.equals(tabName);
   }
   
   /**

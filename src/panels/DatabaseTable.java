@@ -47,7 +47,8 @@ public class DatabaseTable {
     "ID", "Method", "Offset", "Path", "Cost", "Solvable", "Solution" //, "Constraint"
   };
 
-  private static String   pnlname;
+  private static String   tabName;
+  private static boolean  tabSelected;
   private static JTable   dbTable;
   private static Timer    databaseTimer;
   private static ArrayList<DatabaseInfo> dbList = new ArrayList<>();
@@ -82,6 +83,7 @@ public class DatabaseTable {
       solution   = sol   == null ? "" : sol;
       constraint = con   == null ? "" : con;
       updated = false;
+      tabSelected = false;
     }
     
     public void setUpdated() {
@@ -94,7 +96,7 @@ public class DatabaseTable {
   } 
   
   public DatabaseTable (String name) {
-    pnlname = name;
+    tabName = name;
     dbTable = new JTable();
     
     // init the access to mongo
@@ -168,6 +170,10 @@ public class DatabaseTable {
     
   public JTable getPanel() {
     return dbTable;
+  }
+  
+  public void setTabSelection(String selected) {
+    tabSelected = selected.equals(tabName);
   }
   
   public void clearDB() {
@@ -389,19 +395,17 @@ public class DatabaseTable {
   @Override
     public void actionPerformed(ActionEvent e) {
       // exit if database panel is not selected
-      if (!LauncherMain.isTabSelection("DATABASE")) {
-        return;
-      }
-
-      // request the database list and save as list entries
-      readDatabase();
+      if (tabSelected) {
+        // request the database list and save as list entries
+        readDatabase();
                 
-      // sort the table entries based on current selections
-      tableSortAndDisplay();
+        // sort the table entries based on current selections
+        tableSortAndDisplay();
                 
-      // re-mark the selected row (if any)
-      if (rowSelection >= 0) {
-        dbTable.setRowSelectionInterval(rowSelection, rowSelection);
+        // re-mark the selected row (if any)
+        if (rowSelection >= 0) {
+          dbTable.setRowSelectionInterval(rowSelection, rowSelection);
+        }
       }
     }
   }    

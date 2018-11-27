@@ -8,8 +8,11 @@ package panels;
 import callgraph.CallGraph;
 import callgraph.MethodInfo;
 import java.awt.Component;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.concurrent.LinkedBlockingQueue;
 import javax.swing.JTextPane;
 import logging.FontInfo;
 import logging.FontInfo.FontType;
@@ -30,16 +33,30 @@ public class DebugLogger {
 
   private static JTextPane       panel;
   private static Logger          logger;
+  private static String          tabName;
+  private static int             curLine;
+  private static int             endLine;
   private static int             linesRead;
   private static int             threadCount;
   private static int             errorCount;
+  private static boolean         paused;
+  private static boolean         tabSelected;
   private static final ArrayList<Integer> threadList = new ArrayList<>();
   private static HashMap<String, FontInfo> fontmap = new HashMap<>();
+  private static LinkedBlockingQueue<String> pauseQueue;
   
   public DebugLogger(String name) {
+    curLine = 0;
+    endLine = 0;
+    linesRead = 0;
     errorCount = 0;
     threadCount = 0;
+    paused = false;
+    tabSelected = false;
+    tabName = name;
 
+    pauseQueue = new LinkedBlockingQueue<>();
+    
     String fonttype = "Courier";
     FontInfo.setTypeColor (fontmap, MsgType.TSTAMP.toString(), TextColor.Black,  FontType.Normal, 14, fonttype);
     FontInfo.setTypeColor (fontmap, MsgType.ERROR.toString(),  TextColor.Red,    FontType.Bold,   14, fonttype);
@@ -66,10 +83,17 @@ public class DebugLogger {
     // create the text panel and assign it to the logger
     panel = new JTextPane();
     logger = new Logger((Component) panel, name, fontmap);
+
+    // add key listener for the debug viewer
+    panel.addKeyListener(new DebugKeyListener());
   }
   
   public JTextPane getPanel() {
     return panel;
+  }
+  
+  public void setTabSelection(String selected) {
+    tabSelected = selected.equals(tabName);
   }
   
   public int getThreadCount() {
@@ -82,99 +106,95 @@ public class DebugLogger {
   
   public void clear() {
     logger.clear();
+    curLine = 0;
+    endLine = 0;
+    linesRead = 0;
+    errorCount = 0;
+    threadCount = 0;
+    paused = false;
+    pauseQueue.clear();
   }
 
+  private void addToQueue(String message) {
+    try {
+      // add message to queue. if limit exceeded, remove oldest entry
+      pauseQueue.put(message);
+      if (pauseQueue.size() > 50) {
+        pauseQueue.take();
+      }
+    } catch (InterruptedException ex) { /* ignore */ }
+  }
+  
+  private void processFromQueue() {
+    while (!pauseQueue.isEmpty()) {
+      try {
+        // read next message from input buffer
+        String message = pauseQueue.take();
+        MessageInfo msgInfo = new MessageInfo(message);
+        if (msgInfo.valid) {
+          printDebug(msgInfo.linenum, msgInfo.timestr, msgInfo.threadid, msgInfo.type, msgInfo.content);
+        } else {
+          printDebug(message);
+        }
+        curLine++;
+
+      } catch (InterruptedException ex) { /* ignore */ }
+    }
+  }
   public int processMessage(String message, CallGraph callGraph) {
-    // seperate message into the message type and the message content
     if (message == null) {
       return callGraph.getMethodCount();
     }
-    if (message.length() < 30) {
-      printDebug(message);
-      return callGraph.getMethodCount();
-    }
 
-    // read the specific entries from the message
-    String[] array = message.split("\\s+", 3);
-    if (array.length < 3) {
-      printDebug(message);
-      return callGraph.getMethodCount();
-    }
-    String linenum = array[0];
-    String timestr = array[1];
-    message = array[2];
-    int tid = -1; // this is an indication that no thread info was found in the message
-    String threadid = "";
-    if (message.startsWith("<") && message.contains(">")) {
-      array = message.split("\\s+", 2);
-      message = array[1];
-      threadid = array[0];
-      threadid = threadid.substring(1, threadid.indexOf(">"));
-      tid = Integer.parseInt(threadid);
-      if (!threadList.contains(tid)) {
-        threadList.add(tid);
-        threadCount = threadList.size();
-      }
-      // enable the thread highlighting controls if we have more than 1 thread
-      if (threadCount > 1) {
-        LauncherMain.setThreadEnabled(true);
-      }
-    }
-    String typestr = message.substring(0, 6).toUpperCase(); // 6-char message type (may contain space)
-    String content = message.substring(8);     // message content to display
-
-    // make sure we have a valid time stamp & the message length is valid
-    // timestamp = [00:00.000] (followed by a space)
-    if (timestr.charAt(0) != '[' || timestr.charAt(10) != ']') {
-      printDebug(message);
-      return callGraph.getMethodCount();
-    }
-    String timeMin = timestr.substring(1, 3);
-    String timeSec = timestr.substring(4, 6);
-    String timeMs  = timestr.substring(7, 10);
-    int  linecount = 0;
-    long tstamp = 0;
-    try {
-      linecount = Integer.parseInt(linenum);
-      tstamp = ((Integer.parseInt(timeMin) * 60) + Integer.parseInt(timeSec)) * 1000;
-      tstamp += Integer.parseInt(timeMs);
-    } catch (NumberFormatException ex) {
-      // invalid syntax - skip
-      printDebug(message);
-      return callGraph.getMethodCount();
-    }
-
-    // send message to the debug display
-    printDebug(linecount, timestr, threadid, typestr, content);
-          
+    // seperate message into the message type and the message content
+    MessageInfo msgInfo = new MessageInfo(message);
     linesRead++;
-//    (GuiPanel.mainFrame.getTextField("TXT_PROCESSED")).setText("" + GuiPanel.linesRead);
+    if (paused) {
+      addToQueue(message);
+    } else if (msgInfo.valid) {
+      printDebug(msgInfo.linenum, msgInfo.timestr, msgInfo.threadid, msgInfo.type, msgInfo.content);
+      curLine++;
+    } else {
+      printDebug(message);
+      curLine++;
+      return callGraph.getMethodCount();
+    }
+          
+    // check if we have thread id value embedded in message contents
+    if (!threadList.contains(msgInfo.tid)) {
+      threadList.add(msgInfo.tid);
+      threadCount = threadList.size();
+    }
+    // enable the thread highlighting controls if we have more than 1 thread
+    if (threadCount > 1) {
+      LauncherMain.setThreadEnabled(true);
+    }
 
     // get the current method that is being executed
-    MethodInfo mthNode = callGraph.getLastMethod(tid);
+    MethodInfo mthNode = callGraph.getLastMethod(msgInfo.tid);
     
     // extract call processing info and send to CallGraph
-    content = content.trim();
-    switch (typestr.trim()) {
+    String content = msgInfo.content.trim();
+    switch (msgInfo.type.trim()) {
       case "CALL":
         String[] splited = content.split(" ");
         if (splited.length < 2) {
           printDebug("invalid syntax for CALL command");
-          LauncherMain.printCommandError("ERROR: invalid CALL message on line " + linecount);
+          LauncherMain.printCommandError("ERROR: invalid CALL message on line " + msgInfo.linenum);
           return callGraph.getMethodCount(); // invalid syntax - ignore
         }
 
         String icount = splited[0].trim();
         String method = splited[1].trim();
-        callGraph.methodEnter(tid, tstamp, icount, method, linecount);
+        callGraph.methodEnter(msgInfo.tid, msgInfo.tstamp, icount, method, msgInfo.linenum);
         break;
       case "RETURN":
-        callGraph.methodExit(tid, tstamp, content);
+        callGraph.methodExit(msgInfo.tid, msgInfo.tstamp, content);
         break;
       case "ENTRY":
         if (content.startsWith("catchException")) {
           if (mthNode != null) {
-            mthNode.setExecption(tid, linecount);
+            mthNode.setExecption(msgInfo.tid, msgInfo.linenum);
           }
         }
         break;
@@ -182,7 +202,7 @@ public class DebugLogger {
         // increment the error count
         errorCount++;
         if (mthNode != null) {
-          mthNode.setError(tid, linecount);
+          mthNode.setError(msgInfo.tid, msgInfo.linenum);
         }
         break;
       default:
@@ -232,6 +252,129 @@ public class DebugLogger {
           logger.printField("INFO", elapsed + " ");
           logger.printField("INFO", threadid + " ");
           logger.printField(typestr, typestr + ": " + msg + Utils.NEWLINE);
+        }
+      }
+    }
+  }
+  
+  public class MessageInfo {
+    public boolean valid = false;
+    public int    linenum = 0;
+    public long   tstamp = 0L;
+    public int    tid = -1;
+
+    public String lineval = "";
+    public String timestr = "";
+    public String threadid = "";
+    public String type = "";
+    public String content = "";
+    
+    public MessageInfo(String message) {
+      if (message != null && message.length() >= 30) {
+        String[] array = message.split("\\s+", 3);
+        if (array.length < 3) {
+          return;
+        }
+
+        lineval = array[0];
+        timestr = array[1];
+        message = array[2];
+        // check if we have thread id value embedded in message contents
+        if (message.startsWith("<") && message.contains(">")) {
+          array = message.split("\\s+", 2);
+          threadid = array[0];
+          message = array[1];
+          threadid = threadid.substring(1, threadid.indexOf(">"));
+        }
+
+        // make sure we have a valid time stamp & the message length is valid
+        // timestamp = [00:00.000] (followed by a space)
+        if (timestr.charAt(0) != '[' || timestr.charAt(10) != ']') {
+          return;
+        }
+        String timeMin = timestr.substring(1, 3);
+        String timeSec = timestr.substring(4, 6);
+        String timeMs  = timestr.substring(7, 10);
+
+        // verify numeric entries
+        try {
+          linenum = Integer.parseInt(lineval);
+          tstamp = ((Integer.parseInt(timeMin) * 60) + Integer.parseInt(timeSec)) * 1000;
+          tstamp += Integer.parseInt(timeMs);
+          if (!threadid.isEmpty()) {
+            tid = Integer.parseInt(threadid);
+          }
+        } catch (NumberFormatException ex) {
+          return;
+        }
+
+        type = message.substring(0, 6).toUpperCase(); // 6-char message type (may contain space)
+        content = message.substring(8);     // message content to display
+        valid = true;
+      }
+    }
+  }
+  
+  
+  private class DebugKeyListener implements KeyListener {
+
+    @Override
+    public void keyPressed(KeyEvent ke) {
+      // when the key is initially pressed
+      //System.out.println("DebugKeyListener: keyPressed: " + ke.getKeyCode());
+    }
+
+    @Override
+    public void keyTyped(KeyEvent ke) {
+      // follows keyPressed and preceeds keyReleased when entered key is character type
+      //System.out.println("DebugKeyListener: keyTyped: " + ke.getKeyCode() + " = '" + ke.getKeyChar() + "'");
+    }
+
+    @Override
+    public void keyReleased(KeyEvent ke) {
+      if (tabSelected) {
+        // when the key has been released
+        //System.out.println("DebugKeyListener: keyReleased: " + ke.getKeyCode());
+        //int curpos = panel.getCaretPosition();
+        switch (ke.getKeyCode()) {
+          case KeyEvent.VK_UP:
+            if (!paused) {
+              endLine = curLine;
+            }
+            paused = true;
+            curLine = curLine - 1;
+            if (curLine < 0) {
+              curLine = 0;
+            }
+            break;
+          case KeyEvent.VK_DOWN:
+            curLine += 1;
+            if (curLine >= endLine) {
+              curLine = endLine;
+              processFromQueue();
+              paused = false;
+            }
+            break;
+          case KeyEvent.VK_PAGE_UP:
+            if (!paused) {
+              endLine = curLine;
+            }
+            paused = true;
+            curLine = curLine - 20;
+            if (curLine < 0) {
+              curLine = 0;
+            }
+            break;
+          case KeyEvent.VK_PAGE_DOWN:
+            curLine += 20;
+            if (curLine >= endLine) {
+              curLine = endLine;
+              processFromQueue();
+              paused = false;
+            }
+            break;
+          default:
+            break;
         }
       }
     }
