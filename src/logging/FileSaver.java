@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.time.LocalDateTime;
 import java.util.concurrent.LinkedBlockingQueue;
+import util.Utils;
 
 /**
  *
@@ -20,17 +21,19 @@ import java.util.concurrent.LinkedBlockingQueue;
  */
   public class FileSaver extends Thread {
 
+    private static PrintWriter storageWriter;
     private static PrintWriter writer;
     private static BufferedReader reader;
     private static LinkedBlockingQueue<String> queue;
 
-    public FileSaver(String fname, LinkedBlockingQueue<String> recvBuffer) {
+    public FileSaver(LinkedBlockingQueue<String> recvBuffer) {
       queue = recvBuffer;
       reader = null;
       writer = null;
+      storageWriter = null;
 
       // setup the file to save the data in
-      setFile(fname);
+      startBufferFile();
       System.out.println("FileSaver: started");
     }
     
@@ -38,14 +41,22 @@ import java.util.concurrent.LinkedBlockingQueue;
     public void run() {
       // wait for input and copy to file
       while(true) {
-        if (writer != null && queue != null) {
+        if (!queue.isEmpty()) {
           try {
             // read next message from input buffer
             String message = queue.take();
 
-            // append message to file
-            writer.write(message + System.getProperty("line.separator"));
-            writer.flush();
+            // append message to buffer file
+            if (writer != null) {
+              writer.write(message + Utils.NEWLINE);
+              writer.flush();
+            }
+
+            // append message to storage file
+            if (storageWriter != null) {
+              storageWriter.write(message + Utils.NEWLINE);
+              storageWriter.flush();
+            }
           } catch (InterruptedException ex) {
             System.out.println("FileSaver: " + ex.getMessage());
           }
@@ -54,9 +65,14 @@ import java.util.concurrent.LinkedBlockingQueue;
     }
 
     public void exit() {
+      System.out.println("FileSaver: closing");
       if (writer != null) {
-        System.out.println("FileSaver: closing");
         writer.close();
+        writer = null;
+      }
+      if (storageWriter != null) {
+        storageWriter.close();
+        storageWriter = null;
       }
     }
     
@@ -73,37 +89,37 @@ import java.util.concurrent.LinkedBlockingQueue;
       return message;
     }
     
-    public static void resetInput() {
+    public void resetInput() {
+      String message = "# Logfile started: " + LocalDateTime.now();
+      message = message.replace('T', ' ');
+      String separator = "----------------------------------------------------------------------";
+
       if (writer != null) {
-        String message = "# Logfile started: " + LocalDateTime.now();
-        message = message.replace('T', ' ');
-        writer.write("----------------------------------------------------------------------" +
-            System.getProperty("line.separator"));
-        writer.write(message + System.getProperty("line.separator"));
+        startBufferFile();
+        writer.write(separator + Utils.NEWLINE);
+        writer.write(message + Utils.NEWLINE);
         writer.flush();
       }
-    }
 
-    public static void setFile(String fname) {
+      if (storageWriter != null) {
+        storageWriter.write(separator + Utils.NEWLINE);
+        storageWriter.write(message + Utils.NEWLINE);
+        storageWriter.flush();
+      }
+    }
+    
+    public void setStorageFile(String fname) {
       // ignore if name was not changed
       if (fname == null || fname.isEmpty()) {
         return;
       }
 
       try {
-        // close any current reader
-        if (reader != null) {
-          System.out.println("FileSaver: closing reader");
-          reader.close();
+        // close any current storage writer
+        if (storageWriter != null) {
+          System.out.println("FileSaver: closing storage writer");
+          storageWriter.close();
         }
-        reader = null;
-
-        // close any current writer
-        if (writer != null) {
-          System.out.println("FileSaver: closing writer");
-          writer.close();
-        }
-        writer = null;
 
         // remove any existing file
         File file = new File(fname);
@@ -112,16 +128,41 @@ import java.util.concurrent.LinkedBlockingQueue;
           file.delete();
         }
 
-        // set the buffer file to use for capturing input
+        // set the buffer file to use for saving to project
         System.out.println("FileSaver: writing to " + fname);
+        storageWriter = new PrintWriter(new FileWriter(fname, true));
+
+//        // output time log started
+//        String message = "# Logfile started: " + LocalDateTime.now();
+//        message = message.replace('T', ' ');
+//        storageWriter.write(message + Utils.NEWLINE);
+//        storageWriter.flush();
+      } catch (IOException ex) {  // includes FileNotFoundException
+        System.out.println(ex.getMessage());
+      }
+    }
+
+    private void startBufferFile() {
+      // make sure the path exists for the buffer file
+      String bufferPath = System.getProperty("user.home") + "/.danlauncher/";
+      File file = new File(bufferPath);
+      if (!file.isDirectory()) {
+        file.mkdirs();
+      }
+      
+      // remove any existing buffer file
+      String fname = bufferPath + "debug.log";
+      file = new File(fname);
+      if (file.isFile()) {
+        System.out.println("FileSaver: deleting buffer file");
+        file.delete();
+      }
+
+      try {
+        // set the buffer file to use for using in launcher
+        System.out.println("FileSaver: buffer at: " + fname);
         writer = new PrintWriter(new FileWriter(fname, true));
 
-        // output time log started
-        String message = "# Logfile started: " + LocalDateTime.now();
-        message = message.replace('T', ' ');
-        writer.write(message + System.getProperty("line.separator"));
-        writer.flush();
-      
         // attach new file reader for output to gui
         reader = new BufferedReader(new FileReader(new File(fname)));
         System.out.println("FileSaver: reader status: " + reader.ready());

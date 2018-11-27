@@ -707,9 +707,12 @@ public class CallGraph {
       if (method.endsWith("<clinit>()V") && parNode == null) {
         clinitMethods.put(tid, mthNode);
       } else if (clinitMethods.containsKey(tid)) {
+        // NOTE: the parent method must be of the same class, or we skip it untilone shows up
         MethodInfo chldNode = clinitMethods.get(tid);
-        callGraph.addEdge(mthNode, chldNode, null);
-        clinitMethods.remove(tid);
+        if (chldNode.getClassName().equals(mthNode.getClassName())) {
+          callGraph.addEdge(mthNode, chldNode, null);
+          clinitMethods.remove(tid);
+        }
       }
     }
 

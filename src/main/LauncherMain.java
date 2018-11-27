@@ -1190,8 +1190,9 @@ public final class LauncherMain {
     panel = "PNL_MAIN";
     systemSetupFrame.makeButton   (panel, "BTN_JAVAHOME" , "JAVA_HOME" , LEFT, false);
     systemSetupFrame.makeLabel    (panel, "LBL_JAVAHOME" , javaHome    , LEFT, true);
-    systemSetupFrame.makeTextField(panel, "TXT_MYPORT"   , "Debug Port", LEFT, true, debugPort + "", 8, true);
     systemSetupFrame.makeTextField(panel, "TXT_MAXLEN"   , "Debug Max Len", LEFT, true, maxLogLength, 8, true);
+    systemSetupFrame.makeTextField(panel, "TXT_MYPORT"   , "Debug Port", LEFT, true, debugPort + "", 8, true);
+    systemSetupFrame.makeLabel    (panel, "LBL_PORT"     , "* Note that a port change will require a restart", LEFT, true);
 
     // setup actions for controls
     systemSetupFrame.getButton("BTN_JAVAHOME").addActionListener(new Action_SetJavaHome());
@@ -1235,8 +1236,8 @@ public final class LauncherMain {
       try {
         int intval = Integer.parseUnsignedInt(value);
         if (intval >= 100 && intval <= 65535) {
-          debugPort = intval;
-          systemProps.setPropertiesItem(SystemProperties.DEBUG_PORT.toString(), debugPort + "");
+//          debugPort = intval;
+          systemProps.setPropertiesItem(SystemProperties.DEBUG_PORT.toString(), value);
           return;
         }
       } catch (NumberFormatException ex) { }
@@ -1565,50 +1566,26 @@ public final class LauncherMain {
     }
   }
   
-  private static void startDebugPort(String projectPath) {
-    // disable timers while we are setting this up
-    enableUpdateTimers(false);
+  private static void startDebugPort() {
+    // only run this once
+    if (udpThread == null) {
+      // disable timers while we are setting this up
+      enableUpdateTimers(false);
 
-    if (udpThread != null) {
-      // server is already running, see if no change in parameters
-      if (debugPort != udpThread.getPort()) {
-        // port change: we have to close the current server so we can create a new one using a different port
-        udpThread.exit();
-        printCommandMessage("Changing NetworkServer port from " + udpThread.getPort() + " to " + debugPort);
-        // continue onto starting a new server
-      } else if (!projectPath.equals(udpThread.getOutputFile())) {
-        // storage location changed - easy, we can just change the setting on the fly
-        printCommandMessage("Changing NetworkServer log location to: " + projectPath + "debug.log");
-        udpThread.setBufferFile(projectPath + "debug.log");
-        return;
-      } else {
-        // no change - even easier. just exit.
-        printCommandMessage("No change in NetworkServer.");
-        return;
+      try {
+        udpThread = new NetworkServer(debugPort);
+      } catch (IOException ex) {
+        System.err.println("ERROR: unable to start NetworkServer. " + ex);
       }
+
+      printCommandMessage("danlauncher receiving port: " + debugPort);
+      udpThread.start();
+      udpThread.setLoggingCallback(makeConnection);
+      networkListener = udpThread; // this allows us to signal the network listener
+
+      // re-enable timers
+      enableUpdateTimers(true);
     }
-    
-    try {
-      udpThread = new NetworkServer(debugPort, true);
-    } catch (IOException ex) {
-      System.err.println("ERROR: unable to start NetworkServer. " + ex);
-    }
-
-    printCommandMessage("danlauncher receiving port: " + debugPort);
-    udpThread.start();
-    udpThread.setLoggingCallback(makeConnection);
-    udpThread.setBufferFile(projectPath + "/debug.log");
-
-//    // get this server's ip address
-//    String ipaddr = "<unknown>";
-//    try(final DatagramSocket socket = new DatagramSocket()){
-//      socket.connect(InetAddress.getByName("8.8.8.8"), 10002);
-//      ipaddr = socket.getLocalAddress().getHostAddress();
-//    } catch (SocketException | UnknownHostException ex) {  }
-
-    networkListener = udpThread; // this allows us to signal the network listener
-
-    enableUpdateTimers(true);
   }
   
   private static void enableUpdateTimers(boolean enable) {
@@ -1977,7 +1954,7 @@ public final class LauncherMain {
     setupClassList(projectPathName);
         
     // setup access to the network listener thread
-    startDebugPort(projectPathName);
+    startDebugPort();
     return 0;
   }
 
@@ -2007,6 +1984,12 @@ public final class LauncherMain {
     }
     mainclass = mainclass.replaceAll("/", ".");
 
+    // init the debug logging to the current project path
+    if (udpThread != null) {
+      udpThread.setStorageFile(projectPathName + "debug.log");
+      udpThread.resetInput();
+    }
+    
     // build up the command to run
     String localpath = "*";
     if (new File(projectPathName + "lib").isDirectory()) {
