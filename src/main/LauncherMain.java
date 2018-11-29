@@ -467,7 +467,7 @@ public final class LauncherMain {
     mainFrame.makeTextField  (panel, "TXT_MESSAGES" , ""          , LEFT, true, "", 138, false);
 
     panel = "PNL_CONTAINER";
-    mainFrame.makeSplitPane  (panel, "SPLIT_IFC"    , LEFT, true, GuiControls.Expand.HORIZONTAL, true, 0.5);
+    mainFrame.makeSplitPanel (panel, "SPLIT_IFC"    , LEFT, true, GuiControls.Expand.HORIZONTAL, true, 0.5);
     mainFrame.makePanel      (panel, "PNL_BYTECODE" , "Bytecode"  , LEFT, true);
 
     panel = "SPLIT_IFC";
@@ -507,7 +507,7 @@ public final class LauncherMain {
     // disable the back button initially
     mainFrame.getButton("BTN_BACK").setVisible(false);
 
-    // set minimum size for symbolics panel
+    // set minimum size for symbolics panel (TODO: this is just a fudge to get the dang thing to display)
     Dimension minimumSize = new Dimension(600, 120);
     JPanel symPanel = (JPanel) mainFrame.getPanelInfo("PNL_SYMBOLICS").panel;
     symPanel.setMinimumSize(minimumSize);
@@ -610,7 +610,7 @@ public final class LauncherMain {
     // create a split panel for the BYTECODE panel and the table of local parameters
     String splitName = "SPLIT_MAIN";
     JTable paramList = new JTable();
-    JSplitPane splitMain = mainFrame.makeRawSplitPane(splitName, true, 0.5);
+    JSplitPane splitMain = mainFrame.makeRawSplitPanel(splitName, true, 0.5);
     mainFrame.addSplitComponent(splitName, 0, "BYTECODE"     , noWrapBytecodePanel, true);
     mainFrame.addSplitComponent(splitName, 1, "TBL_PARAMLIST", paramList, true); // local parameters
     

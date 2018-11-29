@@ -73,34 +73,20 @@ public class GuiControls {
   private final HashMap<String, JTextField>    gTextField = new HashMap();
   private final HashMap<String, JRadioButton>  gRadiobutton = new HashMap();
   private final HashMap<String, JSpinner>      gSpinner = new HashMap();
-  private final HashMap<String, SplitInfo>     gSplitPane = new HashMap();
-  
-  private class SplitInfo {
-    public String           name;
-    public JSplitPane       pane;
-    public boolean          horiz;  // true for over/under, false for left/right
-    public SplitComponent[] comp = { new SplitComponent(), new SplitComponent() };
-
-    public class SplitComponent {
-      public String    name;
-      public Component panel;
-    }
-  }
   
   public class PanelInfo {
-    public String        name;
     public Component     panel;   // can be JPanel, JTabbedPane, JSplitPane, JScrollPane
     public int           index;   // for TABBED and SPLIT panels, defines the index of next panel
-    public boolean       horiz;   // for SPLIT panels, true if panels are side by side, else up/down
     
     public PanelInfo(String name, Component panel) {
-      this.name = name;
       this.panel = panel;
-      this.index= 0;
+      this.index = 0;
     }
   }
   
   public GuiControls() {
+    // use this if you don't want to allocate a JFrame yet (or at all)
+    // if no frame created, you can only use the makeRawxxx calls for panels.
   }
   
   public GuiControls(String title, int width, int height) {
@@ -205,7 +191,6 @@ public class GuiControls {
   
   public void close() {
     gPanel.clear();
-    gSplitPane.clear();
     
     gTextPane.clear();
     gTextArea.clear();
@@ -650,7 +635,7 @@ public class GuiControls {
     return c;
   }
 
-  private GridBagLayout GetGridBagLayout(String panelname) {
+  private GridBagLayout getGridBagLayout(String panelname) {
     GridBagLayout gridbag = mainLayout;
     PanelInfo panelInfo;
     if (panelname != null && !panelname.isEmpty()) {
@@ -662,36 +647,62 @@ public class GuiControls {
       Component panel = gPanel.get(panelname).panel;
       if (panel instanceof JPanel) {
         gridbag = (GridBagLayout) ((JPanel)panel).getLayout();
+      } else {
+        gridbag = null;
       }
     }
     
     return gridbag;
   }
   
-  private void addPanelToPanel(String panelname, PanelInfo newPanel) {
+  public GridBagLayout setGridBagLayout(String panelname, Component comp, Orient pos, boolean end, Expand fillStyle) {
+    GridBagLayout gridbag = getGridBagLayout(panelname);
+    if (gridbag != null) {
+      gridbag.setConstraints(comp, setGbagConstraints(pos, end, fillStyle));
+    }
+    return gridbag;
+  }
+  
+  private void addPanelToPanel(String panelname, String name) {
+    PanelInfo newPanel = getPanelInfo(name);
+    if (newPanel == null) {
+      System.err.println("ERROR: addPanelToPanel: '" + name + "' panel not found!");
+      System.exit(1);
+    }
+    
     if (panelname == null || panelname.isEmpty()) {
+      // adding panel to main frame
+      if (mainFrame == null) {
+        System.err.println("ERROR: mainFrame not created!");
+        System.exit(1);
+      }
+
       mainFrame.add(newPanel.panel);
+      return;
+    }
+
+    // adding panel to another panel
+    PanelInfo panelInfo = gPanel.get(panelname);
+    if (panelInfo == null) {
+      System.err.println("ERROR: addPanelToPanel: '" + panelname + "' panel not found!");
+      System.exit(1);
+    }
+    
+    // determine the type of panel we are adding to
+    Component panel = panelInfo.panel;
+    if (panel instanceof JPanel) {
+      ((JPanel) panel).add(newPanel.panel);
+    } else if (panel instanceof JScrollPane) {
+      ((JScrollPane) panel).add(newPanel.panel);
+    } else if (panel instanceof JTabbedPane) {
+      ((JTabbedPane) panel).add(newPanel.panel);
+      panelInfo.index++; // bump ptr to next location in container panel
+    } else if (panel instanceof JSplitPane) {
+      ((JSplitPane) panel).add(newPanel.panel, panelInfo.index); // add(newPanel.panel);
+      panelInfo.index++; // bump ptr to next location in container panel
     } else {
-      PanelInfo panelInfo = gPanel.get(panelname);
-      if (panelInfo == null) {
-        System.err.println("ERROR: addPanelToPanel: '" + panelname + "' panel not found!");
-        System.exit(1);
-      }
-      Component panel = panelInfo.panel;
-      if (panel instanceof JPanel) {
-        ((JPanel) panel).add(newPanel.panel);
-      } else if (panel instanceof JScrollPane) {
-        ((JScrollPane) panel).add(newPanel.panel);
-      } else if (panel instanceof JTabbedPane) {
-        ((JTabbedPane) panel).add(newPanel.panel);
-        panelInfo.index++; // bump ptr to next location in container panel
-      } else if (panel instanceof JSplitPane) {
-        ((JSplitPane) panel).add(newPanel.panel, panelInfo.index); // add(newPanel.panel);
-        panelInfo.index++; // bump ptr to next location in container panel
-      } else {
-        System.err.println("ERROR: addPanelToPanel: '" + panelname + "' is invalid type: " + panel.getClass().getName());
-        System.exit(1);
-      }
+      System.err.println("ERROR: addPanelToPanel: '" + panelname + "' is invalid type: " + panel.getClass().getName());
+      System.exit(1);
     }
   }
   
@@ -1194,6 +1205,148 @@ public class GuiControls {
   }
   
   /**
+   * This creates an empty JPanel.
+   * 
+   * @param name    - the name id of the component
+   * @param title   - the name to display as a label preceeding the widget (null if no border)
+   * @return the panel
+   */
+  public JPanel makeRawPanel(String name, String title) {
+    if (gPanel.containsKey(name)) {
+      System.err.println("ERROR: '" + name + "' panel already added to container!");
+      System.exit(1);
+    }
+
+    // create the panel and apply constraints
+    JPanel panel = new JPanel();
+    if (!title.isEmpty()) {
+      panel.setBorder(BorderFactory.createTitledBorder(title));
+    }
+
+    // create a layout for inside the panel
+    GridBagLayout gbag = new GridBagLayout();
+    panel.setFont(new Font("SansSerif", Font.PLAIN, 14));
+    panel.setLayout(gbag);
+
+    // add new panel info to list
+    saveComponent(name, panel);
+
+    // add entry to components list
+    return panel;
+  }
+
+  public JSplitPane makeRawSplitPanel(String name, boolean horiz, double divider) {
+    // make sure split pane not already defined
+    if (gPanel.containsKey(name)) {
+      System.err.println("ERROR: Split pane already has entry: " + name);
+      System.exit(1);
+    }
+    
+    // create the pane
+    int type;
+    if (horiz) {
+      type = JSplitPane.HORIZONTAL_SPLIT;
+    } else {
+      type = JSplitPane.VERTICAL_SPLIT;
+    }
+    JSplitPane panel = new JSplitPane(type);
+    panel.setOneTouchExpandable(true);
+    panel.setDividerLocation(divider);
+
+    // add new panel info to list
+    saveComponent(name, panel);
+    return panel;
+  }
+
+  public JTabbedPane makeRawTabbedPanel(String name, String title) {
+    if (gPanel.containsKey(name)) {
+      System.err.println("ERROR: '" + name + "' panel already added to container!");
+      System.exit(1);
+    }
+
+    // create the panel and apply constraints
+    JTabbedPane panel = new JTabbedPane();
+    if (title != null) {
+      panel.setBorder(BorderFactory.createTitledBorder(title));
+    }
+
+    // add new panel info to list
+    saveComponent(name, panel);
+    return panel;
+  }
+
+  public JScrollPane makeRawScrollTable(String name, String title) {
+    if (gPanel.containsKey(name) || gTable.containsKey(name)) {
+      System.err.println("ERROR: '" + name + "' panel already added to container!");
+      System.exit(1);
+    }
+
+    // create the table place it in a scroll pane
+    JTable table = new JTable();
+    JScrollPane panel = new JScrollPane(table);
+    panel.setBorder(BorderFactory.createTitledBorder(title));
+
+    // add new panel info and associated table to list
+    saveComponent(name, panel);
+    saveComponent(name, table);
+
+    return panel;
+  }
+  
+  /**
+   * This creates a JScrollPane containing a JList of Strings (does not place it in container).
+   * A List of String entries is passed to it that can be manipulated (adding & removing entries
+   * that will be automatically reflected in the scroll pane.
+   * 
+   * @param name    - the name id of the component
+   * @param title   - the name to display as a label preceeding the widget
+   * @param list    - the list of entries to associate with the panel
+   * @return the JScrollPane created
+   */
+  public JScrollPane makeRawScrollList(String name, String title, DefaultListModel list) {
+    if (gPanel.containsKey(name) || gList.containsKey(name)) {
+      System.err.println("ERROR: '" + name + "' scrolling list panel already added to container!");
+      System.exit(1);
+    }
+
+    // create the scroll panel and title
+    JScrollPane panel = new JScrollPane();
+    panel.setBorder(BorderFactory.createTitledBorder(title));
+
+    // create a list component for the scroll panel and assign the list model to it
+    JList scrollList = new JList();
+    panel.setViewportView(scrollList);
+    scrollList.setModel(list);
+
+    // add new panel info and associated scroll list to list
+    saveComponent(name, panel);
+    saveComponent(name, scrollList);
+
+    return panel;
+  }
+
+  public JScrollPane makeRawScrollText(String name, String title) {
+    if (gPanel.containsKey(name) || gTextPane.containsKey(name)) {
+      System.err.println("ERROR: '" + name + "' scrolling textpanel already added to container!");
+      System.exit(1);
+    }
+
+    // create the scroll panel and apply constraints
+    JScrollPane panel = new JScrollPane();
+    panel.setBorder(BorderFactory.createTitledBorder(title));
+
+    // create a text pane component and add to scroll panel
+    JTextPane textpane = new JTextPane();
+    panel.setViewportView(textpane);
+    
+    // add new panel info and associated text pane to list
+    saveComponent(name, panel);
+    saveComponent(name, textpane);
+
+    return panel;
+  }
+
+  /**
    * This creates an empty JPanel and places it in the container.
    * 
    * @param panelname - the name of the jPanel container to place the component in (null if use main frame)
@@ -1205,35 +1358,15 @@ public class GuiControls {
    * @return the panel
    */
   public JPanel makePanel(String panelname, String name, String title, Orient pos, boolean end, Expand fillStyle) {
-    if (mainFrame == null || mainLayout == null) {
-      return null;
-    }
-    if (gPanel.containsKey(name)) {
-      System.err.println("ERROR: '" + name + "' panel already added to container!");
-      System.exit(1);
-    }
+    // create the panel
+    JPanel panel = makeRawPanel(name, title);
 
-    // create the panel and apply constraints
-    JPanel newpanel = new JPanel();
-    if (!title.isEmpty()) {
-      newpanel.setBorder(BorderFactory.createTitledBorder(title));
-    }
+    // setup layout for panel in the container
+    setGridBagLayout(panelname, panel, pos, end, fillStyle);
 
-    // create a layout for inside the panel
-    GridBagLayout gbag = new GridBagLayout();
-    newpanel.setFont(new Font("SansSerif", Font.PLAIN, 14));
-    newpanel.setLayout(gbag);
-
-    // setup layout for placing panel in the container
-    GridBagLayout gridbag = GetGridBagLayout(panelname);
-    gridbag.setConstraints(newpanel, setGbagConstraints(pos, end, fillStyle));
-
-    // add new panel info to list
-    saveComponent(name, newpanel);
-
-    // place component in container & add entry to components list
-    addPanelToPanel(panelname, getPanelInfo(name));
-    return newpanel;
+    // place component in container
+    addPanelToPanel(panelname, name);
+    return panel;
   }
 
   /**
@@ -1247,7 +1380,15 @@ public class GuiControls {
    * @return the panel
    */
   public JPanel makePanel(String panelname, String name, String title, Orient pos, boolean end) {
-    return makePanel(panelname, name, title, pos, end, Expand.NONE);
+    // create the panel
+    JPanel panel = makeRawPanel(name, title);
+
+    // setup layout for panel in the container
+    setGridBagLayout(panelname, panel, pos, end, Expand.NONE);
+
+    // place component in container
+    addPanelToPanel(panelname, name);
+    return panel;
   }
 
   /**
@@ -1264,6 +1405,9 @@ public class GuiControls {
    */
   public JPanel makePanel(String panelname, String name, String title, Orient pos, boolean end,
                           int width, int height) {
+    // create the panel
+    JPanel panel = makeRawPanel(name, title);
+
     // determine if we want to fill container's width or height
     Dimension dim = getPanelSize(panelname);
     //System.out.println("Panel size = { " + dim.width + ", " + dim.height + " }");
@@ -1282,69 +1426,37 @@ public class GuiControls {
       height = dim.height;
       expand = Expand.VERTICAL;
     }
-      
-    JPanel panel = makePanel(panelname, name, title, pos, end, expand);
-    if (panel != null) {
-      // limit height and width to max of screen dimensions
-      width  = (width  > SCREEN_SIZE.width)  ? SCREEN_SIZE.width  : width;
-      height = (height > SCREEN_SIZE.height) ? SCREEN_SIZE.height : height;
 
-      Dimension fsize = new Dimension(width, height);
-      panel.setSize(fsize);
-      panel.setPreferredSize(fsize);
-      panel.setMinimumSize(fsize);
-    }
+    // setup layout for panel in the container
+    setGridBagLayout(panelname, panel, pos, end, expand);
+
+    // place component in container
+    addPanelToPanel(panelname, name);
+      
+    // limit height and width to max of screen dimensions
+    width  = (width  > SCREEN_SIZE.width)  ? SCREEN_SIZE.width  : width;
+    height = (height > SCREEN_SIZE.height) ? SCREEN_SIZE.height : height;
+
+    Dimension fsize = new Dimension(width, height);
+    panel.setSize(fsize);
+    panel.setPreferredSize(fsize);
+    panel.setMinimumSize(fsize);
+
     return panel;
   }
 
-  public JSplitPane makeSplitPane(String panelname, String name, Orient pos, boolean end,
-                                  Expand fillStyle, boolean horiz, double divider) {
-    if (mainFrame == null || mainLayout == null) {
-      return null;
-    }
-    if (gSplitPane.containsKey(name)) {
-      System.err.println("ERROR: Split pane already has entry: " + name);
-      System.exit(1);
-    }
+  public JSplitPane makeSplitPanel(String panelname, String name, Orient pos, boolean end,
+                                  Expand expand, boolean horiz, double divider) {
+
+    // create the split pane
+    JSplitPane panel = makeRawSplitPanel(name, horiz, divider);
     
-    // create the pane
-    int type;
-    if (horiz) {
-      type = JSplitPane.HORIZONTAL_SPLIT;
-    } else {
-      type = JSplitPane.VERTICAL_SPLIT;
-    }
-    JSplitPane splitPane = new JSplitPane(type);
-    splitPane.setOneTouchExpandable(true);
-    splitPane.setDividerLocation(divider);
+    // setup layout for panel in the container
+    setGridBagLayout(panelname, panel, pos, end, expand);
 
-    // apply layout constraints if parent is JPanel
-//    PanelInfo panelInfo = getPanelInfo(panelname);
-//    if (panelInfo != null && panelInfo.type == PanelType.PANEL) {
-//      GridBagLayout gridbag = GetGridBagLayout(panelname);
-//      GridBagConstraints gc = setGbagConstraints(Orient.NONE, true, GridBagConstraints.BOTH);
-//      gridbag.setConstraints(splitPane, gc);
-//    }
-
-    // setup the layout for how we are placing this panel in the container
-    GridBagLayout gridbag = GetGridBagLayout(panelname);
-    gridbag.setConstraints(splitPane, setGbagConstraints(pos, end, fillStyle));
-
-    // add new panel info to list
-    saveComponent(name, splitPane);
-    PanelInfo pInfo = getPanelInfo(name);
-    pInfo.horiz = horiz; // set the direction param
-
-    // place scroll panel in container
-    addPanelToPanel(panelname, pInfo);
-
-    // add entry to map
-    SplitInfo splitInfo = new SplitInfo();
-    splitInfo.name = name;
-    splitInfo.pane = splitPane;
-    splitInfo.horiz = horiz;
-    gSplitPane.put(name, splitInfo);
-    return splitPane;
+    // place split pane in container
+    addPanelToPanel(panelname, name);
+    return panel;
   }
 
   /**
@@ -1356,31 +1468,15 @@ public class GuiControls {
    * @return the panel
    */
   public JTabbedPane makeTabbedPanel(String panelname, String name, String title) {
-    if (mainFrame == null || mainLayout == null) {
-      return null;
-    }
-    if (getPanelInfo(name) != null) {
-      System.err.println("ERROR: '" + name + "' panel already added to container!");
-      System.exit(1);
-    }
+    // create the panel
+    JTabbedPane panel = makeRawTabbedPanel(name, title);
 
-    // create the panel and apply constraints
-    JTabbedPane newpanel = new JTabbedPane();
-    if (title != null) {
-      newpanel.setBorder(BorderFactory.createTitledBorder(title));
-    }
-
-    // get the layout for the container
-    GridBagLayout gridbag = GetGridBagLayout(panelname);
-    GridBagConstraints gc = setGbagConstraints(Orient.NONE, true, Expand.BOTH);
-    gridbag.setConstraints(newpanel, gc);
-
-    // add new panel info to list
-    saveComponent(name, newpanel);
+    // setup layout for panel in the container
+    setGridBagLayout(panelname, panel, Orient.NONE, true, Expand.BOTH);
 
     // place component in container
-    addPanelToPanel(panelname, getPanelInfo(name));
-    return newpanel;
+    addPanelToPanel(panelname, name);
+    return panel;
   }
 
   /**
@@ -1392,31 +1488,15 @@ public class GuiControls {
    * @return the panel
    */
   public JTable makeScrollTable(String panelname, String name, String title) {
-    if (mainFrame == null || mainLayout == null) {
-      return null;
-    }
-    if (getPanelInfo(name) != null) {
-      System.err.println("ERROR: '" + name + "' panel already added to container!");
-      System.exit(1);
-    }
-
-    // get the layout for the container
-    GridBagLayout gridbag = GetGridBagLayout(panelname);
-
-    // create the table place it in a scroll pane
-    JTable table = new JTable();
-    JScrollPane spanel = new JScrollPane(table);
-    spanel.setBorder(BorderFactory.createTitledBorder(title));
-    GridBagConstraints gc = setGbagConstraints(Orient.NONE, true, Expand.BOTH);
-    gridbag.setConstraints(spanel, gc);
-
-    // add new panel info and associated table to list
-    saveComponent(name, spanel);
-    saveComponent(name, table);
-
+    // create the scroll panel containing a JTable
+    JScrollPane panel = makeRawScrollTable(name, title);
+    
+    // setup layout for panel in the container
+    setGridBagLayout(panelname, panel, Orient.NONE, true, Expand.BOTH);
+    
     // place component in container
-    addPanelToPanel(panelname, getPanelInfo(name));
-    return table;
+    addPanelToPanel(panelname, name);
+    return getTable(name);
   }
   
   /**
@@ -1431,38 +1511,15 @@ public class GuiControls {
    * @return the JList corresponding to the list passed
    */
   public JList makeScrollList(String panelname, String name, String title, DefaultListModel list) {
-    if (mainFrame == null || mainLayout == null) {
-      return null;
-    }
-    if (getPanelInfo(name) != null || gList.containsKey(name)) {
-      System.err.println("ERROR: '" + name + "' scrolling list panel already added to container!");
-      System.exit(1);
-    }
-
-    // create the scroll panel
-    JScrollPane spanel = new JScrollPane();
-    spanel.setBorder(BorderFactory.createTitledBorder(title));
-
-    // create a list component for the scroll panel and assign the list model to it
-    JList scrollList = new JList();
-    spanel.setViewportView(scrollList);
-    scrollList.setModel(list);
-
-    // apply layout constraints if parent is JPanel
-    PanelInfo panelInfo = getPanelInfo(panelname);
-    if (panelInfo != null && panelInfo.panel instanceof JPanel) {
-      GridBagLayout gridbag = GetGridBagLayout(panelname);
-      GridBagConstraints gc = setGbagConstraints(Orient.NONE, true, Expand.BOTH);
-      gridbag.setConstraints(spanel, gc);
-    }
-
-    // add new panel info and associated scroll list to list
-    saveComponent(name, spanel);
-    saveComponent(name, scrollList);
+    // create the scroll panel and list
+    JScrollPane panel = makeRawScrollList(name, title, list);
+    
+    // setup layout for panel in the container
+    setGridBagLayout(panelname, panel, Orient.NONE, true, Expand.BOTH);
 
     // place scroll panel in container
-    addPanelToPanel(panelname, getPanelInfo(name));
-    return scrollList;
+    addPanelToPanel(panelname, name);
+    return getList(name);
   }
 
   /**
@@ -1474,171 +1531,61 @@ public class GuiControls {
    * @return the text panel contained in the scroll panel
    */
   public JTextPane makeScrollText(String panelname, String name, String title) {
-    if (mainFrame == null || mainLayout == null) {
-      return null;
-    }
-    if (getPanelInfo(name) != null || gTextPane.containsKey(name)) {
-      System.err.println("ERROR: '" + name + "' scrolling textpanel already added to container!");
-      System.exit(1);
-    }
-
-    // get the layout for the container
-    GridBagLayout gridbag = GetGridBagLayout(panelname);
-
-    // create the scroll panel and apply constraints
-    JScrollPane spanel = new JScrollPane();
-    spanel.setBorder(BorderFactory.createTitledBorder(title));
-    // only apply constraints for JPanel
-    PanelInfo panelInfo = getPanelInfo(panelname);
-    if (panelInfo != null && panelInfo.panel instanceof JPanel) {
-      GridBagConstraints gc = setGbagConstraints(Orient.NONE, true, Expand.BOTH);
-      gridbag.setConstraints(spanel, gc);
-    }
-
-    // create a text pane component and add to scroll panel
-    JTextPane tpanel = new JTextPane();
-    spanel.setViewportView(tpanel);
+    // create the scroll panel containing the text pane
+    JScrollPane panel = makeRawScrollText(name, title);
     
-    // add new panel info and associated text pane to list
-    saveComponent(name, spanel);
-    saveComponent(name, tpanel);
+    // setup layout for panel in the container
+    setGridBagLayout(panelname, panel, Orient.NONE, true, Expand.BOTH);
 
     // place scroll panel in container
-    addPanelToPanel(panelname, getPanelInfo(name));
-    return tpanel;
-  }
-
-  /**
-   * This creates a JScrollPane containing a JList of Strings (does not place it in container).
-   * A List of String entries is passed to it that can be manipulated (adding & removing entries
-   * that will be automatically reflected in the scroll pane.
-   * 
-   * @param name    - the name id of the component
-   * @param title   - the name to display as a label preceeding the widget
-   * @param list    - the list of entries to associate with the panel
-   * @return the JScrollPane created
-   */
-  public JScrollPane makeRawScrollList(String name, String title, DefaultListModel list) {
-    if (getPanelInfo(name) != null || gList.containsKey(name)) {
-      System.err.println("ERROR: '" + name + "' scrolling list panel already added to container!");
-      System.exit(1);
-    }
-
-    // create the scroll panel and title
-    JScrollPane spanel = new JScrollPane();
-    spanel.setBorder(BorderFactory.createTitledBorder(title));
-
-    // create a list component for the scroll panel and assign the list model to it
-    JList scrollList = new JList();
-    spanel.setViewportView(scrollList);
-    scrollList.setModel(list);
-
-    // add new panel info and associated scroll list to list
-    saveComponent(name, spanel);
-    saveComponent(name, scrollList);
-
-    return spanel;
-  }
-
-  public JSplitPane makeRawSplitPane(String name, boolean horiz, double divider) {
-    // make sure split pane not already defined
-    if (gSplitPane.containsKey(name)) {
-      System.err.println("ERROR: Split pane already has entry: " + name);
-      System.exit(1);
-    }
-    
-    // create the pane
-    int type;
-    if (horiz) {
-      type = JSplitPane.HORIZONTAL_SPLIT;
-    } else {
-      type = JSplitPane.VERTICAL_SPLIT;
-    }
-    JSplitPane splitPane = new JSplitPane(type);
-    splitPane.setOneTouchExpandable(true);
-    splitPane.setDividerLocation(divider);
-
-    // add new panel info to list
-    saveComponent(name, splitPane);
-
-    // add entry to map
-    SplitInfo splitInfo = new SplitInfo();
-    splitInfo.name = name;
-    splitInfo.pane = splitPane;
-    splitInfo.horiz = horiz;
-    gSplitPane.put(name, splitInfo);
-    return splitPane;
+    addPanelToPanel(panelname, name);
+    return getTextPane(name);
   }
 
   public void setSplitDivider(String splitname, double ratio) {
-    // make sure split panel exists
-    if (!gSplitPane.containsKey(splitname)) {
+    // get the specified panel and verify it is a split pane
+    PanelInfo pinfo = getPanelInfo(splitname);
+    if (pinfo != null && pinfo.panel instanceof JSplitPane) {
+
+      if (ratio >= 1.0 || ratio <= 0.0) {
+        System.err.println("ERROR: setSplitDivider - Invalid ratio for split divider: " + ratio + " (setting to 0.5)");
+        ratio = 0.5;
+      }
+
+      JSplitPane splitpanel = (JSplitPane) pinfo.panel;
+      splitpanel.setDividerLocation(ratio);
+    } else {
       System.err.println("ERROR: setSplitDivider - Split pane not found: " + splitname);
       System.exit(1);
     }
-    
-    if (ratio >= 1.0 || ratio <= 0.0) {
-      System.err.println("ERROR: setSplitDivider - Invalid ratio for split divider: " + ratio + " (setting to 0.5)");
-      ratio = 0.5;
-    }
-
-    SplitInfo splitInfo = gSplitPane.get(splitname);
-    splitInfo.pane.setDividerLocation(ratio);
   }
 
   public void addSplitComponent(String splitname, int index, String compname, Component panel, boolean scrollable) {
-    // make sure split panel exists
-    if (!gSplitPane.containsKey(splitname)) {
+    // get the specified panel and verify it is a split pane
+    PanelInfo pinfo = getPanelInfo(splitname);
+    if (pinfo != null && pinfo.panel instanceof JSplitPane) {
+      JSplitPane splitpanel = (JSplitPane) pinfo.panel;
+      
+      // the only valid values are 0 and 1
+      index = index == 0 ? 0 : 1;
+      
+      // if scrollable, make a scroll pane and insert component in it
+      Component compPanel = panel;
+      if (scrollable) {
+        compPanel = new JScrollPane(panel);
+      }
+    
+      // add component to split pane
+      splitpanel.add(compPanel, index);
+
+      // add new panel info to list
+      saveComponent(compname, panel);
+    } else {
       System.err.println("ERROR: addSplitComponent - Split pane not found: " + splitname);
       System.exit(1);
     }
-    
-    // make sure component isn't already defined
-    SplitInfo splitInfo = gSplitPane.get(splitname);
-    index = index == 0 ? 0 : 1;
-    SplitInfo.SplitComponent comp = splitInfo.comp[index];
-    if (comp.panel != null) {
-      System.err.println("ERROR: addSplitComponent - Split pane component already defined: " + index);
-      System.exit(1);
-    }
-
-    // if scrollable, make a scroll pane and insert component in it
-    Component compPanel = panel;
-    if (scrollable) {
-      compPanel = new JScrollPane(panel);
-    }
-    
-    // add component to split pane
-    splitInfo.pane.add(compPanel, index);
-
-    // update component info in map
-    comp.name = compname;
-    comp.panel = panel;
-    
-    // add new panel info to list
-    saveComponent(compname, panel);
   }
 
-
-  public Component getSplitComponent(String splitname, int index, String compname) {
-    // make sure split panel exists
-    if (!gSplitPane.containsKey(splitname)) {
-      System.err.println("ERROR: getSplitComponent - Split pane not found: " + splitname);
-      System.exit(1);
-    }
-    
-    // make sure component is defined
-    SplitInfo splitInfo = gSplitPane.get(splitname);
-    index = index == 0 ? 0 : 1;
-    SplitInfo.SplitComponent comp = splitInfo.comp[index];
-    if (comp.panel == null) {
-      System.err.println("ERROR: getSplitComponent - Split pane component not defined: " + index);
-      System.exit(1);
-    }
-    
-    return comp.panel;
-  }
-  
   public static JFrame makeFrameWithText(String title, String text, int width, int height) {
     // define size of panel
     Dimension dim = new Dimension(width, height);
