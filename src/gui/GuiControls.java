@@ -10,9 +10,6 @@ import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Frame;
 import java.awt.GridBagConstraints;
-import static java.awt.GridBagConstraints.BOTH;
-import static java.awt.GridBagConstraints.HORIZONTAL;
-import static java.awt.GridBagConstraints.VERTICAL;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.Toolkit;
@@ -56,6 +53,8 @@ public class GuiControls {
 
   public enum DimType { WIDTH, HEIGHT, BOTH }
   
+  public enum Expand { NONE, HORIZONTAL, VERTICAL, BOTH }
+  
   // types of controls for user-entry
   public enum InputControl { Label, TextField, CheckBox, RadioButton, ComboBox, Spinner, Button }
   
@@ -63,10 +62,8 @@ public class GuiControls {
   private GridBagLayout  mainLayout = null;
   private Dimension      framesize = null;
   private final HashMap<String, PanelInfo>     gPanel = new HashMap<>();
-//  private final HashMap<String, JPanel>        gPanel = new HashMap();
-//  private final HashMap<String, JScrollPane>   gScrollPanel = new HashMap();
-//  private final HashMap<String, JTabbedPane>   gTabbedPanel = new HashMap();
   private final HashMap<String, JTextPane>     gTextPane = new HashMap();
+  private final HashMap<String, JTextArea>     gTextArea = new HashMap();
   private final HashMap<String, JTable>        gTable = new HashMap<>();
   private final HashMap<String, JList>         gList = new HashMap();
   private final HashMap<String, JLabel>        gLabel = new HashMap();
@@ -90,21 +87,16 @@ public class GuiControls {
     }
   }
   
-  public static enum PanelType { PANEL, SCROLL, TABBED, SPLIT_UD, SPLIT_LR }
-  
   public class PanelInfo {
     public String        name;
-    public PanelType     type;
     public Component     panel;   // can be JPanel, JTabbedPane, JSplitPane, JScrollPane
     public int           index;   // for TABBED and SPLIT panels, defines the index of next panel
-//    public GridBagLayout gbag;
+    public boolean       horiz;   // for SPLIT panels, true if panels are side by side, else up/down
     
-    public PanelInfo(String name, PanelType type, Component panel) {
+    public PanelInfo(String name, Component panel) {
       this.name = name;
-      this.type = type;
       this.panel = panel;
       this.index= 0;
-//      this.gbag = gbag;
     }
   }
   
@@ -216,6 +208,7 @@ public class GuiControls {
     gSplitPane.clear();
     
     gTextPane.clear();
+    gTextArea.clear();
     gList.clear();
     gLabel.clear();
     gButton.clear();
@@ -255,6 +248,13 @@ public class GuiControls {
       return null;
     }
     return gTextPane.get(name);
+  }
+
+  public JTextArea getTextArea(String name) {
+    if (gTextArea == null) {
+      return null;
+    }
+    return gTextArea.get(name);
   }
 
   public JList getList(String name) {
@@ -313,31 +313,64 @@ public class GuiControls {
     return gSpinner.get(name);
   }
 
-  public Component getComponent(String name) {
+  private void saveComponent(String name, Component comp) {
+    if (comp instanceof JPanel ||
+        comp instanceof JTabbedPane ||
+        comp instanceof JSplitPane ||
+        comp instanceof JScrollPane) {
+      gPanel.put(name, new PanelInfo(name, comp));
+    } else if (comp instanceof JTable) {
+      gTable.put(name, (JTable) comp);
+    } else if (comp instanceof JList) {
+      gList.put(name, (JList) comp);
+    } else if (comp instanceof JTextPane) {
+      gTextPane.put(name, (JTextPane) comp);
+    } else if (comp instanceof JTextArea) {
+      gTextArea.put(name, (JTextArea) comp);
+    } else if (comp instanceof JButton) {
+      gButton.put(name, (JButton) comp);
+    } else if (comp instanceof JCheckBox) {
+      gCheckbox.put(name, (JCheckBox) comp);
+    } else if (comp instanceof JComboBox) {
+      gCombobox.put(name, (JComboBox) comp);
+    } else if (comp instanceof JTextField) {
+      gTextField.put(name, (JTextField) comp);
+    } else if (comp instanceof JRadioButton) {
+      gRadiobutton.put(name, (JRadioButton) comp);
+    } else if (comp instanceof JSpinner) {
+      gSpinner.put(name, (JSpinner) comp);
+    } else if (comp instanceof JLabel) {
+      gLabel.put(name, (JLabel) comp);
+    }
+  }
+
+  private Component getComponent(String name) {
     if (gPanel.containsKey(name)) {
       return gPanel.get(name).panel;
-    }
-    if (gLabel.containsKey(name)) {
+    } else if (gTable.containsKey(name)) {
+      return gTable.get(name);
+    } else if (gList.containsKey(name)) {
+      return gList.get(name);
+    } else if (gTextPane.containsKey(name)) {
+      return gTextPane.get(name);
+    } else if (gTextArea.containsKey(name)) {
+      return gTextArea.get(name);
+    } else if (gButton.containsKey(name)) {
+      return gButton.get(name);
+    } else if (gCheckbox.containsKey(name)) {
+      return gCheckbox.get(name);
+    } else if (gCombobox.containsKey(name)) {
+      return gCombobox.get(name);
+    } else if (gTextField.containsKey(name)) {
+      return gTextField.get(name);
+    } else if (gRadiobutton.containsKey(name)) {
+      return gRadiobutton.get(name);
+    } else if (gSpinner.containsKey(name)) {
+      return gSpinner.get(name);
+    } else if (gLabel.containsKey(name)) {
       return gLabel.get(name);
     }
-    if (gButton.containsKey(name)) {
-      return gButton.get(name);
-    }
-    if (gCheckbox.containsKey(name)) {
-      return gCheckbox.get(name);
-    }
-    if (gCombobox.containsKey(name)) {
-      return gCombobox.get(name);
-    }
-    if (gTextField.containsKey(name)) {
-      return gTextField.get(name);
-    }
-    if (gRadiobutton.containsKey(name)) {
-      return gRadiobutton.get(name);
-    }
-    if (gSpinner.containsKey(name)) {
-      return gSpinner.get(name);
-    }
+    
     System.err.println("ERROR: Control not found: " + name);
     return null;
   }
@@ -505,23 +538,6 @@ public class GuiControls {
   }
   
   /**
-   * this sets up the gridbag constraints for a single panel to fill the container
-   * 
-   * @return the constraints
-   */
-  private GridBagConstraints setGbagConstraintsPanel() {
-    GridBagConstraints c = new GridBagConstraints();
-    c.insets = new Insets(GAPSIZE, GAPSIZE, GAPSIZE, GAPSIZE);
-
-    c.fill = GridBagConstraints.BOTH;
-    c.gridwidth  = GridBagConstraints.REMAINDER;
-    // since only 1 component, these both have to be non-zero for grid bag to work
-    c.weightx = 1.0;
-    c.weighty = 1.0;
-    return c;
-  }
-
-  /**
    * This sets up the gridbag constraints for a simple element
    * 
    * @param pos - the orientation on the line
@@ -529,21 +545,22 @@ public class GuiControls {
    * @param fillStype - NONE, HORIZONTAL, VERTICAL, BOTH
    * @return the constraints
    */
-  private GridBagConstraints setGbagConstraints(Orient pos, boolean end, int fillStype) {
+  private GridBagConstraints setGbagConstraints(Orient pos, boolean end, Expand fillStype) {
     GridBagConstraints c = new GridBagConstraints();
     c.insets = new Insets(GAPSIZE, GAPSIZE, GAPSIZE, GAPSIZE);
 
     switch(pos) {
       case LEFT:
-        c.anchor = GridBagConstraints.LINE_START;  // .BASELINE_LEADING;
+        c.anchor = GridBagConstraints.LINE_START;
         break;
       case RIGHT:
-        c.anchor = GridBagConstraints.LINE_END;  // .BASELINE_TRAILING;
+        c.anchor = GridBagConstraints.LINE_END;
         break;
       case CENTER:
         c.anchor = GridBagConstraints.CENTER;
         break;
       case NONE:
+        // this will attempt to fill out the container & expand both vertically & horizontally
         c.fill = GridBagConstraints.BOTH;
         c.gridwidth  = GridBagConstraints.REMAINDER;
         // since only 1 component, these both have to be non-zero for grid bag to work
@@ -552,7 +569,22 @@ public class GuiControls {
         return c;
     }
     
-    c.fill = fillStype;
+    switch(fillStype) {
+      default:
+      case NONE:
+        c.fill = GridBagConstraints.NONE;
+        break;
+      case HORIZONTAL:
+        c.fill = GridBagConstraints.HORIZONTAL;
+        break;
+      case VERTICAL:
+        c.fill = GridBagConstraints.VERTICAL;
+        break;
+      case BOTH:
+        c.fill = GridBagConstraints.BOTH;
+        break;
+    }
+
     c.gridheight = 1;
     if (end) {
       c.gridwidth = GridBagConstraints.REMAINDER; //end row
@@ -590,6 +622,8 @@ public class GuiControls {
         break;
     }
     c.fill = GridBagConstraints.NONE;
+
+    // create a label, set its constraints and add it to the container
     JLabel label = new JLabel(title);
     gridbag.setConstraints(label, c);
     if (panel != null) {
@@ -597,7 +631,13 @@ public class GuiControls {
     } else {
       mainFrame.add(label);
     }
+
+    // if a component name was defined, save the label with this name so we can access it
+    if (name != null && !name.isEmpty()) {
+      saveComponent(name, label);
+    }
     
+    // now modify the constraint layout for the component it will be attached to
     if (fullline) {
       c.weightx = 1.0;
       c.fill = GridBagConstraints.HORIZONTAL;
@@ -607,16 +647,12 @@ public class GuiControls {
     if (end) {
       c.gridwidth = GridBagConstraints.REMAINDER; //end row
     }
-    if (name != null && !name.isEmpty()) {
-      gLabel.put(name, label);
-    }
-
     return c;
   }
 
   private GridBagLayout GetGridBagLayout(String panelname) {
     GridBagLayout gridbag = mainLayout;
-    PanelInfo panelInfo = null;
+    PanelInfo panelInfo;
     if (panelname != null && !panelname.isEmpty()) {
       panelInfo = getPanelInfo(panelname);
       if (panelInfo == null) {
@@ -624,7 +660,7 @@ public class GuiControls {
         System.exit(1);
       }
       Component panel = gPanel.get(panelname).panel;
-      if (panelInfo.type == PanelType.PANEL) {
+      if (panel instanceof JPanel) {
         gridbag = (GridBagLayout) ((JPanel)panel).getLayout();
       }
     }
@@ -642,29 +678,21 @@ public class GuiControls {
         System.exit(1);
       }
       Component panel = panelInfo.panel;
-      switch(panelInfo.type) {
-        case PANEL:
-          ((JPanel) panel).add(newPanel.panel);
-          break;
-        case SCROLL:
-          ((JScrollPane) panel).add(newPanel.panel);
-          break;
-        case TABBED:
-          ((JTabbedPane) panel).add(newPanel.panel);
-          panelInfo.index++;
-          break;
-        case SPLIT_UD:
-          ((JSplitPane) panel).add(newPanel.panel);
-          panelInfo.index++;
-          break;
-        case SPLIT_LR:
-          ((JSplitPane) panel).add(newPanel.panel, panelInfo.index); // add(newPanel.panel);
-          panelInfo.index++;
-          break;
+      if (panel instanceof JPanel) {
+        ((JPanel) panel).add(newPanel.panel);
+      } else if (panel instanceof JScrollPane) {
+        ((JScrollPane) panel).add(newPanel.panel);
+      } else if (panel instanceof JTabbedPane) {
+        ((JTabbedPane) panel).add(newPanel.panel);
+        panelInfo.index++; // bump ptr to next location in container panel
+      } else if (panel instanceof JSplitPane) {
+        ((JSplitPane) panel).add(newPanel.panel, panelInfo.index); // add(newPanel.panel);
+        panelInfo.index++; // bump ptr to next location in container panel
+      } else {
+        System.err.println("ERROR: addPanelToPanel: '" + panelname + "' is invalid type: " + panel.getClass().getName());
+        System.exit(1);
       }
     }
-
-    gPanel.put(newPanel.name, newPanel);
   }
   
   private Component getSelectedPanel(String panelname) {
@@ -690,7 +718,8 @@ public class GuiControls {
       return;
     }
     GridBagLayout gridbag = mainLayout;
-    gridbag.setConstraints(component, setGbagConstraintsPanel());
+    GridBagConstraints gc = setGbagConstraints(Orient.NONE, true, Expand.BOTH);
+    gridbag.setConstraints(component, gc);
     mainFrame.add(component);
   }
 
@@ -705,19 +734,20 @@ public class GuiControls {
     }
 
     JLabel label = new JLabel("");
+    Component cpanel = getSelectedPanel(panelname);
 
     GridBagLayout gridbag;
     if (panelname == null) {
       gridbag = mainLayout;
-      gridbag.setConstraints(label, setGbagConstraints(Orient.LEFT, true, GridBagConstraints.NONE));
+      gridbag.setConstraints(label, setGbagConstraints(Orient.LEFT, true, Expand.NONE));
       mainFrame.add(label);
-    } else if (gPanel.get(panelname).type != PanelType.PANEL) {
-      System.err.println("ERROR: makeLineGap: Invalid panel type: " + gPanel.get(panelname).type.toString());
-    } else {
-      JPanel panel = (JPanel) getSelectedPanel(panelname);
+    } else if (cpanel != null && cpanel instanceof JPanel) {
+      JPanel panel = (JPanel) cpanel;
       gridbag = (GridBagLayout) panel.getLayout();
-      gridbag.setConstraints(label, setGbagConstraints(Orient.LEFT, true, GridBagConstraints.NONE));
+      gridbag.setConstraints(label, setGbagConstraints(Orient.LEFT, true, Expand.NONE));
       panel.add(label);
+    } else {
+      System.err.println("ERROR: makeLineGap: Invalid panel type for: " + panelname);
     }
   }
   
@@ -736,19 +766,20 @@ public class GuiControls {
     Dimension dim = new Dimension(width, 25);
     label.setPreferredSize(dim);
     label.setMinimumSize(dim);
+    Component cpanel = getSelectedPanel(panelname);
 
     GridBagLayout gridbag;
     if (panelname == null) {
       gridbag = mainLayout;
-      gridbag.setConstraints(label, setGbagConstraints(Orient.LEFT, false, GridBagConstraints.NONE));
+      gridbag.setConstraints(label, setGbagConstraints(Orient.LEFT, false, Expand.NONE));
       mainFrame.add(label);
-    } else if (gPanel.get(panelname).type != PanelType.PANEL) {
-      System.err.println("ERROR: makeGap: Invalid panel type: " + gPanel.get(panelname).type.toString());
-    } else {
-      JPanel panel = (JPanel) getSelectedPanel(panelname);
+    } else if (cpanel != null && cpanel instanceof JPanel) {
+      JPanel panel = (JPanel) cpanel;
       gridbag = (GridBagLayout) panel.getLayout();
-      gridbag.setConstraints(label, setGbagConstraints(Orient.LEFT, false, GridBagConstraints.NONE));
+      gridbag.setConstraints(label, setGbagConstraints(Orient.LEFT, false, Expand.NONE));
       panel.add(label);
+    } else {
+      System.err.println("ERROR: makeGap: Invalid panel type for : " + panelname);
     }
   }
   
@@ -760,6 +791,7 @@ public class GuiControls {
    * @param title   - the name to display as a label preceeding the widget
    * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
    * @param end     - true if this is last widget in the line
+   * @return 
    */
   public JLabel makeLabel(String panelname, String name, String title, Orient pos, boolean end) {
     if (mainFrame == null || mainLayout == null) {
@@ -769,33 +801,35 @@ public class GuiControls {
       System.err.println("ERROR: '" + name + "' label already added to container!");
       System.exit(1);
     }
-    if (gPanel.get(panelname).type != PanelType.PANEL) {
-      System.err.println("ERROR: makeLabel: Invalid panel type: " + gPanel.get(panelname).type.toString());
-    }
-    
-    // get container panel if specified & get corresponding layout
-    JPanel panel = (JPanel) getSelectedPanel(panelname);
-    GridBagLayout gridbag = mainLayout;
-    if (panel != null) {
-      gridbag = (GridBagLayout) panel.getLayout();
-    }
 
     // create the component
-    JLabel label = new JLabel(title);
-    gridbag.setConstraints(label, setGbagConstraints(pos, end, GridBagConstraints.NONE));
+    JLabel widget = new JLabel(title);
 
-    // place component in container & add entry to components list
-    if (panel != null) {
-      panel.add(label);
+    JPanel panel;
+    GridBagLayout gridbag;
+    Component cpanel = getSelectedPanel(panelname);
+    if (cpanel == null) {
+      gridbag = mainLayout;
+      mainFrame.add(widget);
+    } else if (cpanel instanceof JPanel) {
+      panel = (JPanel) cpanel;
+      gridbag = (GridBagLayout) panel.getLayout();
+      panel.add(widget);
     } else {
-      mainFrame.add(label);
+      System.err.println("ERROR: makeLabel: Invalid panel type: " + cpanel.getClass().getName());
+      System.exit(1);
+      return null;
     }
 
+    // set the layout of the component in the container
+    gridbag.setConstraints(widget, setGbagConstraints(pos, end, Expand.NONE));
+    
+    // add entry to components list
     if (name != null && !name.isEmpty()) {
-      gLabel.put(name, label);
+      saveComponent(name, widget);
     }
     
-    return label;
+    return widget;
   }
 
   /**
@@ -827,35 +861,32 @@ public class GuiControls {
       System.err.println("ERROR: '" + name + "' button already added to container!");
       System.exit(1);
     }
-    if (gPanel.get(panelname).type != PanelType.PANEL) {
-      System.err.println("ERROR: makeButton: Invalid panel type: " + gPanel.get(panelname).type.toString());
-    }
-
-    // get the layout for the container
-    GridBagLayout gridbag = mainLayout;
-    JPanel panel = null;
-    if (panelname != null && !panelname.isEmpty()) {
-      panel = (JPanel) gPanel.get(panelname).panel;
-      if (panel == null) {
-        System.err.println("ERROR: '" + panelname + "' panel not found!");
-        System.exit(1);
-      }
-      gridbag = (GridBagLayout) panel.getLayout();
-    }
 
     // create the component
-    JButton button = new JButton(title);
-    gridbag.setConstraints(button, setGbagConstraints(pos, end, GridBagConstraints.NONE));
+    JButton widget = new JButton(title);
 
-    // place component in container & add entry to components list
-    if (panel != null) {
-      panel.add(button);
+    JPanel panel;
+    GridBagLayout gridbag;
+    Component cpanel = getSelectedPanel(panelname);
+    if (cpanel == null) {
+      gridbag = mainLayout;
+      mainFrame.add(widget);
+    } else if (cpanel instanceof JPanel) {
+      panel = (JPanel) cpanel;
+      gridbag = (GridBagLayout) panel.getLayout();
+      panel.add(widget);
     } else {
-      mainFrame.add(button);
+      System.err.println("ERROR: makeLabel: Invalid panel type: " + cpanel.getClass().getName());
+      System.exit(1);
+      return null;
     }
 
-    gButton.put(name, button);
-    return button;
+    // set the layout of the component in the container
+    gridbag.setConstraints(widget, setGbagConstraints(pos, end, Expand.NONE));
+    
+    // add entry to components list
+    saveComponent(name, widget);
+    return widget;
   }
 
   /**
@@ -878,36 +909,82 @@ public class GuiControls {
       System.err.println("ERROR: '" + name + "' checkbox already added to container!");
       System.exit(1);
     }
-    if (gPanel.get(panelname).type != PanelType.PANEL) {
-      System.err.println("ERROR: makeCheckbox: Invalid panel type: " + gPanel.get(panelname).type.toString());
+
+    // create the component
+    JCheckBox widget = new JCheckBox(title);
+    widget.setSelected(value != 0);
+
+    JPanel panel;
+    GridBagLayout gridbag;
+    Component cpanel = getSelectedPanel(panelname);
+    if (cpanel == null) {
+      gridbag = mainLayout;
+      mainFrame.add(widget);
+    } else if (cpanel instanceof JPanel) {
+      panel = (JPanel) cpanel;
+      gridbag = (GridBagLayout) panel.getLayout();
+      panel.add(widget);
+    } else {
+      System.err.println("ERROR: makeLabel: Invalid panel type: " + cpanel.getClass().getName());
+      System.exit(1);
+      return null;
     }
 
-    // get the layout for the container
-    GridBagLayout gridbag = mainLayout;
-    JPanel panel = null;
-    if (panelname != null && !panelname.isEmpty()) {
-      panel = (JPanel) gPanel.get(panelname).panel;
-      if (panel == null) {
-        System.err.println("ERROR: '" + panelname + "' panel not found!");
-        System.exit(1);
-      }
-      gridbag = (GridBagLayout) panel.getLayout();
+    // set the layout of the component in the container
+    gridbag.setConstraints(widget, setGbagConstraints(pos, end, Expand.NONE));
+    
+    // add entry to components list
+    saveComponent(name, widget);
+    return widget;
+  }
+
+  /**
+   * This creates a JRadioButton and places it in the container.
+   * 
+   * @param panelname - the name of the jPanel container to place the component in (null if use main frame)
+   * @param name    - the name id of the component
+   * @param title   - the name to display as a label preceeding the widget
+   * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
+   * @param end     - true if this is last widget in the line
+   * @param value   - 0 to have checkbox initially unselected, any other value for selected
+   * @return the checkbox widget
+   */
+  public JRadioButton makeRadiobutton(String panelname, String name, String title, Orient pos,
+              boolean end, int value) {
+    if (mainFrame == null || mainLayout == null) {
+      return null;
+    }
+    if (gRadiobutton.containsKey(name)) {
+      System.err.println("ERROR: '" + name + "' radiobutton already added to container!");
+      System.exit(1);
     }
 
     // create the component
-    JCheckBox cbox = new JCheckBox(title);
-    cbox.setSelected(value != 0);
-    gridbag.setConstraints(cbox, setGbagConstraints(pos, end, GridBagConstraints.NONE));
+    JRadioButton widget = new JRadioButton(title);
+    widget.setSelected(value != 0);
 
-    // place component in container & add entry to components list
-    if (panel != null) {
-      panel.add(cbox);
+    JPanel panel;
+    GridBagLayout gridbag;
+    Component cpanel = getSelectedPanel(panelname);
+    if (cpanel == null) {
+      gridbag = mainLayout;
+      mainFrame.add(widget);
+    } else if (cpanel instanceof JPanel) {
+      panel = (JPanel) cpanel;
+      gridbag = (GridBagLayout) panel.getLayout();
+      panel.add(widget);
     } else {
-      mainFrame.add(cbox);
+      System.err.println("ERROR: makeLabel: Invalid panel type: " + cpanel.getClass().getName());
+      System.exit(1);
+      return null;
     }
 
-    gCheckbox.put(name, cbox);
-    return cbox;
+    // set the layout of the component in the container
+    gridbag.setConstraints(widget, setGbagConstraints(pos, end, Expand.NONE));
+    
+    // add entry to components list
+    saveComponent(name, widget);
+    return widget;
   }
 
   /**
@@ -934,100 +1011,45 @@ public class GuiControls {
       System.err.println("ERROR: '" + name + "' textfield already added to container!");
       System.exit(1);
     }
-    if (gPanel.get(panelname).type != PanelType.PANEL) {
-      System.err.println("ERROR: makeTextField: Invalid panel type: " + gPanel.get(panelname).type.toString());
-    }
 
-    // get the layout for the container
-    GridBagLayout gridbag = mainLayout;
+    // create the component
+    Dimension size = new Dimension(length * 8, 25); // assume 6 pixels per char
+    JTextField widget = new JTextField();
+    widget.setText(value);
+    widget.setPreferredSize(size);
+    widget.setMinimumSize(size);
+    widget.setEditable(writable);
+
     JPanel panel = null;
-    if (panelname != null && !panelname.isEmpty()) {
-      panel = (JPanel) gPanel.get(panelname).panel;
-      if (panel == null) {
-        System.err.println("ERROR: '" + panelname + "' panel not found!");
-        System.exit(1);
-      }
+    GridBagLayout gridbag;
+    Component cpanel = getSelectedPanel(panelname);
+    if (cpanel == null) {
+      gridbag = mainLayout;
+      mainFrame.add(widget);
+    } else if (cpanel instanceof JPanel) {
+      panel = (JPanel) cpanel;
       gridbag = (GridBagLayout) panel.getLayout();
+      panel.add(widget);
+    } else {
+      System.err.println("ERROR: makeLabel: Invalid panel type: " + cpanel.getClass().getName());
+      System.exit(1);
+      return null;
     }
 
-    // insert a label before the component
+    // if specified, insert a label before the component
     GridBagConstraints c;
     if (title.isEmpty()) {
-      c = setGbagConstraints(pos, end, GridBagConstraints.NONE);
+      c = setGbagConstraints(pos, end, Expand.NONE);
     } else {
       c = setGbagInsertLabel(panel, gridbag, pos, end, true, name, title);
     }
     
-    // create the component
-    Dimension size = new Dimension(length * 8, 25); // assume 6 pixels per char
-    JTextField field = new JTextField();
-    field.setText(value);
-    field.setPreferredSize(size);
-    field.setMinimumSize(size);
-    field.setEditable(writable);
-    gridbag.setConstraints(field, c);
+    // set the layout of the component in the container
+    gridbag.setConstraints(widget, c);
 
-    // place component in container & add entry to components list
-    if (panel != null) {
-      panel.add(field);
-    } else {
-      mainFrame.add(field);
-    }
-
-    gTextField.put(name, field);
-    return field;
-  }
-
-  /**
-   * This creates a JRadioButton and places it in the container.
-   * 
-   * @param panelname - the name of the jPanel container to place the component in (null if use main frame)
-   * @param name    - the name id of the component
-   * @param title   - the name to display as a label preceeding the widget
-   * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
-   * @param end     - true if this is last widget in the line
-   * @param value   - 0 to have checkbox initially unselected, any other value for selected
-   * @return the checkbox widget
-   */
-  public JRadioButton makeRadiobutton(String panelname, String name, String title, Orient pos,
-              boolean end, int value) {
-    if (mainFrame == null || mainLayout == null) {
-      return null;
-    }
-    if (gRadiobutton.containsKey(name)) {
-      System.err.println("ERROR: '" + name + "' radiobutton already added to container!");
-      System.exit(1);
-    }
-    if (gPanel.get(panelname).type != PanelType.PANEL) {
-      System.err.println("ERROR: makeRadioButton: Invalid panel type: " + gPanel.get(panelname).type.toString());
-    }
-
-    // get the layout for the container
-    GridBagLayout gridbag = mainLayout;
-    JPanel panel = null;
-    if (panelname != null && !panelname.isEmpty()) {
-      panel = (JPanel) gPanel.get(panelname).panel;
-      if (panel == null) {
-        System.err.println("ERROR: '" + panelname + "' panel not found!");
-        System.exit(1);
-      }
-      gridbag = (GridBagLayout) panel.getLayout();
-    }
-
-    // create the component
-    JRadioButton rbutton = new JRadioButton(title);
-    rbutton.setSelected(value != 0);
-    gridbag.setConstraints(rbutton, setGbagConstraints(pos, end, GridBagConstraints.NONE));
-
-    // place component in container & add entry to components list
-    if (panel != null) {
-      panel.add(rbutton);
-    } else {
-      mainFrame.add(rbutton);
-    }
-
-    gRadiobutton.put(name, rbutton);
-    return rbutton;
+    // add entry to components list
+    saveComponent(name, widget);
+    return widget;
   }
 
   /**
@@ -1048,38 +1070,40 @@ public class GuiControls {
       System.err.println("ERROR: '" + name + "' combobox already added to container!");
       System.exit(1);
     }
-    if (gPanel.get(panelname).type != PanelType.PANEL) {
-      System.err.println("ERROR: makeCombobox: Invalid panel type: " + gPanel.get(panelname).type.toString());
-    }
 
-    // get the layout for the container
-    GridBagLayout gridbag = mainLayout;
-    JPanel panel = null;
-    if (panelname != null && !panelname.isEmpty()) {
-      panel = (JPanel) gPanel.get(panelname).panel;
-      if (panel == null) {
-        System.err.println("ERROR: '" + panelname + "' panel not found!");
-        System.exit(1);
-      }
-      gridbag = (GridBagLayout) panel.getLayout();
-    }
-
-    // insert a label before the component
-    GridBagConstraints c = setGbagInsertLabel(panel, gridbag, pos, end, true, name, title);
-    
     // create the component
-    JComboBox combobox = new JComboBox();
-    gridbag.setConstraints(combobox, c);
+    JComboBox widget = new JComboBox();
 
-    // place component in container & add entry to components list
-    if (panel != null) {
-      panel.add(combobox);
+    JPanel panel = null;
+    GridBagLayout gridbag;
+    Component cpanel = getSelectedPanel(panelname);
+    if (cpanel == null) {
+      gridbag = mainLayout;
+      mainFrame.add(widget);
+    } else if (cpanel instanceof JPanel) {
+      panel = (JPanel) cpanel;
+      gridbag = (GridBagLayout) panel.getLayout();
+      panel.add(widget);
     } else {
-      mainFrame.add(combobox);
+      System.err.println("ERROR: makeLabel: Invalid panel type: " + cpanel.getClass().getName());
+      System.exit(1);
+      return null;
     }
 
-    gCombobox.put(name, combobox);
-    return combobox;
+    // if specified, insert a label before the component
+    GridBagConstraints c;
+    if (title.isEmpty()) {
+      c = setGbagConstraints(pos, end, Expand.NONE);
+    } else {
+      c = setGbagInsertLabel(panel, gridbag, pos, end, true, name, title);
+    }
+    
+    // set the layout of the component in the container
+    gridbag.setConstraints(widget, c);
+    
+    // add entry to components list
+    saveComponent(name, widget);
+    return widget;
   }
   
   /**
@@ -1106,139 +1130,41 @@ public class GuiControls {
       System.err.println("ERROR: '" + name + "' spinner already added to container!");
       System.exit(1);
     }
-    if (gPanel.get(panelname).type != PanelType.PANEL) {
-      System.err.println("ERROR: makeSpinner: Invalid panel type: " + gPanel.get(panelname).type.toString());
-    }
 
-    // get the layout for the container
-    GridBagLayout gridbag = mainLayout;
-    JPanel panel = null;
-    if (panelname != null && !panelname.isEmpty()) {
-      panel = (JPanel) gPanel.get(panelname).panel;
-      if (panel == null) {
-        System.err.println("ERROR: '" + panelname + "' panel not found!");
-        System.exit(1);
-      }
-      gridbag = (GridBagLayout) panel.getLayout();
-    }
-
-    // insert a label before the component
-    GridBagConstraints c = setGbagInsertLabel(panel, gridbag, pos, end, true, name, title);
-    
     // create the component
-    JSpinner spinner = new JSpinner();
-    spinner.setModel(new SpinnerNumberModel(curval, minval, maxval, step));
-    gridbag.setConstraints(spinner, c);
+    JSpinner widget = new JSpinner();
+    widget.setModel(new SpinnerNumberModel(curval, minval, maxval, step));
 
-    // place component in container & add entry to components list
-    if (panel != null) {
-      panel.add(spinner);
+    JPanel panel = null;
+    GridBagLayout gridbag;
+    Component cpanel = getSelectedPanel(panelname);
+    if (cpanel == null) {
+      gridbag = mainLayout;
+      mainFrame.add(widget);
+    } else if (cpanel instanceof JPanel) {
+      panel = (JPanel) cpanel;
+      gridbag = (GridBagLayout) panel.getLayout();
+      panel.add(widget);
     } else {
-      mainFrame.add(spinner);
-    }
-
-    gSpinner.put(name, spinner);
-    return spinner;
-  }
-
-  /**
-   * This creates an empty JPanel and places it in the container.
-   * 
-   * @param panelname - the name of the jPanel container to place the component in (null if use main frame)
-   * @param name    - the name id of the component
-   * @param title   - the name to display as a label preceeding the widget (null if no border)
-   * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
-   * @param end     - true if this is last widget in the line
-   * @param fillStyle - NONE, HORIZONTAL, VERTICAL, BOTH
-   * @return the panel
-   */
-  public JPanel makePanel(String panelname, String name, String title, Orient pos, boolean end, int fillStyle) {
-    if (mainFrame == null || mainLayout == null) {
+      System.err.println("ERROR: makeLabel: Invalid panel type: " + cpanel.getClass().getName());
+      System.exit(1);
       return null;
     }
-    if (gPanel.containsKey(name)) {
-      System.err.println("ERROR: '" + name + "' panel already added to container!");
-      System.exit(1);
+
+    // if specified, insert a label before the component
+    GridBagConstraints c;
+    if (title.isEmpty()) {
+      c = setGbagConstraints(pos, end, Expand.NONE);
+    } else {
+      c = setGbagInsertLabel(panel, gridbag, pos, end, true, name, title);
     }
-
-    // create the panel and apply constraints
-    JPanel newpanel = new JPanel();
-    if (!title.isEmpty()) {
-      newpanel.setBorder(BorderFactory.createTitledBorder(title));
-    }
-
-    // create a layout for inside the panel
-    GridBagLayout gbag = new GridBagLayout();
-    newpanel.setFont(new Font("SansSerif", Font.PLAIN, 14));
-    newpanel.setLayout(gbag);
-
-    // place component in container & add entry to components list
-    addPanelToPanel(panelname, new PanelInfo(name, PanelType.PANEL, newpanel));
-
-    // get the layout for the container
-    GridBagLayout gridbag = GetGridBagLayout(panelname);
-    gridbag.setConstraints(newpanel, setGbagConstraints(pos, end, fillStyle));
-    return newpanel;
-  }
-
-  /**
-   * This creates an empty JPanel and places it in the container.
-   * 
-   * @param panelname - the name of the jPanel container to place the component in (null if use main frame)
-   * @param name    - the name id of the component
-   * @param title   - the name to display as a label preceeding the widget (null if no border)
-   * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
-   * @param end     - true if this is last widget in the line
-   * @return the panel
-   */
-  public JPanel makePanel(String panelname, String name, String title, Orient pos, boolean end) {
-    return makePanel(panelname, name, title, pos, end, GridBagConstraints.NONE);
-  }
-
-  /**
-   * This creates an empty JPanel and places it in the container.
-   * 
-   * @param panelname - the name of the jPanel container to place the component in (null if use main frame)
-   * @param name    - the name id of the component
-   * @param title   - the name to display as a label preceeding the widget (null if no border)
-   * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
-   * @param end     - true if this is last widget in the line
-   * @param width   - desired width of panel
-   * @param height  - desired height of panel
-   * @return the panel
-   */
-  public JPanel makePanel(String panelname, String name, String title, Orient pos, boolean end, int width, int height) {
-    // determine if we want to fill container's width or height
-    Dimension dim = getPanelSize(panelname);
-    //System.out.println("Panel size = { " + dim.width + ", " + dim.height + " }");
-    width  = (width == 0) ? dim.width : width;
-    height = (height == 0) ? dim.height : height;
-
-    int expand = GridBagConstraints.NONE;
-    if (width >= dim.width && height >= dim.height) {
-      width = dim.width;
-      height = dim.height;
-      expand = GridBagConstraints.BOTH;
-    } else if (width >= dim.width) {
-      width = dim.width;
-      expand = GridBagConstraints.HORIZONTAL;
-    } else if (height >= dim.height) {
-      height = dim.height;
-      expand = GridBagConstraints.VERTICAL;
-    }
-      
-    JPanel panel = makePanel(panelname, name, title, pos, end, expand);
-    if (panel != null) {
-      // limit height and width to max of screen dimensions
-      width  = (width  > SCREEN_SIZE.width)  ? SCREEN_SIZE.width  : width;
-      height = (height > SCREEN_SIZE.height) ? SCREEN_SIZE.height : height;
-
-      Dimension fsize = new Dimension(width, height);
-      panel.setSize(fsize);
-      panel.setPreferredSize(fsize);
-      panel.setMinimumSize(fsize);
-    }
-    return panel;
+    
+    // set the layout of the component in the container
+    gridbag.setConstraints(widget, c);
+    
+    // add entry to components list
+    saveComponent(name, widget);
+    return widget;
   }
 
   public void resizePanelHeight(String panelname, int height) {
@@ -1268,6 +1194,160 @@ public class GuiControls {
   }
   
   /**
+   * This creates an empty JPanel and places it in the container.
+   * 
+   * @param panelname - the name of the jPanel container to place the component in (null if use main frame)
+   * @param name    - the name id of the component
+   * @param title   - the name to display as a label preceeding the widget (null if no border)
+   * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
+   * @param end     - true if this is last widget in the line
+   * @param fillStyle - NONE, HORIZONTAL, VERTICAL, BOTH
+   * @return the panel
+   */
+  public JPanel makePanel(String panelname, String name, String title, Orient pos, boolean end, Expand fillStyle) {
+    if (mainFrame == null || mainLayout == null) {
+      return null;
+    }
+    if (gPanel.containsKey(name)) {
+      System.err.println("ERROR: '" + name + "' panel already added to container!");
+      System.exit(1);
+    }
+
+    // create the panel and apply constraints
+    JPanel newpanel = new JPanel();
+    if (!title.isEmpty()) {
+      newpanel.setBorder(BorderFactory.createTitledBorder(title));
+    }
+
+    // create a layout for inside the panel
+    GridBagLayout gbag = new GridBagLayout();
+    newpanel.setFont(new Font("SansSerif", Font.PLAIN, 14));
+    newpanel.setLayout(gbag);
+
+    // setup layout for placing panel in the container
+    GridBagLayout gridbag = GetGridBagLayout(panelname);
+    gridbag.setConstraints(newpanel, setGbagConstraints(pos, end, fillStyle));
+
+    // add new panel info to list
+    saveComponent(name, newpanel);
+
+    // place component in container & add entry to components list
+    addPanelToPanel(panelname, getPanelInfo(name));
+    return newpanel;
+  }
+
+  /**
+   * This creates an empty JPanel and places it in the container.
+   * 
+   * @param panelname - the name of the jPanel container to place the component in (null if use main frame)
+   * @param name    - the name id of the component
+   * @param title   - the name to display as a label preceeding the widget (null if no border)
+   * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
+   * @param end     - true if this is last widget in the line
+   * @return the panel
+   */
+  public JPanel makePanel(String panelname, String name, String title, Orient pos, boolean end) {
+    return makePanel(panelname, name, title, pos, end, Expand.NONE);
+  }
+
+  /**
+   * This creates an empty JPanel and places it in the container.
+   * 
+   * @param panelname - the name of the jPanel container to place the component in (null if use main frame)
+   * @param name    - the name id of the component
+   * @param title   - the name to display as a label preceeding the widget (null if no border)
+   * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
+   * @param end     - true if this is last widget in the line
+   * @param width   - desired width of panel
+   * @param height  - desired height of panel
+   * @return the panel
+   */
+  public JPanel makePanel(String panelname, String name, String title, Orient pos, boolean end,
+                          int width, int height) {
+    // determine if we want to fill container's width or height
+    Dimension dim = getPanelSize(panelname);
+    //System.out.println("Panel size = { " + dim.width + ", " + dim.height + " }");
+    width  = (width == 0) ? dim.width : width;
+    height = (height == 0) ? dim.height : height;
+
+    Expand expand = Expand.NONE;
+    if (width >= dim.width && height >= dim.height) {
+      width = dim.width;
+      height = dim.height;
+      expand = Expand.BOTH;
+    } else if (width >= dim.width) {
+      width = dim.width;
+      expand = Expand.HORIZONTAL;
+    } else if (height >= dim.height) {
+      height = dim.height;
+      expand = Expand.VERTICAL;
+    }
+      
+    JPanel panel = makePanel(panelname, name, title, pos, end, expand);
+    if (panel != null) {
+      // limit height and width to max of screen dimensions
+      width  = (width  > SCREEN_SIZE.width)  ? SCREEN_SIZE.width  : width;
+      height = (height > SCREEN_SIZE.height) ? SCREEN_SIZE.height : height;
+
+      Dimension fsize = new Dimension(width, height);
+      panel.setSize(fsize);
+      panel.setPreferredSize(fsize);
+      panel.setMinimumSize(fsize);
+    }
+    return panel;
+  }
+
+  public JSplitPane makeSplitPane(String panelname, String name, Orient pos, boolean end,
+                                  Expand fillStyle, boolean horiz, double divider) {
+    if (mainFrame == null || mainLayout == null) {
+      return null;
+    }
+    if (gSplitPane.containsKey(name)) {
+      System.err.println("ERROR: Split pane already has entry: " + name);
+      System.exit(1);
+    }
+    
+    // create the pane
+    int type;
+    if (horiz) {
+      type = JSplitPane.HORIZONTAL_SPLIT;
+    } else {
+      type = JSplitPane.VERTICAL_SPLIT;
+    }
+    JSplitPane splitPane = new JSplitPane(type);
+    splitPane.setOneTouchExpandable(true);
+    splitPane.setDividerLocation(divider);
+
+    // apply layout constraints if parent is JPanel
+//    PanelInfo panelInfo = getPanelInfo(panelname);
+//    if (panelInfo != null && panelInfo.type == PanelType.PANEL) {
+//      GridBagLayout gridbag = GetGridBagLayout(panelname);
+//      GridBagConstraints gc = setGbagConstraints(Orient.NONE, true, GridBagConstraints.BOTH);
+//      gridbag.setConstraints(splitPane, gc);
+//    }
+
+    // setup the layout for how we are placing this panel in the container
+    GridBagLayout gridbag = GetGridBagLayout(panelname);
+    gridbag.setConstraints(splitPane, setGbagConstraints(pos, end, fillStyle));
+
+    // add new panel info to list
+    saveComponent(name, splitPane);
+    PanelInfo pInfo = getPanelInfo(name);
+    pInfo.horiz = horiz; // set the direction param
+
+    // place scroll panel in container
+    addPanelToPanel(panelname, pInfo);
+
+    // add entry to map
+    SplitInfo splitInfo = new SplitInfo();
+    splitInfo.name = name;
+    splitInfo.pane = splitPane;
+    splitInfo.horiz = horiz;
+    gSplitPane.put(name, splitInfo);
+    return splitPane;
+  }
+
+  /**
    * This creates an empty JTabbedPanel and places it in the container.
    * 
    * @param panelname - the name of the container to place the component in (null if use main frame)
@@ -1284,18 +1364,22 @@ public class GuiControls {
       System.exit(1);
     }
 
-    // get the layout for the container
-    GridBagLayout gridbag = GetGridBagLayout(panelname);
-
     // create the panel and apply constraints
     JTabbedPane newpanel = new JTabbedPane();
     if (title != null) {
       newpanel.setBorder(BorderFactory.createTitledBorder(title));
     }
 
-    // place component in container & add entry to components list
-    addPanelToPanel(panelname, new PanelInfo(name, PanelType.TABBED, newpanel));
-    gridbag.setConstraints(newpanel, setGbagConstraintsPanel());
+    // get the layout for the container
+    GridBagLayout gridbag = GetGridBagLayout(panelname);
+    GridBagConstraints gc = setGbagConstraints(Orient.NONE, true, Expand.BOTH);
+    gridbag.setConstraints(newpanel, gc);
+
+    // add new panel info to list
+    saveComponent(name, newpanel);
+
+    // place component in container
+    addPanelToPanel(panelname, getPanelInfo(name));
     return newpanel;
   }
 
@@ -1323,11 +1407,15 @@ public class GuiControls {
     JTable table = new JTable();
     JScrollPane spanel = new JScrollPane(table);
     spanel.setBorder(BorderFactory.createTitledBorder(title));
-    gridbag.setConstraints(spanel, setGbagConstraintsPanel());
+    GridBagConstraints gc = setGbagConstraints(Orient.NONE, true, Expand.BOTH);
+    gridbag.setConstraints(spanel, gc);
 
-    // place component in container & add entry to components list
-    addPanelToPanel(panelname, new PanelInfo(name, PanelType.SCROLL, spanel));
-    gTable.put(name, table);
+    // add new panel info and associated table to list
+    saveComponent(name, spanel);
+    saveComponent(name, table);
+
+    // place component in container
+    addPanelToPanel(panelname, getPanelInfo(name));
     return table;
   }
   
@@ -1362,14 +1450,18 @@ public class GuiControls {
 
     // apply layout constraints if parent is JPanel
     PanelInfo panelInfo = getPanelInfo(panelname);
-    if (panelInfo != null && panelInfo.type == PanelType.PANEL) {
+    if (panelInfo != null && panelInfo.panel instanceof JPanel) {
       GridBagLayout gridbag = GetGridBagLayout(panelname);
-      gridbag.setConstraints(spanel, setGbagConstraintsPanel());
+      GridBagConstraints gc = setGbagConstraints(Orient.NONE, true, Expand.BOTH);
+      gridbag.setConstraints(spanel, gc);
     }
 
-    // place scroll panel in container & add entry to components list
-    addPanelToPanel(panelname, new PanelInfo(name, PanelType.SCROLL, spanel));
-    gList.put(name, scrollList);
+    // add new panel info and associated scroll list to list
+    saveComponent(name, spanel);
+    saveComponent(name, scrollList);
+
+    // place scroll panel in container
+    addPanelToPanel(panelname, getPanelInfo(name));
     return scrollList;
   }
 
@@ -1398,17 +1490,21 @@ public class GuiControls {
     spanel.setBorder(BorderFactory.createTitledBorder(title));
     // only apply constraints for JPanel
     PanelInfo panelInfo = getPanelInfo(panelname);
-    if (panelInfo != null && panelInfo.type == PanelType.PANEL) {
-      gridbag.setConstraints(spanel, setGbagConstraintsPanel());
+    if (panelInfo != null && panelInfo.panel instanceof JPanel) {
+      GridBagConstraints gc = setGbagConstraints(Orient.NONE, true, Expand.BOTH);
+      gridbag.setConstraints(spanel, gc);
     }
 
     // create a text pane component and add to scroll panel
     JTextPane tpanel = new JTextPane();
     spanel.setViewportView(tpanel);
     
-    // place scroll panel in container & add entry to components list
-    addPanelToPanel(panelname, new PanelInfo(name, PanelType.SCROLL, spanel));
-    gTextPane.put(name, tpanel);
+    // add new panel info and associated text pane to list
+    saveComponent(name, spanel);
+    saveComponent(name, tpanel);
+
+    // place scroll panel in container
+    addPanelToPanel(panelname, getPanelInfo(name));
     return tpanel;
   }
 
@@ -1437,49 +1533,11 @@ public class GuiControls {
     spanel.setViewportView(scrollList);
     scrollList.setModel(list);
 
-    gPanel.put(name, new PanelInfo(name, PanelType.SCROLL, spanel));
-    gList.put(name, scrollList);
+    // add new panel info and associated scroll list to list
+    saveComponent(name, spanel);
+    saveComponent(name, scrollList);
+
     return spanel;
-  }
-
-  public JSplitPane makeSplitPane(String panelname, String name, boolean horiz, double divider) {
-    if (mainFrame == null || mainLayout == null) {
-      return null;
-    }
-    if (gSplitPane.containsKey(name)) {
-      System.err.println("ERROR: Split pane already has entry: " + name);
-      System.exit(1);
-    }
-    
-    // create the pane
-    int type;
-    if (horiz) {
-      type = JSplitPane.HORIZONTAL_SPLIT;
-    } else {
-      type = JSplitPane.VERTICAL_SPLIT;
-    }
-    JSplitPane splitPane = new JSplitPane(type);
-    splitPane.setOneTouchExpandable(true);
-    splitPane.setDividerLocation(divider);
-
-    // apply layout constraints if parent is JPanel
-//    PanelInfo panelInfo = getPanelInfo(panelname);
-//    if (panelInfo != null && panelInfo.type == PanelType.PANEL) {
-//      GridBagLayout gridbag = GetGridBagLayout(panelname);
-//      gridbag.setConstraints(splitPane, setGbagConstraintsPanel());
-//    }
-
-    // place scroll panel in container & add entry to components list
-    PanelType direction = horiz ? PanelType.SPLIT_UD : PanelType.SPLIT_LR;
-    addPanelToPanel(panelname, new PanelInfo(name, direction, splitPane));
-
-    // add entry to map
-    SplitInfo splitInfo = new SplitInfo();
-    splitInfo.name = name;
-    splitInfo.pane = splitPane;
-    splitInfo.horiz = horiz;
-    gSplitPane.put(name, splitInfo);
-    return splitPane;
   }
 
   public JSplitPane makeRawSplitPane(String name, boolean horiz, double divider) {
@@ -1500,6 +1558,9 @@ public class GuiControls {
     splitPane.setOneTouchExpandable(true);
     splitPane.setDividerLocation(divider);
 
+    // add new panel info to list
+    saveComponent(name, splitPane);
+
     // add entry to map
     SplitInfo splitInfo = new SplitInfo();
     splitInfo.name = name;
@@ -1512,12 +1573,12 @@ public class GuiControls {
   public void setSplitDivider(String splitname, double ratio) {
     // make sure split panel exists
     if (!gSplitPane.containsKey(splitname)) {
-      System.err.println("ERROR: Split pane not found: " + splitname);
+      System.err.println("ERROR: setSplitDivider - Split pane not found: " + splitname);
       System.exit(1);
     }
     
     if (ratio >= 1.0 || ratio <= 0.0) {
-      System.err.println("ERROR: Invalid ratio for split divider: " + ratio + " (setting to 0.5)");
+      System.err.println("ERROR: setSplitDivider - Invalid ratio for split divider: " + ratio + " (setting to 0.5)");
       ratio = 0.5;
     }
 
@@ -1528,7 +1589,7 @@ public class GuiControls {
   public void addSplitComponent(String splitname, int index, String compname, Component panel, boolean scrollable) {
     // make sure split panel exists
     if (!gSplitPane.containsKey(splitname)) {
-      System.err.println("ERROR: Split pane not found: " + splitname);
+      System.err.println("ERROR: addSplitComponent - Split pane not found: " + splitname);
       System.exit(1);
     }
     
@@ -1537,28 +1598,32 @@ public class GuiControls {
     index = index == 0 ? 0 : 1;
     SplitInfo.SplitComponent comp = splitInfo.comp[index];
     if (comp.panel != null) {
-      System.err.println("ERROR: Split pane component already defined: " + index);
+      System.err.println("ERROR: addSplitComponent - Split pane component already defined: " + index);
       System.exit(1);
     }
 
     // if scrollable, make a scroll pane and insert component in it
+    Component compPanel = panel;
     if (scrollable) {
-      panel = new JScrollPane(panel);
+      compPanel = new JScrollPane(panel);
     }
     
     // add component to split pane
-    splitInfo.pane.add(panel, index);
+    splitInfo.pane.add(compPanel, index);
 
     // update component info in map
     comp.name = compname;
     comp.panel = panel;
+    
+    // add new panel info to list
+    saveComponent(compname, panel);
   }
 
 
   public Component getSplitComponent(String splitname, int index, String compname) {
     // make sure split panel exists
     if (!gSplitPane.containsKey(splitname)) {
-      System.err.println("ERROR: Split pane not found: " + splitname);
+      System.err.println("ERROR: getSplitComponent - Split pane not found: " + splitname);
       System.exit(1);
     }
     
@@ -1567,7 +1632,7 @@ public class GuiControls {
     index = index == 0 ? 0 : 1;
     SplitInfo.SplitComponent comp = splitInfo.comp[index];
     if (comp.panel == null) {
-      System.err.println("ERROR: Split pane component not defined: " + index);
+      System.err.println("ERROR: getSplitComponent - Split pane component not defined: " + index);
       System.exit(1);
     }
     

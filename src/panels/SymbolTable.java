@@ -10,6 +10,7 @@ import static gui.GuiControls.Orient.LEFT;
 import java.awt.Component;
 import java.awt.Rectangle;
 import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
 import java.awt.event.KeyEvent;
@@ -21,6 +22,7 @@ import java.util.Comparator;
 import javax.swing.AbstractAction;
 import javax.swing.AbstractButton;
 import javax.swing.ButtonGroup;
+import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -402,16 +404,42 @@ public class SymbolTable {
         GuiControls.FrameSize.FIXEDSIZE);
     frame.addWindowListener(new Window_ExitListener());
 
+    TableListInfo pinfo = paramList.get(rowSelection);
+    String method = pinfo.method;
+    String clz = "";
+    String sig = "";
+    int offset = method.indexOf("(");
+    if (offset > 0) {
+      sig = method.substring(offset);
+      method = method.substring(0, offset);
+    }
+    offset = method.lastIndexOf("/");
+    if (offset > 0) {
+      clz = method.substring(0, offset);
+      method = method.substring(offset + 1);
+    }
+    method = method + sig;
+    
     String panel = null;
-    optionsPanel.makePanel (panel, "PNL_EDIT_SYMB"  , "Edit Symbolic"   , LEFT, true, 350, 170);
-    optionsPanel.makePanel (panel, "PNL_REMOVE_SYMB", "Remove Symbolic" , LEFT, true, 350, 100);
-    optionsPanel.makePanel (panel, "PNL_CONSTRAINTS", "Setup Constraint", LEFT, true, 350, 140);
+    optionsPanel.makePanel (panel, "PNL_INFO"       , "Current Settings", LEFT, true);
+    optionsPanel.makePanel (panel, "PNL_EDIT_SYMB"  , "Edit Symbolic"   , LEFT, true);
+    optionsPanel.makePanel (panel, "PNL_REMOVE_SYMB", "Remove Symbolic" , LEFT, true);
+    optionsPanel.makePanel (panel, "PNL_CONSTRAINTS", "Setup Constraint", LEFT, true);
+
+    panel = "PNL_INFO";
+    optionsPanel.makeLabel (panel, ""             , "Class: " + clz        , LEFT, true);
+    optionsPanel.makeLabel (panel, ""             , "Method: " + method    , LEFT, true);
+    optionsPanel.makeLabel (panel, ""             , "Slot: " + pinfo.slot  , LEFT, true);
 
     panel = "PNL_EDIT_SYMB";
-    optionsPanel.makeRadiobutton(panel, "EDIT_NAME"  , "Edit Name"  , LEFT, true, 0);
-    optionsPanel.makeRadiobutton(panel, "EDIT_TYPE"  , "Edit Type"  , LEFT, true, 0);
-    optionsPanel.makeRadiobutton(panel, "EDIT_START" , "Edit Start" , LEFT, true, 0);
-    optionsPanel.makeRadiobutton(panel, "EDIT_END"   , "Edit End"   , LEFT, true, 0);
+    optionsPanel.makeLabel (panel, ""             , "Name: " + pinfo.name  , LEFT, false);
+    optionsPanel.makeButton(panel, "BTN_EDIT_NAME", "Edit"                 , LEFT, true);
+    optionsPanel.makeLabel (panel, ""             , "Type: " + pinfo.type  , LEFT, false);
+    optionsPanel.makeButton(panel, "BTN_EDIT_TYPE", "Edit"                 , LEFT, true);
+    optionsPanel.makeLabel (panel, ""             , "Start: " + pinfo.start, LEFT, false);
+    optionsPanel.makeButton(panel, "BTN_EDIT_STRT", "Edit"                 , LEFT, true);
+    optionsPanel.makeLabel (panel, ""             , "End: " + pinfo.end    , LEFT, false);
+    optionsPanel.makeButton(panel, "BTN_EDIT_END" , "Edit"                 , LEFT, true);
 
     panel = "PNL_REMOVE_SYMB";
     optionsPanel.makeRadiobutton(panel, "REMOVE"     , "Remove selection"    , LEFT, true, 0);
@@ -426,14 +454,16 @@ public class SymbolTable {
     optionsPanel.makeRadiobutton(panel, "ADD_CONSTR" , "Add constraint to selection", LEFT, true, 0);
 
     // add each button to the group and set the listener
-    addListener(group, myItemListener, "EDIT_NAME");
-    addListener(group, myItemListener, "EDIT_TYPE");
-    addListener(group, myItemListener, "EDIT_START");
-    addListener(group, myItemListener, "EDIT_END");
+    addButtonListener("BTN_EDIT_NAME", new Action_EditName());
+    addButtonListener("BTN_EDIT_TYPE", new Action_EditType());
+    addButtonListener("BTN_EDIT_STRT", new Action_EditStart());
+    addButtonListener("BTN_EDIT_END" , new Action_EditEnd());
     addListener(group, myItemListener, "REMOVE");
     addListener(group, myItemListener, "REMOVE_ALL");
-    addListener(group, myItemListener, "SHOW_CONSTR");
-    addListener(group, myItemListener, "REMOVE_CON");
+    if (tbl != null && !tbl.constraints.isEmpty()) {
+      addListener(group, myItemListener, "SHOW_CONSTR");
+      addListener(group, myItemListener, "REMOVE_CON");
+    }
     addListener(group, myItemListener, "ADD_CONSTR");
 
     optionsPanel.display();
@@ -456,18 +486,6 @@ public class SymbolTable {
       String command = button.getActionCommand();
       if (selected) {
         switch (command) {
-          case "EDIT_NAME":
-            showEditColumnPanel("Name");
-            break;
-          case "EDIT_TYPE":
-            showEditColumnPanel("Type");
-            break;
-          case "EDIT_START":
-            showEditColumnPanel("Start");
-            break;
-          case "EDIT_END":
-            showEditColumnPanel("End");
-            break;
           case "REMOVE":
             showRemoveEntryPanel();
             break;
@@ -495,11 +513,94 @@ public class SymbolTable {
     }
   }
  
+  private void addButtonListener(String name, ActionListener listener) {
+    JButton button = optionsPanel.getButton(name);
+    button.addActionListener(listener);
+  }
+  
   private void addListener(ButtonGroup group, MyItemListener itemListener, String action) {
     JRadioButton rb = optionsPanel.getRadiobutton(action);
     rb.setActionCommand(action);
     rb.addItemListener(itemListener);
     group.add(rb);
+  }
+  
+  private class Action_EditName implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      int row = rowSelection;
+      TableListInfo entry;
+      String result = JOptionPane.showInputDialog(null, "Enter name to identify parameter:");
+      if (result != null) {
+        entry = paramList.get(row);
+        if (paramNameList.contains(result)) {
+          LauncherMain.printStatusError("Symbolic name is already used: " + result);
+        } else if (!result.equals(entry.name)) {
+          paramNameList.remove(entry.name);
+          entry.name = result;
+          paramNameList.add(entry.name);
+          tableSortAndDisplay();
+        }
+      }
+      optionsPanel.close();
+    }
+  }
+  
+  private class Action_EditType implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      int row = rowSelection;
+      TableListInfo entry;
+      String result = JOptionPane.showInputDialog(null, "Enter parameter type:");
+      if (result != null) {
+        entry = paramList.get(row);
+        entry.type = result;
+        tableSortAndDisplay();
+      }
+      optionsPanel.close();
+    }
+  }
+  
+  private class Action_EditStart implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      int row = rowSelection;
+      TableListInfo entry;
+      String result = JOptionPane.showInputDialog(null, "Enter start offset range in method:");
+      if (result != null) {
+        entry = paramList.get(row);
+        try {
+          int value = Integer.parseUnsignedInt(result);
+        } catch (NumberFormatException ex) {
+          LauncherMain.printStatusError("Invalid start offset for symbolic: " + result);
+          return;
+        }
+        entry.start = result;
+        tableSortAndDisplay();
+      }
+      optionsPanel.close();
+    }
+  }
+  
+  private class Action_EditEnd implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      int row = rowSelection;
+      TableListInfo entry;
+      String result = JOptionPane.showInputDialog(null, "Enter end offset range in method:");
+      if (result != null) {
+        entry = paramList.get(row);
+        try {
+          int value = Integer.parseUnsignedInt(result);
+        } catch (NumberFormatException ex) {
+          LauncherMain.printStatusError("Invalid end offset for symbolic: " + result);
+          return;
+        }
+        entry.end = result;
+        tableSortAndDisplay();
+      }
+      optionsPanel.close();
+    }
   }
   
   private void showRemoveEntryPanel() {
@@ -627,66 +728,6 @@ public class SymbolTable {
     }
   }
 
-  private void showEditColumnPanel(String colname) {
-    int row = rowSelection;
-    // allow the user to modify the conditions of the symbolic parameter
-    String result;
-    TableListInfo entry;
-    switch (colname) {
-      default:
-      case "Name":
-        result = JOptionPane.showInputDialog(null, "Enter name to identify parameter:");
-        if (result != null) {
-          entry = paramList.get(row);
-          if (paramNameList.contains(result)) {
-            LauncherMain.printStatusError("Symbolic name is already used: " + result);
-          } else if (!result.equals(entry.name)) {
-            paramNameList.remove(entry.name);
-            entry.name = result;
-            paramNameList.add(entry.name);
-            tableSortAndDisplay();
-          }
-        }
-        break;
-      case "Type":
-        result = JOptionPane.showInputDialog(null, "Enter parameter type:");
-        if (result != null) {
-          entry = paramList.get(row);
-          entry.type = result;
-          tableSortAndDisplay();
-        }
-        break;
-      case "Start":
-        result = JOptionPane.showInputDialog(null, "Enter start offset range in method:");
-        if (result != null) {
-          entry = paramList.get(row);
-          try {
-            int value = Integer.parseUnsignedInt(result);
-          } catch (NumberFormatException ex) {
-            LauncherMain.printStatusError("Invalid start offset for symbolic: " + result);
-            return;
-          }
-          entry.start = result;
-          tableSortAndDisplay();
-        }
-        break;
-      case "End":
-        result = JOptionPane.showInputDialog(null, "Enter end offset range in method:");
-        if (result != null) {
-          entry = paramList.get(row);
-          try {
-            int value = Integer.parseUnsignedInt(result);
-          } catch (NumberFormatException ex) {
-            LauncherMain.printStatusError("Invalid end offset for symbolic: " + result);
-            return;
-          }
-          entry.end = result;
-          tableSortAndDisplay();
-        }
-        break;
-    }
-  }  
-  
   /**
    * action event when a key is pressed in the table.
    */

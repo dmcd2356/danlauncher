@@ -19,6 +19,7 @@ import panels.DebugLogger;
 import panels.ParamTable;
 import panels.SymbolTable;
 import callgraph.CallGraph;
+import static gui.GuiControls.Orient.NONE;
 import util.CommandLauncher;
 import util.ThreadLauncher;
 import util.Utils;
@@ -26,6 +27,7 @@ import util.Utils;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.FocusEvent;
@@ -441,7 +443,6 @@ public final class LauncherMain {
 
     // make sure the sizing is correct on split screens
     mainFrame.setSplitDivider("SPLIT_MAIN", 0.6);
-    mainFrame.setSplitDivider("SPLIT_PARAM", 0.6);
   }
 
   public void createMainPanel() {
@@ -463,17 +464,18 @@ public final class LauncherMain {
     mainFrame.makeTabbedPanel(panel, "PNL_TABBED"   , "");
 
     panel = "PNL_MESSAGES";
-    mainFrame.makeTextField (panel, "TXT_MESSAGES"  , ""          , LEFT, true, "", 138, false);
+    mainFrame.makeTextField  (panel, "TXT_MESSAGES" , ""          , LEFT, true, "", 138, false);
 
     panel = "PNL_CONTAINER";
-    mainFrame.makePanel     (panel, "PNL_CONTROLS"  , "Controls"  , LEFT, true);
-    mainFrame.makePanel     (panel, "PNL_BYTECODE"  , "Bytecode"  , LEFT, true);
+    mainFrame.makeSplitPane  (panel, "SPLIT_IFC"    , LEFT, true, GuiControls.Expand.HORIZONTAL, true, 0.5);
+    mainFrame.makePanel      (panel, "PNL_BYTECODE" , "Bytecode"  , LEFT, true);
 
-    panel = "PNL_BYTECODE";
-    mainFrame.makeCombobox  (panel, "COMBO_CLASS"  , "Class"       , LEFT, true);
-    mainFrame.makeCombobox  (panel, "COMBO_METHOD" , "Method"      , LEFT, true);
-    mainFrame.makeButton    (panel, "BTN_BYTECODE" , "Get Bytecode", LEFT, false);
-    mainFrame.makeButton    (panel, "BTN_BACK"     , "Back"        , LEFT, true);
+    panel = "SPLIT_IFC";
+    mainFrame.makePanel      (panel, "PNL_CONTROLS" , "Controls"  , LEFT, true);
+    mainFrame.makePanel      (panel, "PNL_SYMBOLICS", "Symbolic Parameters", LEFT, true);
+    
+    panel = "PNL_SYMBOLICS";
+    mainFrame.makeScrollTable(panel, "TBL_SYMBOLICS", "");
 
     panel = "PNL_CONTROLS";
     mainFrame.makeCombobox  (panel, "COMBO_MAINCLS", "Main Class"  , LEFT, true);
@@ -484,6 +486,12 @@ public final class LauncherMain {
     mainFrame.makeTextField (panel, "TXT_PORT"     , ""            , LEFT, false, "8080", 8, true);
     mainFrame.makeTextField (panel, "TXT_INPUT"    , ""            , LEFT, true, "", 40, true);
     mainFrame.makeButton    (panel, "BTN_SOLVER"   , "Solve"       , LEFT, false);
+
+    panel = "PNL_BYTECODE";
+    mainFrame.makeCombobox  (panel, "COMBO_CLASS"  , "Class"       , LEFT, true);
+    mainFrame.makeCombobox  (panel, "COMBO_METHOD" , "Method"      , LEFT, true);
+    mainFrame.makeButton    (panel, "BTN_BYTECODE" , "Get Bytecode", LEFT, false);
+    mainFrame.makeButton    (panel, "BTN_BACK"     , "Back"        , LEFT, true);
 
     // set these buttons to the same width
     ArrayList<String> groupList = new ArrayList<>();
@@ -498,7 +506,12 @@ public final class LauncherMain {
 
     // disable the back button initially
     mainFrame.getButton("BTN_BACK").setVisible(false);
-            
+
+    // set minimum size for symbolics panel
+    Dimension minimumSize = new Dimension(600, 120);
+    JPanel symPanel = (JPanel) mainFrame.getPanelInfo("PNL_SYMBOLICS").panel;
+    symPanel.setMinimumSize(minimumSize);
+    
     // setup the handlers for the controls
     mainFrame.getCombobox("COMBO_CLASS").addActionListener(new Action_BytecodeClassSelect());
     mainFrame.getCombobox("COMBO_METHOD").addActionListener(new Action_BytecodeMethodSelect());
@@ -528,9 +541,10 @@ public final class LauncherMain {
     addMenuCheckbox (menu, "MENU_SERVER_TYPE", "Input using Post (server app)", true,
                       new ItemListener_EnablePost());
     addMenuCheckbox (menu, "MENU_LOAD_DANFIG", "Load symbolics from danfig", true, null);
-    addMenuCheckbox (menu, "MENU_SHOW_CONTROL", "Show Control Panel", true, 
-                      new ItemListener_ShowControlPanel());
-    addMenuCheckbox (menu, "MENU_SHOW_BCODE" , "Show Bytecode Select Panel", true, 
+    menu.addSeparator();
+    addMenuCheckbox (menu, "MENU_SHOW_UPPER" , "Show Upper Panel", true, 
+                      new ItemListener_ShowUpperPanel());
+    addMenuCheckbox (menu, "MENU_SHOW_BCODE" , "Show Bytecode Panel", true, 
                       new ItemListener_ShowBytecodePanel());
 
     menu = menuConfig; // selections for the Config Menu
@@ -592,25 +606,17 @@ public final class LauncherMain {
     JPanel noWrapBytecodePanel = new JPanel(new BorderLayout());
     noWrapBytecodePanel.add(bytecodeViewer.getTextPane());
 
-    // create a split panel for sharing the local variables and symbolic parameters in a tab
-    JTable paramList = new JTable();        // the bytecode param list
-    JTable symbolList = new JTable();       // the symbolic parameter list
-    String splitName = "SPLIT_PARAM";
-    JSplitPane splitPane1 = mainFrame.makeRawSplitPane(splitName, false, 0.5);
-    mainFrame.addSplitComponent(splitName, 0, "TBL_PARAMLIST", paramList, true);
-    mainFrame.addSplitComponent(splitName, 1, "TBL_SYMBOLICS", symbolList, true);
-//    paramList.setBorder(new TitledBorder("Local variables"));
-//    sybolList.setBorder(new TitledBorder("Symbolics defined"));
 
-    // now we're going to combine the BYTECODE entry with the parameter/symbolics split panel
-    splitName = "SPLIT_MAIN";
+    // create a split panel for the BYTECODE panel and the table of local parameters
+    String splitName = "SPLIT_MAIN";
+    JTable paramList = new JTable();
     JSplitPane splitMain = mainFrame.makeRawSplitPane(splitName, true, 0.5);
-    mainFrame.addSplitComponent(splitName, 0, "BYTECODE"  , noWrapBytecodePanel, true);
-    mainFrame.addSplitComponent(splitName, 1, "PNL_PARAMS", splitPane1, false);
+    mainFrame.addSplitComponent(splitName, 0, "BYTECODE"     , noWrapBytecodePanel, true);
+    mainFrame.addSplitComponent(splitName, 1, "TBL_PARAMLIST", paramList, true); // local parameters
     
     // add the tabbed message panels and a listener to detect when a tab has been selected
     GuiControls.PanelInfo panelInfo = mainFrame.getPanelInfo("PNL_TABBED");
-    if (panelInfo != null && panelInfo.type == GuiControls.PanelType.TABBED) {
+    if (panelInfo != null && panelInfo.panel instanceof JTabbedPane) {
       JTabbedPane tabPanel = (JTabbedPane) panelInfo.panel;
       addPanelToTab(tabPanel, PanelTabs.COMMAND  , commandLogger.getPanel(), true);
       addPanelToTab(tabPanel, PanelTabs.DATABASE , dbtable.getPanel(), true);
@@ -621,13 +627,12 @@ public final class LauncherMain {
       tabPanel.addChangeListener(new Change_TabPanelSelect());
     }
 
-    // update divider locations in split frame now that it has been placed (and the dimensions are set)
-    mainFrame.setSplitDivider("SPLIT_MAIN", 0.6);
-    mainFrame.setSplitDivider("SPLIT_PARAM", 0.6);
-
     // init the local variable and symbolic list tables
-    localVarTbl = new ParamTable(paramList);
-    symbolTbl   = new SymbolTable(symbolList);
+    localVarTbl = new ParamTable(mainFrame.getTable("TBL_PARAMLIST"));
+    symbolTbl   = new SymbolTable(mainFrame.getTable("TBL_SYMBOLICS"));
+
+    // update divider locations in split frame now that it has been placed (and the dimensions are set)
+    mainFrame.setSplitDivider("SPLIT_MAIN", 0.5);
   }
 
   private class Window_MainListener extends java.awt.event.WindowAdapter {
@@ -648,24 +653,23 @@ public final class LauncherMain {
     public void stateChanged(ChangeEvent e) {
       // get the tab selection
       GuiControls.PanelInfo panelInfo = mainFrame.getPanelInfo("PNL_TABBED");
-      if (panelInfo == null || panelInfo.type != GuiControls.PanelType.TABBED) {
+      if (panelInfo == null || panelInfo.panel == null || tabSelect.isEmpty()) {
         return;
       }
-      JTabbedPane tabPanel = (JTabbedPane) panelInfo.panel;
-      if (tabPanel == null || tabSelect.isEmpty()) {
-        return;
-      }
-      int curTab = tabPanel.getSelectedIndex();
-      currentTab = tabPanel.getTitleAt(curTab);
+      if (panelInfo.panel instanceof JTabbedPane) {
+        JTabbedPane tabPanel = (JTabbedPane) panelInfo.panel;
+        int curTab = tabPanel.getSelectedIndex();
+        currentTab = tabPanel.getTitleAt(curTab);
       
-      // now inform panels of the selection
-      debugLogger.setTabSelection(currentTab);
-      callGraph.setTabSelection(currentTab);
-      dbtable.setTabSelection(currentTab);
+        // now inform panels of the selection
+        debugLogger.setTabSelection(currentTab);
+        callGraph.setTabSelection(currentTab);
+        dbtable.setTabSelection(currentTab);
 
-      // special actions
-      if (currentTab.equals("CALLGRAPH")) {
-        callGraph.updateCallGraph(graphMode, false);
+        // special actions
+        if (currentTab.equals("CALLGRAPH")) {
+          callGraph.updateCallGraph(graphMode, false);
+        }
       }
     }
   }
@@ -796,7 +800,7 @@ public final class LauncherMain {
     }
   }
     
-  private class ItemListener_ShowControlPanel implements ItemListener {
+  private class ItemListener_ShowUpperPanel implements ItemListener {
     @Override
     public void itemStateChanged(ItemEvent ie) {
       JCheckBoxMenuItem item = (JCheckBoxMenuItem) ie.getItem();
@@ -804,6 +808,7 @@ public final class LauncherMain {
       GuiControls.PanelInfo panelInfo = mainFrame.getPanelInfo("PNL_CONTAINER");
       if (panelInfo != null) {
         ((JPanel)panelInfo.panel).setVisible(show);
+//        mainFrame.getFrame().pack(); // need to update frame in case width requirements change
       }
     }
   }
@@ -1331,15 +1336,17 @@ public final class LauncherMain {
 
   private static String getTabSelect() {
     GuiControls.PanelInfo panelInfo = mainFrame.getPanelInfo("PNL_TABBED");
-    if (panelInfo == null || panelInfo.type != GuiControls.PanelType.TABBED || tabSelect.isEmpty()) {
+    if (panelInfo == null || tabSelect.isEmpty()) {
       return null;
     }
 
-    JTabbedPane tabPanel = (JTabbedPane) panelInfo.panel;
-    int curTab = tabPanel.getSelectedIndex();
-    for (HashMap.Entry pair : tabSelect.entrySet()) {
-      if ((Integer) pair.getValue() == curTab) {
-        return (String) pair.getKey();
+    if (panelInfo.panel instanceof JTabbedPane) {
+      JTabbedPane tabPanel = (JTabbedPane) panelInfo.panel;
+      int curTab = tabPanel.getSelectedIndex();
+      for (HashMap.Entry pair : tabSelect.entrySet()) {
+        if ((Integer) pair.getValue() == curTab) {
+          return (String) pair.getKey();
+        }
       }
     }
     return null;
@@ -1353,7 +1360,7 @@ public final class LauncherMain {
     }
 
     GuiControls.PanelInfo panelInfo = mainFrame.getPanelInfo("PNL_TABBED");
-    if (panelInfo != null && panelInfo.type == GuiControls.PanelType.TABBED) {
+    if (panelInfo != null && panelInfo.panel instanceof JTabbedPane) {
       JTabbedPane tabPanel = (JTabbedPane) panelInfo.panel;
       tabPanel.setSelectedIndex(index);
     }
