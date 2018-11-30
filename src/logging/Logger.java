@@ -7,7 +7,6 @@ package logging;
 
 import logging.FontInfo.FontType;
 import logging.FontInfo.TextColor;
-import java.awt.Color;
 import java.awt.Component;
 import java.awt.Graphics;
 import java.util.HashMap;
@@ -19,6 +18,7 @@ import javax.swing.text.BadLocationException;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
 import javax.swing.text.StyleContext;
+import static logging.FontInfo.getFontColor;
 import util.Utils;
 
 /**
@@ -232,87 +232,6 @@ public class Logger {
   }
 
   /**
-   * generates the specified text color for the debug display.
-   * 
-   * @param colorName - name of the color to generate
-   * @return corresponding Color value representation
-   */
-  private Color generateColor (TextColor colorName) {
-    float hue, sat, bright;
-    switch (colorName) {
-      default:
-      case Black:
-        return Color.BLACK;
-      case DkGrey:
-        return Color.DARK_GRAY;
-      case DkRed:
-        hue    = (float)0;
-        sat    = (float)100;
-        bright = (float)66;
-        break;
-      case Red:
-        hue    = (float)0;
-        sat    = (float)100;
-        bright = (float)90;
-        break;
-      case LtRed:
-        hue    = (float)0;
-        sat    = (float)60;
-        bright = (float)100;
-        break;
-      case Orange:
-        hue    = (float)20;
-        sat    = (float)100;
-        bright = (float)100;
-        break;
-      case Brown:
-        hue    = (float)20;
-        sat    = (float)80;
-        bright = (float)66;
-        break;
-      case Gold:
-        hue    = (float)40;
-        sat    = (float)100;
-        bright = (float)90;
-        break;
-      case Green:
-        hue    = (float)128;
-        sat    = (float)100;
-        bright = (float)45;
-        break;
-      case Cyan:
-        hue    = (float)190;
-        sat    = (float)80;
-        bright = (float)45;
-        break;
-      case LtBlue:
-        hue    = (float)210;
-        sat    = (float)100;
-        bright = (float)90;
-        break;
-      case Blue:
-        hue    = (float)240;
-        sat    = (float)100;
-        bright = (float)100;
-        break;
-      case Violet:
-        hue    = (float)267;
-        sat    = (float)100;
-        bright = (float)100;
-        break;
-      case DkVio:
-        hue    = (float)267;
-        sat    = (float)100;
-        bright = (float)66;
-        break;
-    }
-    hue /= (float)360.0;
-    sat /= (float)100.0;
-    bright /= (float) 100.0;
-    return Color.getHSBColor(hue, sat, bright);
-  }
-
-  /**
    * A generic function for appending formatted text to a JTextPane.
    * 
    * @param color - color of text
@@ -333,7 +252,7 @@ public class Logger {
 
     StyleContext sc = StyleContext.getDefaultStyleContext();
     AttributeSet aset = sc.addAttribute(SimpleAttributeSet.EMPTY, StyleConstants.Foreground,
-                                        generateColor(color));
+                                        getFontColor(color));
 
     aset = sc.addAttribute(aset, StyleConstants.FontFamily, font);
     aset = sc.addAttribute(aset, StyleConstants.FontSize, size);

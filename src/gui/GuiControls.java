@@ -5,6 +5,8 @@
  */
 package gui;
 
+import logging.FontInfo;
+
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Font;
@@ -915,6 +917,28 @@ public class GuiControls {
     return widget;
   }
 
+  /**
+   * This creates a JLabel and places it in the container.
+   * 
+   * @param panelname - the name of the jPanel container to place the component in (null if use main frame)
+   * @param name    - the name id of the component (optional)
+   * @param title   - the name to display as a label preceeding the widget
+   * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
+   * @param end     - true if this is last widget in the line
+   * @param font    - font selection (String family, int Font.BOLD / Font.ITALIC, int point)
+   * @param color   - text color
+   * @return 
+   */
+  public JLabel makeLabel(String panelname, String name, String title, Orient pos, boolean end, 
+                          Font font, FontInfo.TextColor color) {
+    JLabel label = makeLabel(panelname, name, title, pos, end);
+    label.setForeground(FontInfo.getFontColor(color));
+    if (font != null) {
+      label.setFont(font);
+    }
+    return label;
+  }
+  
   /**
    * This creates a JLabel and places it in the container.
    * 

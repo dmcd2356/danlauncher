@@ -71,6 +71,7 @@ import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
+import javax.swing.JTextField;
 import javax.swing.Timer;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
@@ -299,18 +300,21 @@ public final class LauncherMain {
   }
   
   public static void printStatusMessage(String message) {
-    mainFrame.getTextField("TXT_MESSAGES").setText(message);
+    JTextField textField = mainFrame.getTextField("TXT_MESSAGES");
+    textField.setForeground(Color.black);
+    textField.setText(message);
       
     // echo status to command output window
     printCommandError(message);
   }
   
   public static void printStatusError(String message) {
-    message = "ERROR: " + message;
-    mainFrame.getTextField("TXT_MESSAGES").setText(message);
+    JTextField textField = mainFrame.getTextField("TXT_MESSAGES");
+    textField.setForeground(Color.red);
+    textField.setText("ERROR: " + message);
       
     // echo status to command output window
-    printCommandError(message);
+    printCommandError("ERROR: " + message);
   }
   
   public static void printCommandMessage(String message) {
@@ -2102,8 +2106,7 @@ public final class LauncherMain {
       printCommandMessage("Post RESPONSE: " + response.toString());
     } catch (IOException ex) {
       // display error
-      printStatusMessage("Post failure");
-      printCommandError("ERROR: " + ex.getMessage());
+      printStatusError("Post failure: " +ex.getMessage());
     } finally {
       if (connection != null) {
         connection.disconnect();

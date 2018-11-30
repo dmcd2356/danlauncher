@@ -7,12 +7,12 @@ package panels;
 
 import gui.GuiControls;
 import static gui.GuiControls.Orient.LEFT;
+import java.awt.Color;
 import java.awt.Component;
+import java.awt.Font;
 import java.awt.Rectangle;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.awt.event.ItemEvent;
-import java.awt.event.ItemListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -20,14 +20,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import javax.swing.AbstractAction;
-import javax.swing.AbstractButton;
-import javax.swing.ButtonGroup;
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
-import javax.swing.JRadioButton;
 import javax.swing.JTable;
+import javax.swing.JTextField;
 import javax.swing.KeyStroke;
 import javax.swing.SwingConstants;
 import javax.swing.table.DefaultTableCellRenderer;
@@ -35,6 +33,7 @@ import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
 import javax.swing.table.TableCellRenderer;
 import javax.swing.table.TableColumnModel;
+import logging.FontInfo;
 import main.LauncherMain;
 import util.Utils;
 
@@ -52,6 +51,8 @@ public class SymbolTable {
     "Method", "Slot", "Start", "End", "Name", "Type"
   };
 
+  private static final java.awt.Color DEFAULT_BUTTON_COLOR = new JButton().getBackground();
+  
   private static boolean  bSortOrder;
   private static int      colSortSelection;
   private static int      rowSelection;
@@ -59,6 +60,7 @@ public class SymbolTable {
   private static ArrayList<TableListInfo> paramList = new ArrayList<>();
   private static ArrayList<String> paramNameList = new ArrayList<>();
   private static GuiControls optionsPanel = new GuiControls();
+  private static boolean  bEdited;
 
   
   public static class ConstraintInfo {
@@ -76,38 +78,40 @@ public class SymbolTable {
     public String  name;     // the moniker to call the parameter by (unique entry)
     public String  type;     // data type of the parameter
     public String  slot;     // slot within the method for the parameter
-    public String  start;    // byte offset in method that specifies the starting range of the parameter
-    public String  end;      // byte offset in method that specifies the ending   range of the parameter
+    public String  boStart;  // byte offset in method that specifies the starting range of the parameter
+    public String  boEnd;    // byte offset in method that specifies the ending   range of the parameter
     
     // entries that are not placed in the table
-    public int     opStart;  // starting opcode entry in method (cause danalyzer can't determine byte offset)
-    public int     opEnd;    // ending   opcode entry in method (cause danalyzer can't determine byte offset)
+    public String  opStart;  // starting opcode entry in method (cause danalyzer can't determine byte offset)
+    public String  opEnd;    // ending   opcode entry in method (cause danalyzer can't determine byte offset)
     public ArrayList<ConstraintInfo> constraints; // the user-defined constraint values for the symbolic entry
     
     public TableListInfo(String meth, String id, String typ, String slt, String strt, String last,
                          int opstrt, int oplast) {
       method = meth == null ? "" : meth;
-      name   = id   == null ? "" : id;
-      type   = typ  == null ? "" : typ;
-      slot   = slt  == null ? "" : slt;
-      start  = strt == null ? "" : strt;
-      end    = last == null ? "" : last;
+      name    = id   == null ? "" : id;
+      type    = typ  == null ? "" : typ;
+      slot    = slt  == null ? "" : slt;
+      opStart = "" + opstrt;
+      opEnd   = "" + oplast;
+
+      boStart = strt == null ? "" : strt;
+      boEnd   = last == null ? "" : last;
       
-      opStart = opstrt;
-      opEnd = oplast;
       constraints = new ArrayList<>();
     }
     
     public TableListInfo(String meth, String id, String typ, String slt, int opstrt, int oplast) {
-      method = meth == null ? "" : meth;
-      name   = id   == null ? "" : id;
-      type   = typ  == null ? "" : typ;
-      slot   = slt  == null ? "" : slt;
-      start  = opstrt == 0 ? "0" : ""; // can't convert to byte offsets except for a value of 0
-      end    = oplast == 0 ? "0" : "";
+      method  = meth == null ? "" : meth;
+      name    = id   == null ? "" : id;
+      type    = typ  == null ? "" : typ;
+      slot    = slt  == null ? "" : slt;
+      opStart = "" + opstrt;
+      opEnd   = "" + oplast;
+
+      boStart = opstrt == 0 ? "0" : ""; // can't convert to byte offsets except for a value of 0
+      boEnd   = oplast == 0 ? "0" : "";
       
-      opStart = opstrt;
-      opEnd = oplast;
       constraints = new ArrayList<>();
     }
   } 
@@ -119,6 +123,7 @@ public class SymbolTable {
     bSortOrder = false;
     rowSelection = -1;
     colSortSelection = 0;
+    bEdited = false;
     
     table.setModel(new DefaultTableModel(new Object [][]{ }, TABLE_COLUMNS) {
       Class[] types = new Class [] {
@@ -238,8 +243,10 @@ public class SymbolTable {
     String entryMethod = entry.method.replaceAll("/", ".");
     for (TableListInfo tblval : paramList) {
       String tblMethod = tblval.method.replaceAll("/", ".");
-      if (tblMethod.equals(entryMethod) && tblval.slot.equals(entry.slot) &&
-          tblval.opStart == entry.opStart && tblval.opEnd == entry.opEnd) {
+      if (tblMethod.equals(entryMethod) &&
+          tblval.slot.equals(entry.slot) &&
+          tblval.opStart.equals(entry.opStart) &&
+          tblval.opEnd.equals(entry.opEnd)) {
         return true;
       }
     }
@@ -286,9 +293,9 @@ public class SymbolTable {
       case "Slot":
         return tblinfo.slot;
       case "Start":
-        return tblinfo.start;
+        return tblinfo.opStart;
       case "End":
-        return tblinfo.end;
+        return tblinfo.opEnd;
     }
   }
   
@@ -297,8 +304,8 @@ public class SymbolTable {
     return new Object[]{
         tableEntry.method,
         tableEntry.slot,
-        tableEntry.start,
-        tableEntry.end,
+        tableEntry.opStart,
+        tableEntry.opEnd,
         tableEntry.name,
         tableEntry.type,
     };
@@ -396,11 +403,67 @@ public class SymbolTable {
     showMenuSelection();
   }                                           
 
+  private void addButtonListener(String name, ActionListener listener) {
+    JButton button = optionsPanel.getButton(name);
+    button.addActionListener(listener);
+  }
+  
+  private String getEditorButtonSelection(String title) {
+    String basenane = title.toUpperCase();
+    JButton button = optionsPanel.getButton("BTN_EDIT_" + basenane);
+    if (button == null) {
+      System.err.println("editorButtonSelect: not found: BTN_EDIT_" + basenane);
+      System.exit(1);
+    }
+
+    JTextField text = optionsPanel.getTextField("TXT_EDIT_" + basenane);
+    if (text == null) {
+      System.err.println("editorButtonSelect: not found: TXT_EDIT_" + basenane);
+      System.exit(1);
+    }
+    
+    // determine mode of editor
+    boolean bdone = button.getText().equals("Done");
+    if (bdone) {
+      // restore button name and disable make text writable
+      button.setText(title);
+      button.setBackground(DEFAULT_BUTTON_COLOR);
+      text.setEditable(false);
+    } else {
+      // set button name to "Save" and enable make text writable
+      button.setText("Done");
+      button.setBackground(Color.pink);
+      text.setEditable(true);
+    }
+    return text.getText();
+  }
+  
+  private void restoreEditorSelection(String title, String value) {
+    String basenane = title.toUpperCase();
+    optionsPanel.getTextField("TXT_EDIT_" + basenane).setText(value);
+  }
+  
+  private void updateConstraintMenu(boolean bConstraints) {
+    // if no constraints, add the no constraints msg, else don't
+    if (bConstraints) {
+      optionsPanel.getLabel ("LBL_CON_NONE").setText("");
+    } else {
+      optionsPanel.getLabel ("LBL_CON_NONE").setText("There are no user-defined constraints for this selection");
+    }
+    
+    // if constraints, add the edit & show buttons else remove
+    optionsPanel.getButton("BTN_CON_SHOW").setEnabled(bConstraints);
+    optionsPanel.getLabel ("LBL_CON_SHOW").setEnabled(bConstraints);
+    optionsPanel.getButton("BTN_CON_REM").setEnabled(bConstraints);
+    optionsPanel.getLabel ("LBL_CON_REM").setEnabled(bConstraints);
+  }
+  
   private void showMenuSelection() {
     JFrame frame = optionsPanel.newFrame("Symbolic Parameter Modification", 370, 420,
         GuiControls.FrameSize.FIXEDSIZE);
     frame.addWindowListener(new Window_ExitListener());
 
+    // seperate the class and method names for display
     TableListInfo pinfo = paramList.get(rowSelection);
     String method = pinfo.method;
     String clz = "";
@@ -417,6 +480,21 @@ public class SymbolTable {
     }
     method = method + sig;
     
+    // let's open the bytecode for the selected parameter
+    LauncherMain.runBytecodeViewer(clz, method);
+    
+    // indicate nothing has been edited yet
+    bEdited = false;
+    
+    // determine if there are any user-defined constraints for the entry
+    boolean bConstraints = false;
+    if (!pinfo.constraints.isEmpty()) {
+      bConstraints = true;
+    }
+
+    // set the font style for the labels
+    Font labelFont = new Font("Ariel", 0, 12);
+   
     String panel = null;
     optionsPanel.makePanel (panel, "PNL_INFO"       , "", LEFT, true);
     optionsPanel.makePanel (panel, "PNL_EDIT_SYMB"  , "Edit Symbolic"   , LEFT, true);
@@ -424,42 +502,48 @@ public class SymbolTable {
     optionsPanel.makePanel (panel, "PNL_CONSTRAINTS", "Setup Constraint", LEFT, true);
 
     panel = "PNL_INFO";
-    optionsPanel.makeLabel (panel, ""             , "Class: " + clz        , LEFT, true);
-    optionsPanel.makeLabel (panel, ""             , "Method: " + method    , LEFT, true);
-    optionsPanel.makeLabel (panel, ""             , "Slot: " + pinfo.slot  , LEFT, true);
+    optionsPanel.makeLabel (panel, ""             , "Class:"  , LEFT, false);
+    optionsPanel.makeLabel (panel, ""             , clz       , LEFT, true, labelFont, FontInfo.TextColor.Blue);
+    optionsPanel.makeLabel (panel, ""             , "Method:" , LEFT, false);
+    optionsPanel.makeLabel (panel, ""             , method    , LEFT, true, labelFont, FontInfo.TextColor.Blue);
+    optionsPanel.makeLabel (panel, ""             , "Slot:"   , LEFT, false);
+    optionsPanel.makeLabel (panel, ""             , pinfo.slot, LEFT, true, labelFont, FontInfo.TextColor.Blue);
 
     panel = "PNL_EDIT_SYMB";
-    optionsPanel.makeButton(panel, "BTN_EDIT_NAME", "Name"      , LEFT, false);
-    optionsPanel.makeLabel (panel, ""             , pinfo.name  , LEFT, true);
-    optionsPanel.makeButton(panel, "BTN_EDIT_TYPE", "Type"      , LEFT, false);
-    optionsPanel.makeLabel (panel, ""             , pinfo.type  , LEFT, true);
-    optionsPanel.makeButton(panel, "BTN_EDIT_STRT", "Start"     , LEFT, false);
-    optionsPanel.makeLabel (panel, ""             , pinfo.start , LEFT, true);
-    optionsPanel.makeButton(panel, "BTN_EDIT_END" , "End"       , LEFT, false);
-    optionsPanel.makeLabel (panel, ""             , pinfo.end   , LEFT, true);
+    optionsPanel.makeButton   (panel, "BTN_EDIT_NAME" , "Name"      , LEFT, false);
+    optionsPanel.makeTextField(panel, "TXT_EDIT_NAME" , ""          , LEFT, true, pinfo.name , 20, false);
+    optionsPanel.makeButton   (panel, "BTN_EDIT_TYPE" , "Type"      , LEFT, false);
+    optionsPanel.makeTextField(panel, "TXT_EDIT_TYPE" , ""          , LEFT, true, pinfo.type , 20, false);
+    optionsPanel.makeButton   (panel, "BTN_EDIT_START", "Start"     , LEFT, false);
+    optionsPanel.makeTextField(panel, "TXT_EDIT_START", ""          , LEFT, false, pinfo.opStart, 5 , false);
+    optionsPanel.makeLabel    (panel, "LBL_EDIT_NOTE" , "(line number, not byte offset)", LEFT, true,
+                              labelFont, FontInfo.TextColor.Blue);
+    optionsPanel.makeButton   (panel, "BTN_EDIT_END"  , "End"       , LEFT, false);
+    optionsPanel.makeTextField(panel, "TXT_EDIT_END"  , ""          , LEFT, true, pinfo.opEnd  , 5 , false);
 
     panel = "PNL_REMOVE_SYMB";
     optionsPanel.makeButton(panel, "BTN_REMOVE_ONE" , "Remove"       , LEFT, false);
-    optionsPanel.makeLabel (panel, ""             , "Removes this symbolic", LEFT, true);
+    optionsPanel.makeLabel (panel, ""             , "Removes this symbolic", LEFT, true, labelFont, FontInfo.TextColor.Black);
     optionsPanel.makeButton(panel, "BTN_REMOVE_ALL" , "Remove all"   , LEFT, false);
-    optionsPanel.makeLabel (panel, ""             , "Removes all symbolics", LEFT, true);
+    optionsPanel.makeLabel (panel, ""             , "Removes all symbolics", LEFT, true, labelFont, FontInfo.TextColor.Black);
 
     panel = "PNL_CONSTRAINTS";
-    TableListInfo tbl = paramList.get(rowSelection);
-    if (tbl != null && !tbl.constraints.isEmpty()) {
-      optionsPanel.makeButton(panel, "BTN_CON_SHOW" , "Show"       , LEFT, false);
-      optionsPanel.makeLabel (panel, ""             , "Show added constraints for selection", LEFT, true);
-      optionsPanel.makeButton(panel, "BTN_CON_REM"  , "Remove"     , LEFT, false);
-      optionsPanel.makeLabel (panel, ""             , "Remove all constraints for this selection", LEFT, true);
-    }
+    optionsPanel.makeLabel (panel, "LBL_CON_NONE" , ""           , LEFT, true, labelFont, FontInfo.TextColor.Red);
+    optionsPanel.makeButton(panel, "BTN_CON_SHOW" , "Show"       , LEFT, false);
+    optionsPanel.makeLabel (panel, "LBL_CON_SHOW" , "Show added constraints for selection", LEFT, true,
+                            labelFont, FontInfo.TextColor.Black);
+    optionsPanel.makeButton(panel, "BTN_CON_REM"  , "Remove"     , LEFT, false);
+    optionsPanel.makeLabel (panel, "LBL_CON_REM"  , "Remove all constraints for this selection", LEFT, true,
+                            labelFont, FontInfo.TextColor.Black);
     optionsPanel.makeButton(panel, "BTN_CON_ADD"  , "Add"       , LEFT, false);
-    optionsPanel.makeLabel (panel, ""             , "Add constraint to selection", LEFT, true);
+    optionsPanel.makeLabel (panel, "LBL_CON_ADD"  , "Add constraint to selection", LEFT, true,
+                            labelFont, FontInfo.TextColor.Black);
 
     // set these buttons to the same width
     optionsPanel.makeGroup("GRP_EDIT_SYM");
     optionsPanel.addGroupComponent("GRP_EDIT_SYM", "BTN_EDIT_NAME");
     optionsPanel.addGroupComponent("GRP_EDIT_SYM", "BTN_EDIT_TYPE");
-    optionsPanel.addGroupComponent("GRP_EDIT_SYM", "BTN_EDIT_STRT");
+    optionsPanel.addGroupComponent("GRP_EDIT_SYM", "BTN_EDIT_START");
     optionsPanel.addGroupComponent("GRP_EDIT_SYM", "BTN_EDIT_END");
     optionsPanel.setGroupSameMinSize("GRP_EDIT_SYM", GuiControls.DimType.WIDTH);
 
@@ -471,116 +555,161 @@ public class SymbolTable {
     
     // set these buttons to the same width
     optionsPanel.makeGroup("GRP_CONSTRAINTS");
-    if (tbl != null && !tbl.constraints.isEmpty()) {
-      optionsPanel.addGroupComponent("GRP_CONSTRAINTS", "BTN_CON_SHOW");
-      optionsPanel.addGroupComponent("GRP_CONSTRAINTS", "BTN_CON_REM");
-    }
+    optionsPanel.addGroupComponent("GRP_CONSTRAINTS", "BTN_CON_SHOW");
+    optionsPanel.addGroupComponent("GRP_CONSTRAINTS", "BTN_CON_REM");
     optionsPanel.addGroupComponent("GRP_CONSTRAINTS", "BTN_CON_ADD");
     optionsPanel.setGroupSameMinSize("GRP_CONSTRAINTS", GuiControls.DimType.WIDTH);
+    
+    // remove the edit & show buttons if there are none to do
+    updateConstraintMenu(bConstraints);
     
     // add each button to the group and set the listener
     addButtonListener("BTN_EDIT_NAME" , new Action_EditName());
     addButtonListener("BTN_EDIT_TYPE" , new Action_EditType());
-    addButtonListener("BTN_EDIT_STRT" , new Action_EditStart());
+    addButtonListener("BTN_EDIT_START" , new Action_EditStart());
     addButtonListener("BTN_EDIT_END"  , new Action_EditEnd());
     addButtonListener("BTN_REMOVE_ONE", new Action_Remove());
     addButtonListener("BTN_REMOVE_ALL", new Action_RemoveAll());
-    if (tbl != null && !tbl.constraints.isEmpty()) {
-      addButtonListener("BTN_CON_SHOW", new Action_ConstraintShow());
-      addButtonListener("BTN_CON_REM" , new Action_ConstraintRemove());
-    }
+    addButtonListener("BTN_CON_SHOW", new Action_ConstraintShow());
+    addButtonListener("BTN_CON_REM" , new Action_ConstraintRemove());
     addButtonListener("BTN_CON_ADD"   , new Action_ConstraintAdd());
 
     optionsPanel.display();
   }
 
+  private void checkUpdateDanfig() {
+    if (bEdited) {
+      String[] selection = {"Yes", "No" };
+      int which = JOptionPane.showOptionDialog(null,
+        "Do you wish to update the danfig file with your changes?",
+        "Update danfig file", // title of pane
+        JOptionPane.YES_NO_CANCEL_OPTION, // DEFAULT_OPTION,
+        JOptionPane.QUESTION_MESSAGE, // PLAIN_MESSAGE
+        null, // icon
+        selection, selection[0]);
+
+      if (which >= 0 && selection[which].equals("Yes")) {
+        LauncherMain.updateDanfigFile();
+      }
+    }
+  }
+  
   private class Window_ExitListener extends java.awt.event.WindowAdapter {
     @Override
     public void windowClosing(java.awt.event.WindowEvent evt) {
+      // check if user wants to update the danfig file before closing
+      checkUpdateDanfig();
       optionsPanel.close();
     }
   }
 
-  private void addButtonListener(String name, ActionListener listener) {
-    JButton button = optionsPanel.getButton(name);
-    button.addActionListener(listener);
-  }
-  
   private class Action_EditName implements ActionListener {
     @Override
     public void actionPerformed(java.awt.event.ActionEvent evt) {
-      int row = rowSelection;
-      TableListInfo entry;
-      String result = JOptionPane.showInputDialog(null, "Enter name to identify parameter:");
-      if (result != null) {
-        entry = paramList.get(row);
-        if (paramNameList.contains(result)) {
-          LauncherMain.printStatusError("Symbolic name is already used: " + result);
-        } else if (!result.equals(entry.name)) {
-          paramNameList.remove(entry.name);
-          entry.name = result;
-          paramNameList.add(entry.name);
-          tableSortAndDisplay();
-        }
+      TableListInfo entry = paramList.get(rowSelection);
+      String curval = entry.name;
+      String type = "Name";
+      
+      // allow user to modify value & determine if done
+      String newval = getEditorButtonSelection(type);
+      if (newval.equals(curval)) { // skip if no change
+        return;
       }
-      optionsPanel.close();
+
+      // check if name already used in symbolic list
+      if (paramNameList.contains(newval)) {
+        // restore previous value
+        restoreEditorSelection(type, curval);
+        LauncherMain.printStatusError("Symbolic name is already used: " + newval);
+      } else if (newval.isEmpty()) {
+        // restore previous value
+        restoreEditorSelection(type, curval);
+        LauncherMain.printStatusError("Must define a valid name");
+      } else {
+        // remove previous name entry and add the new one
+        paramNameList.remove(curval);
+        entry.name = newval;
+        paramNameList.add(newval);
+        tableSortAndDisplay();
+        bEdited = true;
+      }
     }
   }
   
   private class Action_EditType implements ActionListener {
     @Override
     public void actionPerformed(java.awt.event.ActionEvent evt) {
-      int row = rowSelection;
-      TableListInfo entry;
-      String result = JOptionPane.showInputDialog(null, "Enter parameter type:");
-      if (result != null) {
-        entry = paramList.get(row);
-        entry.type = result;
-        tableSortAndDisplay();
+      TableListInfo entry = paramList.get(rowSelection);
+      String curval = entry.type;
+      String type = "Type";
+      
+      // allow user to modify value & determine if done
+      String newval = getEditorButtonSelection(type);
+      if (newval.equals(curval)) { // skip if no change
+        return;
       }
-      optionsPanel.close();
+
+      if (newval.isEmpty()) {
+        // restore previous value
+        restoreEditorSelection(type, curval);
+        LauncherMain.printStatusError("Must define a valid type");
+      } else {
+        entry.type = newval;
+        tableSortAndDisplay();
+        bEdited = true;
+      }
     }
   }
   
   private class Action_EditStart implements ActionListener {
     @Override
     public void actionPerformed(java.awt.event.ActionEvent evt) {
-      int row = rowSelection;
-      TableListInfo entry;
-      String result = JOptionPane.showInputDialog(null, "Enter start offset range in method:");
-      if (result != null) {
-        entry = paramList.get(row);
-        try {
-          int value = Integer.parseUnsignedInt(result);
-        } catch (NumberFormatException ex) {
-          LauncherMain.printStatusError("Invalid start offset for symbolic: " + result);
-          return;
-        }
-        entry.start = result;
-        tableSortAndDisplay();
+      TableListInfo entry = paramList.get(rowSelection);
+      String curval = entry.opStart;
+      String type = "Start";
+      
+      // allow user to modify value & determine if done
+      String newval = getEditorButtonSelection(type);
+      if (newval.equals(curval)) { // skip if no change
+        return;
       }
-      optionsPanel.close();
+
+      try {
+        int value = Integer.parseUnsignedInt(newval);
+        entry.opStart = newval;
+        tableSortAndDisplay();
+        bEdited = true;
+      } catch (NumberFormatException ex) {
+        // restore previous value
+        restoreEditorSelection(type, curval);
+        LauncherMain.printStatusError("Invalid start offset value: " + newval);
+      }
     }
   }
   
   private class Action_EditEnd implements ActionListener {
     @Override
     public void actionPerformed(java.awt.event.ActionEvent evt) {
-      int row = rowSelection;
-      TableListInfo entry;
-      String result = JOptionPane.showInputDialog(null, "Enter end offset range in method:");
-      if (result != null) {
-        entry = paramList.get(row);
-        try {
-          int value = Integer.parseUnsignedInt(result);
-        } catch (NumberFormatException ex) {
-          LauncherMain.printStatusError("Invalid end offset for symbolic: " + result);
-          return;
-        }
-        entry.end = result;
-        tableSortAndDisplay();
+      TableListInfo entry = paramList.get(rowSelection);
+      String curval = entry.opEnd;
+      String type = "End";
+      
+      // allow user to modify value & determine if done
+      String newval = getEditorButtonSelection(type);
+      if (newval.equals(curval)) { // skip if no change
+        return;
       }
-      optionsPanel.close();
+
+      try {
+        int value = Integer.parseUnsignedInt(newval);
+        entry.opEnd = newval;
+        tableSortAndDisplay();
+        bEdited = true;
+      } catch (NumberFormatException ex) {
+        // restore previous value
+        restoreEditorSelection(type, curval);
+        LauncherMain.printStatusError("Invalid end offset value: " + newval);
+      }
     }
   }
 
@@ -605,6 +734,11 @@ public class SymbolTable {
       
         // update table display
         tableSortAndDisplay();
+
+        // check if user wants to update the danfig file before closing
+        bEdited = true;
+        checkUpdateDanfig();
+        optionsPanel.close();
       }
     }
   }
@@ -628,6 +762,11 @@ public class SymbolTable {
       
         // update table display
         tableSortAndDisplay();
+
+        // check if user wants to update the danfig file before closing
+        bEdited = true;
+        checkUpdateDanfig();
+        optionsPanel.close();
       }
     }
   }
@@ -667,9 +806,10 @@ public class SymbolTable {
       if (which >= 0 && selection[which].equals("Yes")) {
         // remove all constraints for the selected symbolic
         tbl.constraints.clear();
-      
-        // update table display
-        tableSortAndDisplay();
+        bEdited = true;
+        
+        // update menu if there are no more
+        updateConstraintMenu(false);
       }
     }
   }
@@ -721,6 +861,10 @@ public class SymbolTable {
 
       // add constraint to symbolic
       entry.constraints.add(new ConstraintInfo(comptype, compval));
+      bEdited = true;
+        
+      // update menu if there are no more
+      updateConstraintMenu(true);
     }
   }
   

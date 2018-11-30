@@ -738,8 +738,7 @@ public final class BytecodeViewer {
         bc.mark = bc.mark | HIGHLIGHT_CURSOR;
         bytecode.set(line, bc);
         newpos = bc.ixStart;
-        //LauncherMain.printCommandMessage("highlightCursorPosition: selected line " + line + ", offset = "
-        //    + bc.ixStart + " - " + bc.ixEnd);
+        LauncherMain.printStatusMessage("Bytecode byte offset " + bc.offset + " = line " + line);
       } else {
         // remove mark from all other lines
         bc.mark = bc.mark & ~HIGHLIGHT_CURSOR;
