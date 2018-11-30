@@ -464,19 +464,19 @@ public final class LauncherMain {
 
     String panel = null; // this creates the entries in the main frame
     mainFrame.makePanel      (panel, "PNL_MESSAGES" , "Status"    , LEFT, true);
-    mainFrame.makePanel      (panel, "PNL_CONTAINER", ""          , LEFT, true);
+    mainFrame.makePanel      (panel, "PNL_CONTAINER", ""          , LEFT, true, GuiControls.Expand.HORIZONTAL);
     mainFrame.makeTabbedPanel(panel, "PNL_TABBED"   , "");
 
     panel = "PNL_MESSAGES";
     mainFrame.makeTextField  (panel, "TXT_MESSAGES" , ""          , LEFT, true, "", 138, false);
 
     panel = "PNL_CONTAINER";
-    mainFrame.makeSplitPanel (panel, "SPLIT_IFC"    , LEFT, true, GuiControls.Expand.HORIZONTAL, true, 0.5);
-    mainFrame.makePanel      (panel, "PNL_BYTECODE" , "Bytecode"  , LEFT, true);
+    mainFrame.makeSplitPanel (panel, "SPLIT_IFC"    , NONE, true, GuiControls.Expand.HORIZONTAL, true, 0.5);
+    mainFrame.makePanel      (panel, "PNL_BYTECODE" , "Bytecode"  , NONE, true);
 
     panel = "SPLIT_IFC";
-    mainFrame.makePanel      (panel, "PNL_CONTROLS" , "Controls"  , LEFT, true);
-    mainFrame.makePanel      (panel, "PNL_SYMBOLICS", "Symbolic Parameters", LEFT, true);
+    mainFrame.makePanel      (panel, "PNL_CONTROLS" , "Controls"  , NONE, true);
+    mainFrame.makePanel      (panel, "PNL_SYMBOLICS", "Symbolic Parameters", NONE, true);
     
     panel = "PNL_SYMBOLICS";
     mainFrame.makeScrollTable(panel, "TBL_SYMBOLICS", "");
@@ -485,10 +485,10 @@ public final class LauncherMain {
     mainFrame.makeCombobox  (panel, "COMBO_MAINCLS", "Main Class"  , LEFT, true);
     mainFrame.makeButton    (panel, "BTN_RUNTEST"  , "RUN"         , LEFT, false);
     mainFrame.makeButton    (panel, "BTN_STOPTEST" , "STOP"        , LEFT, false);
-    mainFrame.makeTextField (panel, "TXT_ARGLIST"  , ""            , LEFT, true, "", 40, true);
+    mainFrame.makeTextField (panel, "TXT_ARGLIST"  , ""            , LEFT, true, "", 30, true);
     mainFrame.makeButton    (panel, "BTN_SEND"     , "Post"        , LEFT, false);
     mainFrame.makeTextField (panel, "TXT_PORT"     , ""            , LEFT, false, "8080", 8, true);
-    mainFrame.makeTextField (panel, "TXT_INPUT"    , ""            , LEFT, true, "", 40, true);
+    mainFrame.makeTextField (panel, "TXT_INPUT"    , ""            , LEFT, true, "", 30, true);
     mainFrame.makeButton    (panel, "BTN_SOLVER"   , "Solve"       , LEFT, false);
 
     panel = "PNL_BYTECODE";
@@ -511,11 +511,6 @@ public final class LauncherMain {
     // disable the back button initially
     mainFrame.getButton("BTN_BACK").setVisible(false);
 
-    // set minimum size for symbolics panel (TODO: this is just a fudge to get the dang thing to display)
-    Dimension minimumSize = new Dimension(600, 120);
-    JPanel symPanel = (JPanel) mainFrame.getPanelInfo("PNL_SYMBOLICS").panel;
-    symPanel.setMinimumSize(minimumSize);
-    
     // setup the handlers for the controls
     mainFrame.getCombobox("COMBO_CLASS").addActionListener(new Action_BytecodeClassSelect());
     mainFrame.getCombobox("COMBO_METHOD").addActionListener(new Action_BytecodeMethodSelect());
@@ -610,13 +605,19 @@ public final class LauncherMain {
     JPanel noWrapBytecodePanel = new JPanel(new BorderLayout());
     noWrapBytecodePanel.add(bytecodeViewer.getTextPane());
 
+    // create a scrollable table and encapsulate it in a panel to add a title
+//    JScrollPane scrollPanel = mainFrame.makeRawScrollTable("TBL_PARAMLIST", "");
+//    scrollPanel.add(new JTable());
+//    JPanel wrapPane = new JPanel();
+//    wrapPane.add(scrollPanel);
+//    wrapPane.setBorder(BorderFactory.createTitledBorder("Local Parameters"));
 
     // create a split panel for the BYTECODE panel and the table of local parameters
     String splitName = "SPLIT_MAIN";
-    JTable paramList = new JTable();
     JSplitPane splitMain = mainFrame.makeRawSplitPanel(splitName, true, 0.5);
     mainFrame.addSplitComponent(splitName, 0, "BYTECODE"     , noWrapBytecodePanel, true);
-    mainFrame.addSplitComponent(splitName, 1, "TBL_PARAMLIST", paramList, true); // local parameters
+    mainFrame.addSplitComponent(splitName, 1, "TBL_PARAMLIST", new JTable(), true);
+//    mainFrame.addSplitComponent(splitName, 1, "TBL_PARAMLIST", wrapPane, false);
     
     // add the tabbed message panels and a listener to detect when a tab has been selected
     GuiControls.PanelInfo panelInfo = mainFrame.getPanelInfo("PNL_TABBED");

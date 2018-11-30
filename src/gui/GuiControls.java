@@ -709,49 +709,49 @@ public class GuiControls {
     return c;
   }
 
-  private GridBagLayout getGridBagLayout(String panelname) {
-    GridBagLayout gridbag = mainLayout;
-    PanelInfo panelInfo;
-    if (panelname != null && !panelname.isEmpty()) {
-      panelInfo = getPanelInfo(panelname);
-      if (panelInfo == null) {
-        System.err.println("ERROR: '" + panelname + "' container panel not found!");
-        System.exit(1);
-      }
-      Component panel = gPanel.get(panelname).panel;
-      if (panel instanceof JPanel) {
-        gridbag = (GridBagLayout) ((JPanel)panel).getLayout();
-      } else {
-        gridbag = null;
-      }
+  /**
+   * This is used for placing a plane in a container (either JFrame or another panel)
+   * 
+   * @param panelname - name of the container the panel is being placed in (null for the JFrame)
+   * @param comp - the panel being placed
+   * @param pos  - location within the container to place (LEFT, RIGHT, CENTER or NONE to fill container)
+   * @param end  - true if no more panels being placed in the container
+   * @param fillStyle - whether to expand the panel being placed VERTICALly, HORIZONTALly, BOTH, or NONE
+   */
+  public void setGridBagLayout(String panelname, Component comp, Orient pos, boolean end, Expand fillStyle) {
+    GridBagLayout gridbag;
+
+    // handle the case of a panel being placed in the main JFrame
+    if (panelname == null || panelname.isEmpty()) {
+      gridbag = mainLayout;
+      gridbag.setConstraints(comp, setGbagConstraints(pos, end, fillStyle));
+      return;
     }
     
-    return gridbag;
-  }
-  
-  public GridBagLayout setGridBagLayout(String panelname, Component comp, Orient pos, boolean end, Expand fillStyle) {
-    GridBagLayout gridbag = getGridBagLayout(panelname);
-    if (gridbag != null) {
-      gridbag.setConstraints(comp, setGbagConstraints(pos, end, fillStyle));
-    }
-    return gridbag;
-  }
-  
-  private void addPanelToPanel(String panelname, String name) {
-    PanelInfo newPanel = getPanelInfo(name);
-    if (newPanel == null) {
-      System.err.println("ERROR: addPanelToPanel: '" + name + "' panel not found!");
+    // else, panel in a panel - get the container panel
+    PanelInfo panelInfo;
+    panelInfo = getPanelInfo(panelname);
+    if (panelInfo == null) {
+      System.err.println("ERROR: '" + panelname + "' container panel not found!");
       System.exit(1);
     }
-    
+
+    Component panel = gPanel.get(panelname).panel;
+    if (panel instanceof JPanel) {
+      gridbag = (GridBagLayout) ((JPanel)panel).getLayout();
+      gridbag.setConstraints(comp, setGbagConstraints(pos, end, fillStyle));
+    }
+  }
+  
+  public void addPanelToPanel(String panelname, Component newPanel) {
     if (panelname == null || panelname.isEmpty()) {
       // adding panel to main frame
       if (mainFrame == null) {
-        System.err.println("ERROR: mainFrame not created!");
+        System.err.println("ERROR: addPanelToPanel: mainFrame not created!");
         System.exit(1);
       }
 
-      mainFrame.add(newPanel.panel);
+      mainFrame.add(newPanel);
       return;
     }
 
@@ -765,21 +765,36 @@ public class GuiControls {
     // determine the type of panel we are adding to
     Component panel = panelInfo.panel;
     if (panel instanceof JPanel) {
-      ((JPanel) panel).add(newPanel.panel);
+      ((JPanel) panel).add(newPanel);
     } else if (panel instanceof JScrollPane) {
-      ((JScrollPane) panel).add(newPanel.panel);
+      ((JScrollPane) panel).add(newPanel);
     } else if (panel instanceof JTabbedPane) {
-      ((JTabbedPane) panel).add(newPanel.panel);
+      ((JTabbedPane) panel).add(newPanel);
       panelInfo.index++; // bump ptr to next location in container panel
     } else if (panel instanceof JSplitPane) {
-      ((JSplitPane) panel).add(newPanel.panel, panelInfo.index); // add(newPanel.panel);
-      panelInfo.index++; // bump ptr to next location in container panel
+      if (panelInfo.index == 0) {
+        ((JSplitPane) panel).setLeftComponent(newPanel);
+        panelInfo.index = 1;
+      } else {
+        ((JSplitPane) panel).setRightComponent(newPanel);
+        panelInfo.index = 0;
+      }
     } else {
       System.err.println("ERROR: addPanelToPanel: '" + panelname + "' is invalid type: " + panel.getClass().getName());
       System.exit(1);
     }
   }
   
+  private void addPanelToPanel(String panelname, String name) {
+    PanelInfo newPanel = getPanelInfo(name);
+    if (newPanel == null) {
+      System.err.println("ERROR: addPanelToPanel: '" + name + "' panel not found!");
+      System.exit(1);
+    }
+    
+    addPanelToPanel(panelname, newPanel.panel);
+  }
+    
   private Component getSelectedPanel(String panelname) {
     // get container panel if specified
     Component panel = null;
@@ -1675,7 +1690,10 @@ public class GuiControls {
       splitpanel.add(compPanel, index);
 
       // add new panel info to list
-      if (panel instanceof JTable || panel instanceof JList || panel instanceof JTextPane || panel instanceof JTextArea) {
+      if (panel instanceof JTable ||
+          panel instanceof JList ||
+          panel instanceof JTextPane ||
+          panel instanceof JTextArea) {
         saveComponent(compname, panel);
       } else {
         savePanel(compname, panel);
