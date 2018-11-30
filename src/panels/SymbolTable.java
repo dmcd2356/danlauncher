@@ -397,9 +397,6 @@ public class SymbolTable {
   }                                           
 
   private void showMenuSelection() {
-    MyItemListener myItemListener = new MyItemListener();
-    final ButtonGroup group = new ButtonGroup();
-
     JFrame frame = optionsPanel.newFrame("Symbolic Parameter Modification", 370, 420,
         GuiControls.FrameSize.FIXEDSIZE);
     frame.addWindowListener(new Window_ExitListener());
@@ -421,7 +418,7 @@ public class SymbolTable {
     method = method + sig;
     
     String panel = null;
-    optionsPanel.makePanel (panel, "PNL_INFO"       , "Current Settings", LEFT, true);
+    optionsPanel.makePanel (panel, "PNL_INFO"       , "", LEFT, true);
     optionsPanel.makePanel (panel, "PNL_EDIT_SYMB"  , "Edit Symbolic"   , LEFT, true);
     optionsPanel.makePanel (panel, "PNL_REMOVE_SYMB", "Remove Symbolic" , LEFT, true);
     optionsPanel.makePanel (panel, "PNL_CONSTRAINTS", "Setup Constraint", LEFT, true);
@@ -432,39 +429,67 @@ public class SymbolTable {
     optionsPanel.makeLabel (panel, ""             , "Slot: " + pinfo.slot  , LEFT, true);
 
     panel = "PNL_EDIT_SYMB";
-    optionsPanel.makeLabel (panel, ""             , "Name: " + pinfo.name  , LEFT, false);
-    optionsPanel.makeButton(panel, "BTN_EDIT_NAME", "Edit"                 , LEFT, true);
-    optionsPanel.makeLabel (panel, ""             , "Type: " + pinfo.type  , LEFT, false);
-    optionsPanel.makeButton(panel, "BTN_EDIT_TYPE", "Edit"                 , LEFT, true);
-    optionsPanel.makeLabel (panel, ""             , "Start: " + pinfo.start, LEFT, false);
-    optionsPanel.makeButton(panel, "BTN_EDIT_STRT", "Edit"                 , LEFT, true);
-    optionsPanel.makeLabel (panel, ""             , "End: " + pinfo.end    , LEFT, false);
-    optionsPanel.makeButton(panel, "BTN_EDIT_END" , "Edit"                 , LEFT, true);
+    optionsPanel.makeButton(panel, "BTN_EDIT_NAME", "Name"      , LEFT, false);
+    optionsPanel.makeLabel (panel, ""             , pinfo.name  , LEFT, true);
+    optionsPanel.makeButton(panel, "BTN_EDIT_TYPE", "Type"      , LEFT, false);
+    optionsPanel.makeLabel (panel, ""             , pinfo.type  , LEFT, true);
+    optionsPanel.makeButton(panel, "BTN_EDIT_STRT", "Start"     , LEFT, false);
+    optionsPanel.makeLabel (panel, ""             , pinfo.start , LEFT, true);
+    optionsPanel.makeButton(panel, "BTN_EDIT_END" , "End"       , LEFT, false);
+    optionsPanel.makeLabel (panel, ""             , pinfo.end   , LEFT, true);
 
     panel = "PNL_REMOVE_SYMB";
-    optionsPanel.makeRadiobutton(panel, "REMOVE"     , "Remove selection"    , LEFT, true, 0);
-    optionsPanel.makeRadiobutton(panel, "REMOVE_ALL" , "Remove all symbolics", LEFT, true, 0);
+    optionsPanel.makeButton(panel, "BTN_REMOVE_ONE" , "Remove"       , LEFT, false);
+    optionsPanel.makeLabel (panel, ""             , "Removes this symbolic", LEFT, true);
+    optionsPanel.makeButton(panel, "BTN_REMOVE_ALL" , "Remove all"   , LEFT, false);
+    optionsPanel.makeLabel (panel, ""             , "Removes all symbolics", LEFT, true);
 
     panel = "PNL_CONSTRAINTS";
     TableListInfo tbl = paramList.get(rowSelection);
     if (tbl != null && !tbl.constraints.isEmpty()) {
-      optionsPanel.makeRadiobutton(panel, "SHOW_CONSTR", "Show added constraints for selection", LEFT, true, 0);
-      optionsPanel.makeRadiobutton(panel, "REMOVE_CON" , "Remove all constraints for this selection", LEFT, true, 0);
+      optionsPanel.makeButton(panel, "BTN_CON_SHOW" , "Show"       , LEFT, false);
+      optionsPanel.makeLabel (panel, ""             , "Show added constraints for selection", LEFT, true);
+      optionsPanel.makeButton(panel, "BTN_CON_REM"  , "Remove"     , LEFT, false);
+      optionsPanel.makeLabel (panel, ""             , "Remove all constraints for this selection", LEFT, true);
     }
-    optionsPanel.makeRadiobutton(panel, "ADD_CONSTR" , "Add constraint to selection", LEFT, true, 0);
+    optionsPanel.makeButton(panel, "BTN_CON_ADD"  , "Add"       , LEFT, false);
+    optionsPanel.makeLabel (panel, ""             , "Add constraint to selection", LEFT, true);
 
-    // add each button to the group and set the listener
-    addButtonListener("BTN_EDIT_NAME", new Action_EditName());
-    addButtonListener("BTN_EDIT_TYPE", new Action_EditType());
-    addButtonListener("BTN_EDIT_STRT", new Action_EditStart());
-    addButtonListener("BTN_EDIT_END" , new Action_EditEnd());
-    addListener(group, myItemListener, "REMOVE");
-    addListener(group, myItemListener, "REMOVE_ALL");
+    // set these buttons to the same width
+    optionsPanel.makeGroup("GRP_EDIT_SYM");
+    optionsPanel.addGroupComponent("GRP_EDIT_SYM", "BTN_EDIT_NAME");
+    optionsPanel.addGroupComponent("GRP_EDIT_SYM", "BTN_EDIT_TYPE");
+    optionsPanel.addGroupComponent("GRP_EDIT_SYM", "BTN_EDIT_STRT");
+    optionsPanel.addGroupComponent("GRP_EDIT_SYM", "BTN_EDIT_END");
+    optionsPanel.setGroupSameMinSize("GRP_EDIT_SYM", GuiControls.DimType.WIDTH);
+
+    // set these buttons to the same width
+    optionsPanel.makeGroup("GRP_REMOVE");
+    optionsPanel.addGroupComponent("GRP_REMOVE", "BTN_REMOVE_ONE");
+    optionsPanel.addGroupComponent("GRP_REMOVE", "BTN_REMOVE_ALL");
+    optionsPanel.setGroupSameMinSize("GRP_REMOVE", GuiControls.DimType.WIDTH);
+    
+    // set these buttons to the same width
+    optionsPanel.makeGroup("GRP_CONSTRAINTS");
     if (tbl != null && !tbl.constraints.isEmpty()) {
-      addListener(group, myItemListener, "SHOW_CONSTR");
-      addListener(group, myItemListener, "REMOVE_CON");
+      optionsPanel.addGroupComponent("GRP_CONSTRAINTS", "BTN_CON_SHOW");
+      optionsPanel.addGroupComponent("GRP_CONSTRAINTS", "BTN_CON_REM");
     }
-    addListener(group, myItemListener, "ADD_CONSTR");
+    optionsPanel.addGroupComponent("GRP_CONSTRAINTS", "BTN_CON_ADD");
+    optionsPanel.setGroupSameMinSize("GRP_CONSTRAINTS", GuiControls.DimType.WIDTH);
+    
+    // add each button to the group and set the listener
+    addButtonListener("BTN_EDIT_NAME" , new Action_EditName());
+    addButtonListener("BTN_EDIT_TYPE" , new Action_EditType());
+    addButtonListener("BTN_EDIT_STRT" , new Action_EditStart());
+    addButtonListener("BTN_EDIT_END"  , new Action_EditEnd());
+    addButtonListener("BTN_REMOVE_ONE", new Action_Remove());
+    addButtonListener("BTN_REMOVE_ALL", new Action_RemoveAll());
+    if (tbl != null && !tbl.constraints.isEmpty()) {
+      addButtonListener("BTN_CON_SHOW", new Action_ConstraintShow());
+      addButtonListener("BTN_CON_REM" , new Action_ConstraintRemove());
+    }
+    addButtonListener("BTN_CON_ADD"   , new Action_ConstraintAdd());
 
     optionsPanel.display();
   }
@@ -476,53 +501,9 @@ public class SymbolTable {
     }
   }
 
-  // implement ItemListener interface
-  class MyItemListener implements ItemListener {
- 
-    @Override
-    public void itemStateChanged(ItemEvent ev) {
-      boolean selected = (ev.getStateChange() == ItemEvent.SELECTED);
-      AbstractButton button = (AbstractButton) ev.getItemSelectable();
-      String command = button.getActionCommand();
-      if (selected) {
-        switch (command) {
-          case "REMOVE":
-            showRemoveEntryPanel();
-            break;
-          case "REMOVE_ALL":
-            showRemoveAllPanel();
-            break;
-          case "ADD_CONSTR":
-            showAddConstraintPanel();
-            break;
-          case "REMOVE_CON":
-            showRemoveConstraintsPanel();
-            break;
-          case "SHOW_CONSTR":
-            showDisplayConstraintsPanel();
-            break;
-        }
-      }
-            
-      // now update the danfig file
-      if (!command.equals("SHOW_CONSTR")) {
-        LauncherMain.updateDanfigFile();
-      }
-
-      optionsPanel.close();
-    }
-  }
- 
   private void addButtonListener(String name, ActionListener listener) {
     JButton button = optionsPanel.getButton(name);
     button.addActionListener(listener);
-  }
-  
-  private void addListener(ButtonGroup group, MyItemListener itemListener, String action) {
-    JRadioButton rb = optionsPanel.getRadiobutton(action);
-    rb.setActionCommand(action);
-    rb.addItemListener(itemListener);
-    group.add(rb);
   }
   
   private class Action_EditName implements ActionListener {
@@ -602,132 +583,147 @@ public class SymbolTable {
       optionsPanel.close();
     }
   }
-  
-  private void showRemoveEntryPanel() {
-    int row = rowSelection;
-    String[] selection = {"Yes", "No" };
-    int which = JOptionPane.showOptionDialog(null,
-      "Remove entry from list?",
-      "Remove entry", // title of pane
-      JOptionPane.YES_NO_CANCEL_OPTION, // DEFAULT_OPTION,
-      JOptionPane.QUESTION_MESSAGE, // PLAIN_MESSAGE
-      null, // icon
-      selection, selection[1]);
 
-    if (which >= 0 && selection[which].equals("Yes")) {
-      // remove selected symbolic parameter
-      String name = paramList.get(row).name;
-      paramList.remove(row);
-      paramNameList.remove(name);
+  private class Action_Remove implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      int row = rowSelection;
+      String[] selection = {"Yes", "No" };
+      int which = JOptionPane.showOptionDialog(null,
+        "Remove entry from list?",
+        "Remove entry", // title of pane
+        JOptionPane.YES_NO_CANCEL_OPTION, // DEFAULT_OPTION,
+        JOptionPane.QUESTION_MESSAGE, // PLAIN_MESSAGE
+        null, // icon
+        selection, selection[1]);
+
+      if (which >= 0 && selection[which].equals("Yes")) {
+        // remove selected symbolic parameter
+        String name = paramList.get(row).name;
+        paramList.remove(row);
+        paramNameList.remove(name);
       
-      // update table display
-      tableSortAndDisplay();
+        // update table display
+        tableSortAndDisplay();
+      }
     }
-  }
-
-  private void showRemoveAllPanel() {
-    String[] selection = {"Yes", "No" };
-    int which = JOptionPane.showOptionDialog(null,
-      "Remove all symbolics from list?",
-      "Remove all", // title of pane
-      JOptionPane.YES_NO_CANCEL_OPTION, // DEFAULT_OPTION,
-      JOptionPane.QUESTION_MESSAGE, // PLAIN_MESSAGE
-      null, // icon
-      selection, selection[1]);
-
-    if (which >= 0 && selection[which].equals("Yes")) {
-      // remove all symbolic parameters
-      paramList.clear();
-      paramNameList.clear();
-      
-      // update table display
-      tableSortAndDisplay();
-    }
-  }
-
-  private void showDisplayConstraintsPanel() {
-    TableListInfo tbl = paramList.get(rowSelection);
-    String pname = "'" + tbl.name + "'";
-    if (tbl.name.isEmpty()) {
-      pname = "The selected parameter";
-    }
-
-    String message = pname + " has the following uesr-defined constraints:" + Utils.NEWLINE + Utils.NEWLINE;
-    for (int ix = 0; ix < tbl.constraints.size(); ix++) {
-      ConstraintInfo con = tbl.constraints.get(ix);
-      message += con.comptype + " " + con.compvalue + Utils.NEWLINE;
-    }
-
-    JOptionPane.showMessageDialog(null, message, "Message Dialog", JOptionPane.INFORMATION_MESSAGE);
   }
   
-  private void showAddConstraintPanel() {
-    int row = rowSelection;
+  private class Action_RemoveAll implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      String[] selection = {"Yes", "No" };
+      int which = JOptionPane.showOptionDialog(null,
+        "Remove all symbolics from list?",
+        "Remove all", // title of pane
+        JOptionPane.YES_NO_CANCEL_OPTION, // DEFAULT_OPTION,
+        JOptionPane.QUESTION_MESSAGE, // PLAIN_MESSAGE
+        null, // icon
+        selection, selection[1]);
 
-    String result = JOptionPane.showInputDialog(null, "Enter the constraint (e.g. GE 23):");
-    TableListInfo entry = paramList.get(row);
-
-    int offset = result.indexOf(" ");
-    if (offset < 0) {
-      LauncherMain.printStatusError("missing numeric comparison value");
-      return;
+      if (which >= 0 && selection[which].equals("Yes")) {
+        // remove all symbolic parameters
+        paramList.clear();
+        paramNameList.clear();
+      
+        // update table display
+        tableSortAndDisplay();
+      }
     }
-
-    String comptype = result.substring(0, offset).trim().toUpperCase();
-    String compval  = result.substring(offset + 1).trim();
-
-    if (!entry.type.equals("D") && !entry.type.equals("F") && compval.contains(".")) {
-      LauncherMain.printStatusMessage("comparison value will ignore decimal entries");
-      compval = compval.substring(0, compval.indexOf("."));
-    }
-
-    // if user enters symbolic entry, convert to standard nomenclature
-    switch (comptype) {
-      case "==":  comptype = "EQ";  break;
-      case "!=":  comptype = "NE";  break;
-      case ">":   comptype = "GT";  break;
-      case ">=":  comptype = "GE";  break;
-      case "<":   comptype = "LT";  break;
-      case "<=":  comptype = "LE";  break;
-      default:
-        break;
-    }
-    if (!comptype.equals("EQ") && !comptype.equals("GT") && !comptype.equals("LT") &&
-        !comptype.equals("NE") && !comptype.equals("GE") && !comptype.equals("LE")) {
-      LauncherMain.printStatusError("constraint must begin with { EQ, NE, GT, GE, LT, LE }");
-      return;
-    }
-    try {
-      double value = Double.parseDouble(compval);
-    } catch (NumberFormatException ex) {
-      LauncherMain.printStatusError("invalid comparison value (must be numeric)");
-      return;
-    }
-
-    // add constraint to symbolic
-    entry.constraints.add(new ConstraintInfo(comptype, compval));
   }
   
-  private void showRemoveConstraintsPanel() {
-    TableListInfo tbl = paramList.get(rowSelection);
-    String[] selection = {"Yes", "No" };
-    int which = JOptionPane.showOptionDialog(null,
-      "Remove all constraints from '" + tbl.name + "' ?",
-      "Remove constraints", // title of pane
-      JOptionPane.YES_NO_CANCEL_OPTION, // DEFAULT_OPTION,
-      JOptionPane.QUESTION_MESSAGE, // PLAIN_MESSAGE
-      null, // icon
-      selection, selection[1]);
+  private class Action_ConstraintShow implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      TableListInfo tbl = paramList.get(rowSelection);
+      String pname = "'" + tbl.name + "'";
+      if (tbl.name.isEmpty()) {
+        pname = "The selected parameter";
+      }
 
-    if (which >= 0 && selection[which].equals("Yes")) {
-      // remove all constraints for the selected symbolic
-      tbl.constraints.clear();
+      String message = pname + " has the following uesr-defined constraints:" + Utils.NEWLINE + Utils.NEWLINE;
+      for (int ix = 0; ix < tbl.constraints.size(); ix++) {
+        ConstraintInfo con = tbl.constraints.get(ix);
+        message += con.comptype + " " + con.compvalue + Utils.NEWLINE;
+      }
+
+      JOptionPane.showMessageDialog(null, message, "Message Dialog", JOptionPane.INFORMATION_MESSAGE);
+    }
+  }
+  
+  private class Action_ConstraintRemove implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      TableListInfo tbl = paramList.get(rowSelection);
+      String[] selection = {"Yes", "No" };
+      int which = JOptionPane.showOptionDialog(null,
+        "Remove all constraints from '" + tbl.name + "' ?",
+        "Remove constraints", // title of pane
+        JOptionPane.YES_NO_CANCEL_OPTION, // DEFAULT_OPTION,
+        JOptionPane.QUESTION_MESSAGE, // PLAIN_MESSAGE
+        null, // icon
+        selection, selection[1]);
+
+      if (which >= 0 && selection[which].equals("Yes")) {
+        // remove all constraints for the selected symbolic
+        tbl.constraints.clear();
       
-      // update table display
-      tableSortAndDisplay();
+        // update table display
+        tableSortAndDisplay();
+      }
     }
   }
 
+  private class Action_ConstraintAdd implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      int row = rowSelection;
+
+      String result = JOptionPane.showInputDialog(null, "Enter the constraint (e.g. GE 23):");
+      TableListInfo entry = paramList.get(row);
+
+      int offset = result.indexOf(" ");
+      if (offset < 0) {
+        LauncherMain.printStatusError("missing numeric comparison value");
+        return;
+      }
+
+      String comptype = result.substring(0, offset).trim().toUpperCase();
+      String compval  = result.substring(offset + 1).trim();
+
+      if (!entry.type.equals("D") && !entry.type.equals("F") && compval.contains(".")) {
+        LauncherMain.printStatusMessage("comparison value will ignore decimal entries");
+        compval = compval.substring(0, compval.indexOf("."));
+      }
+
+      // if user enters symbolic entry, convert to standard nomenclature
+      switch (comptype) {
+        case "==":  comptype = "EQ";  break;
+        case "!=":  comptype = "NE";  break;
+        case ">":   comptype = "GT";  break;
+        case ">=":  comptype = "GE";  break;
+        case "<":   comptype = "LT";  break;
+        case "<=":  comptype = "LE";  break;
+        default:
+          break;
+      }
+      if (!comptype.equals("EQ") && !comptype.equals("GT") && !comptype.equals("LT") &&
+          !comptype.equals("NE") && !comptype.equals("GE") && !comptype.equals("LE")) {
+        LauncherMain.printStatusError("constraint must begin with { EQ, NE, GT, GE, LT, LE }");
+        return;
+      }
+      try {
+        double value = Double.parseDouble(compval);
+      } catch (NumberFormatException ex) {
+        LauncherMain.printStatusError("invalid comparison value (must be numeric)");
+        return;
+      }
+
+      // add constraint to symbolic
+      entry.constraints.add(new ConstraintInfo(comptype, compval));
+    }
+  }
+  
   /**
    * action event when a key is pressed in the table.
    */

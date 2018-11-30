@@ -61,7 +61,10 @@ public class GuiControls {
   private JFrame         mainFrame = null;
   private GridBagLayout  mainLayout = null;
   private Dimension      framesize = null;
+  
+  // panels
   private final HashMap<String, PanelInfo>     gPanel = new HashMap<>();
+  // components
   private final HashMap<String, JTextPane>     gTextPane = new HashMap();
   private final HashMap<String, JTextArea>     gTextArea = new HashMap();
   private final HashMap<String, JTable>        gTable = new HashMap<>();
@@ -73,14 +76,26 @@ public class GuiControls {
   private final HashMap<String, JTextField>    gTextField = new HashMap();
   private final HashMap<String, JRadioButton>  gRadiobutton = new HashMap();
   private final HashMap<String, JSpinner>      gSpinner = new HashMap();
+  // groups
+  private final HashMap<String, ArrayList<WidgetInfo>>  groupMap = new HashMap();
   
   public class PanelInfo {
     public Component     panel;   // can be JPanel, JTabbedPane, JSplitPane, JScrollPane
     public int           index;   // for TABBED and SPLIT panels, defines the index of next panel
     
-    public PanelInfo(String name, Component panel) {
+    public PanelInfo(Component panel) {
       this.panel = panel;
       this.index = 0;
+    }
+  }
+  
+  public class WidgetInfo {
+    public String        name;
+    public Component     comp;
+    
+    public WidgetInfo(String name, Component comp) {
+      this.name = name;
+      this.comp = comp;
     }
   }
   
@@ -190,6 +205,7 @@ public class GuiControls {
   }
   
   public void close() {
+    groupMap.clear();
     gPanel.clear();
     
     gTextPane.clear();
@@ -298,13 +314,44 @@ public class GuiControls {
     return gSpinner.get(name);
   }
 
+  private boolean isPanel(Component comp) {
+    if (comp == null) {
+      return false;
+    }
+    return comp instanceof JPanel ||
+           comp instanceof JTabbedPane ||
+           comp instanceof JSplitPane ||
+           comp instanceof JScrollPane;
+  }
+  
+  private boolean isComponent(Component comp) {
+    if (comp == null) {
+      return false;
+    }
+    return comp instanceof JTable ||
+           comp instanceof JList ||
+           comp instanceof JTextPane ||
+           comp instanceof JTextArea ||
+           comp instanceof JButton ||
+           comp instanceof JCheckBox ||
+           comp instanceof JComboBox ||
+           comp instanceof JTextField ||
+           comp instanceof JRadioButton ||
+           comp instanceof JSpinner ||
+           comp instanceof JLabel;
+  }
+  
+  private void savePanel(String name, Component comp) {
+    if (isPanel(comp)) {
+      gPanel.put(name, new PanelInfo(comp));
+    } else {
+      System.err.println("ERROR: savePanel - invalid panel type: " + comp.getClass().getName());
+      System.exit(1);
+    }
+  }
+  
   private void saveComponent(String name, Component comp) {
-    if (comp instanceof JPanel ||
-        comp instanceof JTabbedPane ||
-        comp instanceof JSplitPane ||
-        comp instanceof JScrollPane) {
-      gPanel.put(name, new PanelInfo(name, comp));
-    } else if (comp instanceof JTable) {
+    if (comp instanceof JTable) {
       gTable.put(name, (JTable) comp);
     } else if (comp instanceof JList) {
       gList.put(name, (JList) comp);
@@ -326,21 +373,14 @@ public class GuiControls {
       gSpinner.put(name, (JSpinner) comp);
     } else if (comp instanceof JLabel) {
       gLabel.put(name, (JLabel) comp);
+    } else {
+      System.err.println("ERROR: saveComponent - invalid component type: " + comp.getClass().getName());
+      System.exit(1);
     }
   }
 
-  private Component getComponent(String name) {
-    if (gPanel.containsKey(name)) {
-      return gPanel.get(name).panel;
-    } else if (gTable.containsKey(name)) {
-      return gTable.get(name);
-    } else if (gList.containsKey(name)) {
-      return gList.get(name);
-    } else if (gTextPane.containsKey(name)) {
-      return gTextPane.get(name);
-    } else if (gTextArea.containsKey(name)) {
-      return gTextArea.get(name);
-    } else if (gButton.containsKey(name)) {
+  private Component getGroupComponent(String name) {
+    if (gButton.containsKey(name)) {
       return gButton.get(name);
     } else if (gCheckbox.containsKey(name)) {
       return gCheckbox.get(name);
@@ -356,8 +396,80 @@ public class GuiControls {
       return gLabel.get(name);
     }
     
-    System.err.println("ERROR: Control not found: " + name);
+    System.err.println("ERROR: getGroupComponent - component not found: " + name);
+    System.exit(1);
     return null;
+  }
+  
+  public void makeGroup(String grpname) {
+    if (groupMap.containsKey(grpname)) {
+      System.err.println("ERROR: makeGroup - group '" + grpname + "' already exists!");
+      System.exit(1);
+    }
+    
+    groupMap.put(grpname, new ArrayList<>());
+  }
+  
+  public void addGroupComponent(String grpname, String name) {
+    if (!groupMap.containsKey(grpname)) {
+      System.err.println("ERROR: addGroupComponent - group '" + grpname + "' not found!");
+      System.exit(1);
+    }
+
+    // make sure group doesn't already have the component
+    ArrayList<WidgetInfo> list = groupMap.get(grpname);
+    for (WidgetInfo winfo : list) {
+      if(winfo.name.equals(name)) {
+        System.err.println("ERROR: addGroupComponent - group '" + grpname + "' not found!");
+        System.exit(1);
+      }
+    }
+    
+    Component widget = getGroupComponent(name);
+    list.add(new WidgetInfo(name, widget));
+  }
+  
+  public void setGroupSameMinSize(String grpname, DimType which) {
+    int height = 0;
+    int width = 0;
+
+    // get the list of components in the group
+    ArrayList<WidgetInfo> list = groupMap.get(grpname);
+
+    // get the max width and height of all of the components
+    for (WidgetInfo widget : list) {
+      Dimension dim = widget.comp.getPreferredSize();
+      if (dim.width > 0 && dim.height > 0) {
+        width = (width < dim.width) ? dim.width : width;
+        height = (height < dim.height) ? dim.height : height;
+      }
+    }
+
+    // exit if we couldn't get the size
+    if (width <= 0 || height <= 0) {
+      return;
+    }
+    
+    // now modify the specified dimension of each component
+    for (WidgetInfo widget : list) {
+      Component comp = widget.comp;
+      Dimension dim;
+      switch (which) {
+        case WIDTH:
+          dim = new Dimension(width, comp.getPreferredSize().height);
+          break;
+        case HEIGHT:
+          dim = new Dimension(comp.getPreferredSize().width, height);
+          break;
+        default:
+        case BOTH:
+          dim = new Dimension(width, height);
+          break;
+      }
+      comp.setMinimumSize(dim);
+      comp.setPreferredSize(dim);
+      comp.setSize(dim);
+    }
   }
   
   public Component getInputDevice(String name, InputControl type) {
@@ -444,46 +556,6 @@ public class GuiControls {
       default:
         System.err.println("ERROR: Unhandled control type: " + type.toString());
         break;
-    }
-  }
-  
-  public void setGroupSameMinSize(DimType which, ArrayList<String> components) {
-    int height = 0;
-    int width = 0;
-
-    // get the max width and height of all of the components
-    for (String compname : components) {
-      Dimension dim = getComponent(compname).getPreferredSize();
-      if (dim.width > 0 && dim.height > 0) {
-        width = (width < dim.width) ? dim.width : width;
-        height = (height < dim.height) ? dim.height : height;
-      }
-    }
-
-    // exit if we couldn't get the size
-    if (width <= 0 || height <= 0) {
-      return;
-    }
-    
-    // now modify the specified dimension of each component
-    for (String compname : components) {
-      Component comp = getComponent(compname);
-      Dimension dim;
-      switch (which) {
-        case WIDTH:
-          dim = new Dimension(width, comp.getPreferredSize().height);
-          break;
-        case HEIGHT:
-          dim = new Dimension(comp.getPreferredSize().width, height);
-          break;
-        default:
-        case BOTH:
-          dim = new Dimension(width, height);
-          break;
-      }
-      comp.setMinimumSize(dim);
-      comp.setPreferredSize(dim);
-      comp.setSize(dim);
     }
   }
   
@@ -1219,7 +1291,7 @@ public class GuiControls {
 
     // create the panel and apply constraints
     JPanel panel = new JPanel();
-    if (!title.isEmpty()) {
+    if (title != null) {
       panel.setBorder(BorderFactory.createTitledBorder(title));
     }
 
@@ -1229,7 +1301,7 @@ public class GuiControls {
     panel.setLayout(gbag);
 
     // add new panel info to list
-    saveComponent(name, panel);
+    savePanel(name, panel);
 
     // add entry to components list
     return panel;
@@ -1254,7 +1326,7 @@ public class GuiControls {
     panel.setDividerLocation(divider);
 
     // add new panel info to list
-    saveComponent(name, panel);
+    savePanel(name, panel);
     return panel;
   }
 
@@ -1271,7 +1343,7 @@ public class GuiControls {
     }
 
     // add new panel info to list
-    saveComponent(name, panel);
+    savePanel(name, panel);
     return panel;
   }
 
@@ -1287,7 +1359,7 @@ public class GuiControls {
     panel.setBorder(BorderFactory.createTitledBorder(title));
 
     // add new panel info and associated table to list
-    saveComponent(name, panel);
+    savePanel(name, panel);
     saveComponent(name, table);
 
     return panel;
@@ -1319,7 +1391,7 @@ public class GuiControls {
     scrollList.setModel(list);
 
     // add new panel info and associated scroll list to list
-    saveComponent(name, panel);
+    savePanel(name, panel);
     saveComponent(name, scrollList);
 
     return panel;
@@ -1340,7 +1412,7 @@ public class GuiControls {
     panel.setViewportView(textpane);
     
     // add new panel info and associated text pane to list
-    saveComponent(name, panel);
+    savePanel(name, panel);
     saveComponent(name, textpane);
 
     return panel;
@@ -1579,7 +1651,11 @@ public class GuiControls {
       splitpanel.add(compPanel, index);
 
       // add new panel info to list
-      saveComponent(compname, panel);
+      if (panel instanceof JTable || panel instanceof JList || panel instanceof JTextPane || panel instanceof JTextArea) {
+        saveComponent(compname, panel);
+      } else {
+        savePanel(compname, panel);
+      }
     } else {
       System.err.println("ERROR: addSplitComponent - Split pane not found: " + splitname);
       System.exit(1);

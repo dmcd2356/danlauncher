@@ -494,12 +494,12 @@ public final class LauncherMain {
     mainFrame.makeButton    (panel, "BTN_BACK"     , "Back"        , LEFT, true);
 
     // set these buttons to the same width
-    ArrayList<String> groupList = new ArrayList<>();
-    groupList.add("BTN_RUNTEST");
-    groupList.add("BTN_STOPTEST");
-    groupList.add("BTN_SEND");
-    groupList.add("BTN_SOLVER");
-    mainFrame.setGroupSameMinSize(GuiControls.DimType.WIDTH, groupList);
+    mainFrame.makeGroup("GRP_CTL_BUTTONS");
+    mainFrame.addGroupComponent("GRP_CTL_BUTTONS", "BTN_RUNTEST");
+    mainFrame.addGroupComponent("GRP_CTL_BUTTONS", "BTN_STOPTEST");
+    mainFrame.addGroupComponent("GRP_CTL_BUTTONS", "BTN_SEND");
+    mainFrame.addGroupComponent("GRP_CTL_BUTTONS", "BTN_SOLVER");
+    mainFrame.setGroupSameMinSize("GRP_CTL_BUTTONS", GuiControls.DimType.WIDTH);
     
     // set color of STOP button
     mainFrame.getButton("BTN_STOPTEST").setBackground(Color.pink);
