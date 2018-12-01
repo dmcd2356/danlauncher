@@ -7,19 +7,19 @@ package panels;
 
 import callgraph.CallGraph;
 import callgraph.MethodInfo;
+import logging.FontInfo;
+import logging.Logger;
+import main.LauncherMain;
+import util.Utils;
+
 import java.awt.Component;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.concurrent.LinkedBlockingQueue;
+import javax.swing.JScrollPane;
 import javax.swing.JTextPane;
-import logging.FontInfo;
-import logging.FontInfo.FontType;
-import logging.FontInfo.TextColor;
-import logging.Logger;
-import main.LauncherMain;
-import util.Utils;
 
 /**
  *
@@ -58,38 +58,42 @@ public class DebugLogger {
     pauseQueue = new LinkedBlockingQueue<>();
     
     String fonttype = "Courier";
-    FontInfo.setTypeColor (fontmap, MsgType.TSTAMP.toString(), TextColor.Black,  FontType.Normal, 14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.ERROR.toString(),  TextColor.Red,    FontType.Bold,   14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.WARN.toString(),   TextColor.Orange, FontType.Bold,   14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.INFO.toString(),   TextColor.Black,  FontType.Italic, 14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.NORMAL.toString(), TextColor.Black,  FontType.Normal, 14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.DUMP.toString(),   TextColor.Orange, FontType.Bold,   14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.START.toString(),  TextColor.Black,  FontType.BoldItalic, 14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.ENTRY.toString(),  TextColor.Brown,  FontType.Normal, 14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.AGENT.toString(),  TextColor.Violet, FontType.Italic, 14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.THREAD.toString(), TextColor.DkVio,  FontType.Italic, 14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.CALL.toString(),   TextColor.Gold,   FontType.Bold,   14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.RETURN.toString(), TextColor.Gold,   FontType.Bold,   14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.UNINST.toString(), TextColor.Gold,   FontType.BoldItalic, 14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.STATS.toString(),  TextColor.Gold,   FontType.BoldItalic, 14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.STACK.toString(),  TextColor.Blue,   FontType.Normal, 14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.STACKS.toString(), TextColor.Blue,   FontType.Italic, 14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.STACKI.toString(), TextColor.Blue,   FontType.Bold,   14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.LOCAL.toString(),  TextColor.Green,  FontType.Normal, 14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.LOCALS.toString(), TextColor.Green,  FontType.Italic, 14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.BRANCH.toString(), TextColor.DkVio,  FontType.BoldItalic, 14, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.SOLVE.toString(),  TextColor.DkVio,  FontType.Bold,   14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.TSTAMP.toString(), FontInfo.TextColor.Black,  FontInfo.FontType.Normal, 14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.ERROR.toString(),  FontInfo.TextColor.Red,    FontInfo.FontType.Bold,   14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.WARN.toString(),   FontInfo.TextColor.Orange, FontInfo.FontType.Bold,   14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.INFO.toString(),   FontInfo.TextColor.Black,  FontInfo.FontType.Italic, 14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.NORMAL.toString(), FontInfo.TextColor.Black,  FontInfo.FontType.Normal, 14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.DUMP.toString(),   FontInfo.TextColor.Orange, FontInfo.FontType.Bold,   14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.START.toString(),  FontInfo.TextColor.Black,  FontInfo.FontType.BoldItalic, 14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.ENTRY.toString(),  FontInfo.TextColor.Brown,  FontInfo.FontType.Normal, 14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.AGENT.toString(),  FontInfo.TextColor.Violet, FontInfo.FontType.Italic, 14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.THREAD.toString(), FontInfo.TextColor.DkVio,  FontInfo.FontType.Italic, 14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.CALL.toString(),   FontInfo.TextColor.Gold,   FontInfo.FontType.Bold,   14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.RETURN.toString(), FontInfo.TextColor.Gold,   FontInfo.FontType.Bold,   14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.UNINST.toString(), FontInfo.TextColor.Gold,   FontInfo.FontType.BoldItalic, 14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.STATS.toString(),  FontInfo.TextColor.Gold,   FontInfo.FontType.BoldItalic, 14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.STACK.toString(),  FontInfo.TextColor.Blue,   FontInfo.FontType.Normal, 14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.STACKS.toString(), FontInfo.TextColor.Blue,   FontInfo.FontType.Italic, 14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.STACKI.toString(), FontInfo.TextColor.Blue,   FontInfo.FontType.Bold,   14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.LOCAL.toString(),  FontInfo.TextColor.Green,  FontInfo.FontType.Normal, 14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.LOCALS.toString(), FontInfo.TextColor.Green,  FontInfo.FontType.Italic, 14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.BRANCH.toString(), FontInfo.TextColor.DkVio,  FontInfo.FontType.BoldItalic, 14, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.SOLVE.toString(),  FontInfo.TextColor.DkVio,  FontInfo.FontType.Bold,   14, fonttype);
 
     // create the text panel and assign it to the logger
-    panel = new JTextPane();
-    logger = new Logger((Component) panel, name, fontmap);
+    logger = new Logger(name, Logger.PanelType.TEXTPANE, true, fontmap);
+    panel = (JTextPane) logger.getTextPanel();
 
     // add key listener for the debug viewer
     panel.addKeyListener(new DebugKeyListener());
   }
   
-  public JTextPane getPanel() {
+  public JTextPane getTextPanel() {
     return panel;
+  }
+  
+  public JScrollPane getScrollPanel() {
+    return logger.getScrollPanel();
   }
   
   public void setTabSelection(String selected) {

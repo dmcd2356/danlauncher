@@ -5,12 +5,14 @@
  */
 package logging;
 
-import logging.FontInfo.FontType;
-import logging.FontInfo.TextColor;
+import gui.GuiControls;
+import util.Utils;
+
 import java.awt.Component;
 import java.awt.Graphics;
 import java.util.HashMap;
 import java.util.Map;
+import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextPane;
 import javax.swing.text.AttributeSet;
@@ -18,15 +20,15 @@ import javax.swing.text.BadLocationException;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
 import javax.swing.text.StyleContext;
-import static logging.FontInfo.getFontColor;
-import util.Utils;
 
 /**
  *
  * @author dan
  */
 public class Logger {
-    
+  
+  public static enum PanelType { TEXTPANE, TEXTAREA }
+  
   private final static String MAX_PADDING = "                    ";
   
   // the default point size and font types to use
@@ -38,21 +40,44 @@ public class Logger {
   // eliminate the oldest 25% of text plus any additional until a NEWLINE char is reached.
   private static int      maxBufferSize = 200000;
   private static String   pnlname;
+  private PanelType       pnltype;
+  private boolean         scroll;
   private JTextPane       textPane = null;
   private JTextArea       textArea = null;
+  private JScrollPane     scrollPanel = null;
+  private GuiControls     gui;
   private final HashMap<String, FontInfo> messageTypeTbl = new HashMap<>();
 
-  public Logger (Component pane, String name, HashMap<String, FontInfo> map) {
+  public Logger (String name, PanelType type, boolean scrollable, HashMap<String, FontInfo> map) {
     pnlname = name;
-    if (pane instanceof JTextPane) {
-      textPane = (JTextPane) pane;
-    } else if (pane instanceof JTextArea) {
-      textArea = (JTextArea) pane;
-      textArea.setWrapStyleWord(true);
-      textArea.setAutoscrolls(true);
-    } else {
-      System.err.println("ERROR: Invalid component type for Logger!");
-      System.exit(1);
+    pnltype = type;
+    scroll = scrollable;
+    gui = new GuiControls();
+    
+    switch (type) {
+      case TEXTPANE:
+        if (scrollable) {
+          scrollPanel= gui.makeRawScrollTextPane(name, "");
+          textPane = gui.getTextPane(name);
+        } else {
+          scrollPanel = null;
+          textPane = gui.makeRawTextPane(name, "");
+        }
+        break;
+      case TEXTAREA:
+        if (scrollable) {
+          scrollPanel= gui.makeRawScrollTextArea(name, "");
+          textArea = gui.getTextArea(name);
+        } else {
+          scrollPanel = null;
+          textArea = gui.makeRawTextArea(name, "");
+        }
+        textArea.setWrapStyleWord(true);
+        textArea.setAutoscrolls(true);
+        break;
+      default:
+        System.err.println("ERROR: Invalid component type for Logger!");
+        System.exit(1);
     }
 
     // copy the font mapping info over (use deep-copy loop instead of shallow-copy putAll)
@@ -63,6 +88,18 @@ public class Logger {
     }
   }
 
+  public final String getName() {
+    return pnlname;
+  }
+
+  public Component getTextPanel() {
+    return (pnltype == PanelType.TEXTPANE) ? textPane : textArea;
+  }
+  
+  public JScrollPane getScrollPanel() {
+    return scrollPanel;
+  }
+  
   public void setColorMapping(HashMap<String, FontInfo> map) {
     // copy the font mapping info over (use deep-copy loop instead of shallow-copy putAll)
     if (map != null) {
@@ -79,18 +116,6 @@ public class Logger {
     }
 
     maxBufferSize = bufSize;
-  }
-  
-  public final String getName() {
-    return pnlname;
-  }
-
-  public final Component getPanel() {
-    if (textPane != null) {
-      return textPane;
-    } else {
-      return textArea;
-    }
   }
   
   /**
@@ -159,8 +184,8 @@ public class Logger {
   public final void printField(String type, String message) {
     if (message != null && !message.isEmpty()) {
       // set default values (if type was not found)
-      TextColor color = TextColor.Black;
-      FontType ftype = FontType.Normal;
+      FontInfo.TextColor color = FontInfo.TextColor.Black;
+      FontInfo.FontType ftype = FontInfo.FontType.Normal;
       int size = DEFAULT_POINT;
       String font = DEFAULT_FONT;
 
@@ -195,8 +220,8 @@ public class Logger {
    * @param size  - the font point size
    * @param ftype - type of font style
    */
-  private void appendToPane(String msg, TextColor color, String font, int size,
-                                   FontType ftype) {
+  private void appendToPane(String msg, FontInfo.TextColor color, String font, int size,
+                                   FontInfo.FontType ftype) {
     AttributeSet aset = setTextAttr(color, font, size, ftype);
     if (textPane != null) {
       int len = textPane.getDocument().getLength();
@@ -240,19 +265,19 @@ public class Logger {
    * @param ftype - type of font style
    * @return the attribute set
    */
-  private AttributeSet setTextAttr(TextColor color, String font, int size, FontType ftype) {
+  private AttributeSet setTextAttr(FontInfo.TextColor color, String font, int size, FontInfo.FontType ftype) {
     boolean bItalic = false;
     boolean bBold = false;
-    if (ftype == FontType.Italic || ftype == FontType.BoldItalic) {
+    if (ftype == FontInfo.FontType.Italic || ftype == FontInfo.FontType.BoldItalic) {
       bItalic = true;
     }
-    if (ftype == FontType.Bold || ftype == FontType.BoldItalic) {
+    if (ftype == FontInfo.FontType.Bold || ftype == FontInfo.FontType.BoldItalic) {
       bBold = true;
     }
 
     StyleContext sc = StyleContext.getDefaultStyleContext();
     AttributeSet aset = sc.addAttribute(SimpleAttributeSet.EMPTY, StyleConstants.Foreground,
-                                        getFontColor(color));
+                                        FontInfo.getFontColor(color));
 
     aset = sc.addAttribute(aset, StyleConstants.FontFamily, font);
     aset = sc.addAttribute(aset, StyleConstants.FontSize, size);

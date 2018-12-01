@@ -14,6 +14,7 @@ import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.HashMap;
 import javax.swing.JOptionPane;
+import javax.swing.JScrollPane;
 import javax.swing.JTextPane;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.DefaultHighlighter;
@@ -84,8 +85,8 @@ public final class BytecodeViewer {
     FontInfo.setTypeColor (fontmap, MsgType.OTHER.toString(),   TextColor.Black,  FontType.Normal, 14, fonttype);
     
     // create the text panel and assign it to the logger
-    panel = new JTextPane();
-    logger = new Logger((Component) panel, name, fontmap);
+    logger = new Logger(name, Logger.PanelType.TEXTPANE, true, fontmap);
+    panel = (JTextPane) logger.getTextPanel();
   
     // add mouse & key listeners for the bytecode viewer
     panel.addMouseListener(new BytecodeMouseListener());
@@ -105,8 +106,12 @@ public final class BytecodeViewer {
     exceptions.clear();
   }
   
-  public JTextPane getTextPane() {
+  public JTextPane getTextPanel() {
     return panel;
+  }
+  
+  public JScrollPane getScrollPanel() {
+    return logger.getScrollPanel();
   }
   
   public boolean isValidBytecode() {

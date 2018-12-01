@@ -6,8 +6,6 @@
 package callgraph;
 
 import gui.GuiControls;
-import static gui.GuiControls.Orient.CENTER;
-import static gui.GuiControls.Orient.LEFT;
 import main.LauncherMain;
 import util.Utils;
 
@@ -438,6 +436,9 @@ public class CallGraph {
     int threadCount = selected.getThread().size();
     int threadInit = selected.getThread().get(0);
 
+    GuiControls.Orient LEFT = GuiControls.Orient.LEFT;
+    GuiControls.Orient CENTER = GuiControls.Orient.CENTER;
+    
     String panel = null;
     methInfoPanel.makePanel (panel, "PNL_INFO"  , "", LEFT, true, 600, 400);
     
@@ -458,7 +459,7 @@ public class CallGraph {
       nextButton.setEnabled(false);
     }
     JTextPane textPanel =
-        methInfoPanel.makeScrollText(panel, "TXT_METHINFO", "");
+        methInfoPanel.makeScrollTextPane(panel, "TXT_METHINFO", "");
     JButton bcodeButton =
         methInfoPanel.makeButton(panel, "BTN_BYTECODE", "Show bytecode", CENTER, true);
     

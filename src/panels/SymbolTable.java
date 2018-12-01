@@ -6,7 +6,10 @@
 package panels;
 
 import gui.GuiControls;
-import static gui.GuiControls.Orient.LEFT;
+import logging.FontInfo;
+import main.LauncherMain;
+import util.Utils;
+
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Font;
@@ -33,9 +36,6 @@ import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
 import javax.swing.table.TableCellRenderer;
 import javax.swing.table.TableColumnModel;
-import logging.FontInfo;
-import main.LauncherMain;
-import util.Utils;
 
 /**
  *
@@ -494,6 +494,7 @@ public class SymbolTable {
 
     // set the font style for the labels
     Font labelFont = new Font("Ariel", 0, 12);
+    GuiControls.Orient LEFT = GuiControls.Orient.LEFT;
    
     String panel = null;
     optionsPanel.makePanel (panel, "PNL_INFO"       , "", LEFT, true);
@@ -502,12 +503,12 @@ public class SymbolTable {
     optionsPanel.makePanel (panel, "PNL_CONSTRAINTS", "Setup Constraint", LEFT, true);
 
     panel = "PNL_INFO";
-    optionsPanel.makeLabel (panel, ""             , "Class:"  , LEFT, false);
-    optionsPanel.makeLabel (panel, ""             , clz       , LEFT, true, labelFont, FontInfo.TextColor.Blue);
-    optionsPanel.makeLabel (panel, ""             , "Method:" , LEFT, false);
-    optionsPanel.makeLabel (panel, ""             , method    , LEFT, true, labelFont, FontInfo.TextColor.Blue);
-    optionsPanel.makeLabel (panel, ""             , "Slot:"   , LEFT, false);
-    optionsPanel.makeLabel (panel, ""             , pinfo.slot, LEFT, true, labelFont, FontInfo.TextColor.Blue);
+    optionsPanel.makeLabel (panel, "", "Class:"  , LEFT, false);
+    optionsPanel.makeLabel (panel, "", clz       , LEFT, true, labelFont, FontInfo.TextColor.Blue);
+    optionsPanel.makeLabel (panel, "", "Method:" , LEFT, false);
+    optionsPanel.makeLabel (panel, "", method    , LEFT, true, labelFont, FontInfo.TextColor.Blue);
+    optionsPanel.makeLabel (panel, "", "Slot:"   , LEFT, false);
+    optionsPanel.makeLabel (panel, "", pinfo.slot, LEFT, true, labelFont, FontInfo.TextColor.Blue);
 
     panel = "PNL_EDIT_SYMB";
     optionsPanel.makeButton   (panel, "BTN_EDIT_NAME" , "Name"      , LEFT, false);

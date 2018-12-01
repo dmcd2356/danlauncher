@@ -6,10 +6,6 @@
 package main;
 
 import gui.GuiControls;
-import gui.GuiControls.FrameSize;
-import gui.GuiControls.InputControl;
-import static gui.GuiControls.Orient.LEFT;
-import static gui.GuiControls.Orient.CENTER;
 import logging.FontInfo;
 import logging.Logger;
 import panels.BytecodeViewer;
@@ -19,7 +15,6 @@ import panels.DebugLogger;
 import panels.ParamTable;
 import panels.SymbolTable;
 import callgraph.CallGraph;
-import static gui.GuiControls.Orient.NONE;
 import util.CommandLauncher;
 import util.ThreadLauncher;
 import util.Utils;
@@ -27,7 +22,6 @@ import util.Utils;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
-import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.FocusEvent;
@@ -72,6 +66,7 @@ import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
+import javax.swing.JTextPane;
 import javax.swing.Timer;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
@@ -184,17 +179,17 @@ public final class LauncherMain {
 
   // this defines the project properties that have corresponding user controls
   private static final PropertiesTable[] PROJ_PROP_TBL = {
-    new PropertiesTable (ProjectProperties.RUN_ARGUMENTS  , InputControl.TextField, "TXT_ARGLIST"),
-    new PropertiesTable (ProjectProperties.APP_SERVER_PORT, InputControl.TextField, "TXT_PORT"),
-    new PropertiesTable (ProjectProperties.MAIN_CLASS     , InputControl.ComboBox , "COMBO_MAINCLS"),
+    new PropertiesTable (ProjectProperties.RUN_ARGUMENTS  , GuiControls.InputControl.TextField, "TXT_ARGLIST"),
+    new PropertiesTable (ProjectProperties.APP_SERVER_PORT, GuiControls.InputControl.TextField, "TXT_PORT"),
+    new PropertiesTable (ProjectProperties.MAIN_CLASS     , GuiControls.InputControl.ComboBox , "COMBO_MAINCLS"),
   };
 
   private static class PropertiesTable {
     public ProjectProperties tag;         // the tag used to access the Properties entry
-    public InputControl      controlType; // the type of user-input widget
+    public GuiControls.InputControl controlType; // the type of user-input widget
     public String            controlName; // name of the widget corresponding to this property
     
-    public PropertiesTable(ProjectProperties propname, InputControl type, String name) {
+    public PropertiesTable(ProjectProperties propname, GuiControls.InputControl type, String name) {
       tag = propname;
       controlType = type;
       controlName = name;
@@ -457,9 +452,12 @@ public final class LauncherMain {
 
     // init the solutions tried to none
 //    solutionList = new DefaultListModel();
+
+    GuiControls.Orient LEFT = GuiControls.Orient.LEFT;
+    GuiControls.Orient NONE = GuiControls.Orient.NONE;
     
     // create the frame
-    JFrame frame = mainFrame.newFrame("danlauncher", 1200, 800, FrameSize.NOLIMIT); //.FULLSCREEN);
+    JFrame frame = mainFrame.newFrame("danlauncher", 1200, 800, GuiControls.FrameSize.NOLIMIT); //.FULLSCREEN);
     frame.addWindowListener(new Window_MainListener());
 
     String panel = null; // this creates the entries in the main frame
@@ -594,7 +592,7 @@ public final class LauncherMain {
     currentTab = PanelTabs.COMMAND.toString();
 
     // create the panel classes
-    commandLogger = new Logger(new JTextArea(), PanelTabs.COMMAND.toString(), null);
+    commandLogger = new Logger(PanelTabs.COMMAND.toString(), Logger.PanelType.TEXTAREA, true, null);
     debugLogger = new DebugLogger(PanelTabs.LOG.toString());
     bytecodeViewer = new BytecodeViewer(PanelTabs.BYTECODE.toString());
     bytecodeGraph = new BytecodeGraph(bytecodeViewer);
@@ -603,7 +601,7 @@ public final class LauncherMain {
     
     // wrap the bytecode logger in another pane to prevent line wrapping on a JTextPane
     JPanel noWrapBytecodePanel = new JPanel(new BorderLayout());
-    noWrapBytecodePanel.add(bytecodeViewer.getTextPane());
+    noWrapBytecodePanel.add(bytecodeViewer.getScrollPanel());
 
     // create a scrollable table and encapsulate it in a panel to add a title
 //    JScrollPane scrollPanel = mainFrame.makeRawScrollTable("TBL_PARAMLIST", "");
@@ -619,16 +617,24 @@ public final class LauncherMain {
     mainFrame.addSplitComponent(splitName, 1, "TBL_PARAMLIST", new JTable(), true);
 //    mainFrame.addSplitComponent(splitName, 1, "TBL_PARAMLIST", wrapPane, false);
     
+    // wrap the graphic panels in a scroll panel for viewing
+    JScrollPane dbScroll = new JScrollPane(dbtable.getPanel());
+    dbScroll.setBorder(BorderFactory.createTitledBorder(""));
+    JScrollPane bgraphScroll = new JScrollPane(bytecodeGraph.getPanel());
+    bgraphScroll.setBorder(BorderFactory.createTitledBorder(""));
+    JScrollPane cgraphScroll = new JScrollPane(callGraph.getPanel());
+    cgraphScroll.setBorder(BorderFactory.createTitledBorder(""));
+    
     // add the tabbed message panels and a listener to detect when a tab has been selected
     GuiControls.PanelInfo panelInfo = mainFrame.getPanelInfo("PNL_TABBED");
     if (panelInfo != null && panelInfo.panel instanceof JTabbedPane) {
       JTabbedPane tabPanel = (JTabbedPane) panelInfo.panel;
-      addPanelToTab(tabPanel, PanelTabs.COMMAND  , commandLogger.getPanel(), true);
-      addPanelToTab(tabPanel, PanelTabs.DATABASE , dbtable.getPanel(), true);
-      addPanelToTab(tabPanel, PanelTabs.BYTECODE , splitMain, false);
-      addPanelToTab(tabPanel, PanelTabs.BYTEFLOW , bytecodeGraph.getPanel(), true);
-      addPanelToTab(tabPanel, PanelTabs.LOG      , debugLogger.getPanel(), true);
-      addPanelToTab(tabPanel, PanelTabs.CALLGRAPH, callGraph.getPanel(), true);
+      addPanelToTab(tabPanel, PanelTabs.COMMAND  , commandLogger.getTextPanel(), commandLogger.getScrollPanel());
+      addPanelToTab(tabPanel, PanelTabs.DATABASE , dbtable.getPanel(), dbScroll);
+      addPanelToTab(tabPanel, PanelTabs.BYTECODE , splitMain, null);
+      addPanelToTab(tabPanel, PanelTabs.BYTEFLOW , bytecodeGraph.getPanel(), bgraphScroll);
+      addPanelToTab(tabPanel, PanelTabs.LOG      , debugLogger.getTextPanel(), debugLogger.getScrollPanel());
+      addPanelToTab(tabPanel, PanelTabs.CALLGRAPH, callGraph.getPanel(), cgraphScroll);
       tabPanel.addChangeListener(new Change_TabPanelSelect());
     }
 
@@ -939,8 +945,11 @@ public final class LauncherMain {
       return;
     }
 
+    GuiControls.Orient LEFT = GuiControls.Orient.LEFT;
+    GuiControls.Orient CENTER = GuiControls.Orient.CENTER;
+    
     // create the frame
-    JFrame frame = graphSetupFrame.newFrame("Graph Setup", 350, 250, FrameSize.FIXEDSIZE);
+    JFrame frame = graphSetupFrame.newFrame("Graph Setup", 350, 250, GuiControls.FrameSize.FIXEDSIZE);
     frame.addWindowListener(new Window_GraphSetupListener());
   
     String panel = null;
@@ -1123,8 +1132,10 @@ public final class LauncherMain {
       return;
     }
 
+    GuiControls.Orient LEFT = GuiControls.Orient.LEFT;
+    
     // create the frame
-    JFrame frame = debugSetupFrame.newFrame("Debug Setup", 350, 250, FrameSize.FIXEDSIZE);
+    JFrame frame = debugSetupFrame.newFrame("Debug Setup", 350, 250, GuiControls.FrameSize.FIXEDSIZE);
     frame.addWindowListener(new Window_DebugSetupListener());
   
     // create the entries in the main frame
@@ -1189,9 +1200,11 @@ public final class LauncherMain {
     javaHomeSelector.setCurrentDirectory(new File("/usr/lib/jvm"));
     
     // create the frame
-    JFrame frame = systemSetupFrame.newFrame("System Configuration", 500, 200, FrameSize.FIXEDSIZE);
+    JFrame frame = systemSetupFrame.newFrame("System Configuration", 500, 200, GuiControls.FrameSize.FIXEDSIZE);
     frame.addWindowListener(new Window_SystemSetupListener());
 
+    GuiControls.Orient LEFT = GuiControls.Orient.LEFT;
+    
     // create the entries in the main frame
     String panel = null;
     systemSetupFrame.makePanel (panel, "PNL_MAIN", "" , LEFT  , true);
@@ -1306,27 +1319,21 @@ public final class LauncherMain {
     return menuCheckboxes.get(name);
   }
   
-  private void addPanelToTab(JTabbedPane tabpane, PanelTabs tabname, Component panel, boolean scrollable) {
+  private void addPanelToTab(JTabbedPane tabpane, PanelTabs tabname, Component panel, JScrollPane scrollPanel) {
     // make sure we don't already have the entry
     if (tabbedPanels.containsKey(tabname)) {
       System.err.println("ERROR: '" + tabname + "' panel already defined in tabs");
       System.exit(1);
     }
     
-    // add the textPane to a scrollPane
-    if (scrollable) {
-      JScrollPane scrollPanel;
-      scrollPanel = new JScrollPane(panel);
-      scrollPanel.setBorder(BorderFactory.createTitledBorder(""));
-
-      // now add the scroll pane to the tabbed pane
+    // now add the scroll pane to the tabbed pane
+    if (scrollPanel != null) {
       tabpane.addTab(tabname.toString(), scrollPanel);
     } else {
-      // or add the original pane to the tabbed pane
       tabpane.addTab(tabname.toString(), panel);
     }
     
-    // save access to panel by name
+    // save access to text panel by name
     tabSelect.put(tabname.toString(), tabIndex++);
     tabbedPanels.put(tabname, panel);
   }
@@ -1778,7 +1785,7 @@ public final class LauncherMain {
     for (PropertiesTable propEntry : PROJ_PROP_TBL) {
       ProjectProperties tag = propEntry.tag;
       String ctlName = propEntry.controlName;
-      InputControl ctlType = propEntry.controlType;
+      GuiControls.InputControl ctlType = propEntry.controlType;
       
       // get properties values if defined (use the current gui control value as the default if not)
       String setting = mainFrame.getInputControl(ctlName, ctlType);
@@ -2126,7 +2133,10 @@ public final class LauncherMain {
     }
     try {
       // extract the selected class file
-      extractClassFile(jarfile, classSelect);
+      int rc = extractClassFile(jarfile, classSelect);
+      if (rc != 0) {
+        return null;
+      }
     } catch (IOException ex) {
       printStatusError(ex.getMessage());
       return null;
@@ -2151,7 +2161,7 @@ public final class LauncherMain {
     return content;
   }
 
-  private static void extractClassFile(File jarfile, String className) throws IOException {
+  private static int extractClassFile(File jarfile, String className) throws IOException {
     // get the path relative to the application directory
     int offset;
     String relpathname = "";
@@ -2198,11 +2208,12 @@ public final class LauncherMain {
             fos.write(istream.read());
           }
         }
-        return;
+        return 0;
       }
     }
     
     printStatusError("'" + className + "' not found in " + jarfile.getAbsoluteFile());
+    return -1;
   }
   
   private static String initDanfigInfo() {

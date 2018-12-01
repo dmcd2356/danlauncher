@@ -1315,6 +1315,32 @@ public class GuiControls {
     }
   }
   
+  public JTextPane makeRawTextPane(String name, String title) {
+    if (gTextPane.containsKey(name)) {
+      System.err.println("ERROR: '" + name + "' textpanel already exists!");
+      System.exit(1);
+    }
+
+    // create a text pane component and add to scroll panel
+    JTextPane textpane = new JTextPane();
+    saveComponent(name, textpane);
+
+    return textpane;
+  }
+
+  public JTextArea makeRawTextArea(String name, String title) {
+    if (gTextPane.containsKey(name)) {
+      System.err.println("ERROR: '" + name + "' textpanel already exists!");
+      System.exit(1);
+    }
+
+    // create a text pane component and add to scroll panel
+    JTextArea textarea = new JTextArea();
+    saveComponent(name, textarea);
+
+    return textarea;
+  }
+
   /**
    * This creates an empty JPanel.
    * 
@@ -1436,7 +1462,7 @@ public class GuiControls {
     return panel;
   }
 
-  public JScrollPane makeRawScrollText(String name, String title) {
+  public JScrollPane makeRawScrollTextPane(String name, String title) {
     if (gPanel.containsKey(name) || gTextPane.containsKey(name)) {
       System.err.println("ERROR: '" + name + "' scrolling textpanel already added to container!");
       System.exit(1);
@@ -1453,6 +1479,27 @@ public class GuiControls {
     // add new panel info and associated text pane to list
     savePanel(name, panel);
     saveComponent(name, textpane);
+
+    return panel;
+  }
+
+  public JScrollPane makeRawScrollTextArea(String name, String title) {
+    if (gPanel.containsKey(name) || gTextPane.containsKey(name)) {
+      System.err.println("ERROR: '" + name + "' scrolling textpanel already added to container!");
+      System.exit(1);
+    }
+
+    // create the scroll panel and apply constraints
+    JScrollPane panel = new JScrollPane();
+    panel.setBorder(BorderFactory.createTitledBorder(title));
+
+    // create a text pane component and add to scroll panel
+    JTextArea textarea = new JTextArea();
+    panel.setViewportView(textarea);
+    
+    // add new panel info and associated text pane to list
+    savePanel(name, panel);
+    saveComponent(name, textarea);
 
     return panel;
   }
@@ -1641,9 +1688,29 @@ public class GuiControls {
    * @param title     - the name to display as a label preceeding the widget
    * @return the text panel contained in the scroll panel
    */
-  public JTextPane makeScrollText(String panelname, String name, String title) {
+  public JTextPane makeScrollTextPane(String panelname, String name, String title) {
     // create the scroll panel containing the text pane
-    JScrollPane panel = makeRawScrollText(name, title);
+    JScrollPane panel = makeRawScrollTextPane(name, title);
+    
+    // setup layout for panel in the container
+    setGridBagLayout(panelname, panel, Orient.NONE, true, Expand.BOTH);
+
+    // place scroll panel in container
+    addPanelToPanel(panelname, name);
+    return getTextPane(name);
+  }
+
+  /**
+   * This creates a JScrollPane containing a JTextPane for text and places it in the container.
+   * 
+   * @param panelname - the name of the jPanel container to place the component in (null if use main frame)
+   * @param name    - the name id of the component
+   * @param title     - the name to display as a label preceeding the widget
+   * @return the text panel contained in the scroll panel
+   */
+  public JTextPane makeScrollTextArea(String panelname, String name, String title) {
+    // create the scroll panel containing the text pane
+    JScrollPane panel = makeRawScrollTextArea(name, title);
     
     // setup layout for panel in the container
     setGridBagLayout(panelname, panel, Orient.NONE, true, Expand.BOTH);
