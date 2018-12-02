@@ -9,6 +9,7 @@ import callgraph.BaseGraph;
 import com.mxgraph.model.mxCell;
 import com.mxgraph.swing.handler.mxGraphHandler;
 import com.mxgraph.swing.mxGraphComponent;
+import gui.GuiControls;
 import java.awt.Graphics;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -18,6 +19,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import javax.imageio.ImageIO;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import main.LauncherMain;
 import util.Utils;
 
@@ -29,7 +31,10 @@ public class BytecodeGraph {
   
   private static enum BlockColor { NONE, PINK, CYAN, BLUE, GOLD, VIOLET }
   
+  private static String  tabName;
   private static JPanel graphPanel;
+  private static JScrollPane scrollPanel;
+  private static GuiControls gui;
   private static mxGraphComponent graphComponent = null;
   private static BaseGraph<FlowInfo> flowGraph = new BaseGraph<>();
   private static BytecodeViewer bcViewer;
@@ -39,13 +44,20 @@ public class BytecodeGraph {
   private static boolean valid = false;
 
   
-  public BytecodeGraph(BytecodeViewer viewer) {
+  public BytecodeGraph(String name, BytecodeViewer viewer) {
+    tabName = name;
     graphPanel = new JPanel();
+    gui = new GuiControls();
+    scrollPanel = gui.makeRawScrollPanel(name, graphPanel);
     bcViewer = viewer;
   }
   
   public JPanel getPanel() {
     return graphPanel;
+  }
+  
+  public JScrollPane getScrollPanel() {
+    return scrollPanel;
   }
   
   public void drawGraphNormal() {

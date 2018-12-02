@@ -120,10 +120,6 @@ public final class LauncherMain {
   
   public enum GraphHighlight { NONE, STATUS, TIME, INSTRUCTION, ITERATION, THREAD }
 
-  private static final GuiControls mainFrame = new GuiControls();
-  private static final GuiControls graphSetupFrame = new GuiControls();
-  private static final GuiControls debugSetupFrame = new GuiControls();
-  private static final GuiControls systemSetupFrame = new GuiControls();
   private static CallGraph       callGraph;
   private static BytecodeViewer  bytecodeViewer;
   private static BytecodeGraph   bytecodeGraph;
@@ -162,17 +158,24 @@ public final class LauncherMain {
   private static RunMode         runMode = RunMode.IDLE;
   private static String          currentTab;
   
-  private static final HashMap<String, JCheckBoxMenuItem> menuCheckboxes = new HashMap<>();
-  private static final HashMap<String, JMenuItem> menuItems = new HashMap<>();
+  // the collection of classes and methods for the selected project
   private static ArrayList<String> fullMethList = new ArrayList<>();
   private static ArrayList<String> classList = new ArrayList<>();
   private static HashMap<String, ArrayList<String>>  clsMethMap = new HashMap<>(); // maps the list of methods to each class
-  private static final HashMap<String, Integer>      tabSelect = new HashMap<>();
-  private static final HashMap<String, FontInfo>     bytecodeFontTbl = new HashMap<>();
-  private static final HashMap<String, FontInfo>     debugFontTbl = new HashMap<>();
-  private static final HashMap<PanelTabs, Component> tabbedPanels = new HashMap<>();
-  private static ArrayList<MethodHistoryInfo> bytecodeHistory = new ArrayList<>();
   
+  private static final HashMap<String, JCheckBoxMenuItem> menuCheckboxes = new HashMap<>();
+  private static final HashMap<String, JMenuItem>         menuItems = new HashMap<>();
+  private static final HashMap<String, Integer>           tabSelect = new HashMap<>();
+  private static final HashMap<String, FontInfo>          bytecodeFontTbl = new HashMap<>();
+  private static final HashMap<String, FontInfo>          debugFontTbl = new HashMap<>();
+  private static final ArrayList<MethodHistoryInfo>       bytecodeHistory = new ArrayList<>();
+
+  // the gui frames created
+  private static final GuiControls mainFrame = new GuiControls();
+  private static final GuiControls graphSetupFrame = new GuiControls();
+  private static final GuiControls debugSetupFrame = new GuiControls();
+  private static final GuiControls systemSetupFrame = new GuiControls();
+
   // configuration file settings
   private static PropertiesFile  systemProps;   // this is for the generic properties for the user
   private static PropertiesFile  projectProps;  // this is for the project-specific properties
@@ -272,7 +275,7 @@ public final class LauncherMain {
     }
 
     // this creates a command launcher that can run on a separate thread
-    threadLauncher = new ThreadLauncher((JTextArea) getTabPanel(PanelTabs.COMMAND));
+    threadLauncher = new ThreadLauncher((JTextArea) commandLogger.getTextPanel());
 
     // create a timers
     debugMsgTimer = new Timer(1, new DebugInputListener()); // reads debug msgs from instrumented code
@@ -477,7 +480,7 @@ public final class LauncherMain {
     mainFrame.makePanel      (panel, "PNL_SYMBOLICS", "Symbolic Parameters", NONE, true);
     
     panel = "PNL_SYMBOLICS";
-    mainFrame.makeScrollTable(panel, "TBL_SYMBOLICS", "");
+    mainFrame.makeScrollTable(panel, "TBL_SYMBOLICS");
 
     panel = "PNL_CONTROLS";
     mainFrame.makeCombobox  (panel, "COMBO_MAINCLS", "Main Class"  , LEFT, true);
@@ -595,7 +598,7 @@ public final class LauncherMain {
     commandLogger = new Logger(PanelTabs.COMMAND.toString(), Logger.PanelType.TEXTAREA, true, null);
     debugLogger = new DebugLogger(PanelTabs.LOG.toString());
     bytecodeViewer = new BytecodeViewer(PanelTabs.BYTECODE.toString());
-    bytecodeGraph = new BytecodeGraph(bytecodeViewer);
+    bytecodeGraph = new BytecodeGraph(PanelTabs.BYTEFLOW.toString(), bytecodeViewer);
     callGraph = new CallGraph(PanelTabs.CALLGRAPH.toString());
     dbtable = new DatabaseTable(PanelTabs.DATABASE.toString());
     
@@ -604,8 +607,8 @@ public final class LauncherMain {
     noWrapBytecodePanel.add(bytecodeViewer.getScrollPanel());
 
     // create a scrollable table and encapsulate it in a panel to add a title
-//    JScrollPane scrollPanel = mainFrame.makeRawScrollTable("TBL_PARAMLIST", "");
-//    scrollPanel.add(new JTable());
+    JTable localParams = mainFrame.makeRawTable("TBL_PARAMLIST");
+//    JScrollPane scrollPanel = new JScrollPane(localParams);
 //    JPanel wrapPane = new JPanel();
 //    wrapPane.add(scrollPanel);
 //    wrapPane.setBorder(BorderFactory.createTitledBorder("Local Parameters"));
@@ -614,32 +617,24 @@ public final class LauncherMain {
     String splitName = "SPLIT_MAIN";
     JSplitPane splitMain = mainFrame.makeRawSplitPanel(splitName, true, 0.5);
     mainFrame.addSplitComponent(splitName, 0, "BYTECODE"     , noWrapBytecodePanel, true);
-    mainFrame.addSplitComponent(splitName, 1, "TBL_PARAMLIST", new JTable(), true);
+    mainFrame.addSplitComponent(splitName, 1, "TBL_PARAMLIST", localParams, true);
 //    mainFrame.addSplitComponent(splitName, 1, "TBL_PARAMLIST", wrapPane, false);
-    
-    // wrap the graphic panels in a scroll panel for viewing
-    JScrollPane dbScroll = new JScrollPane(dbtable.getPanel());
-    dbScroll.setBorder(BorderFactory.createTitledBorder(""));
-    JScrollPane bgraphScroll = new JScrollPane(bytecodeGraph.getPanel());
-    bgraphScroll.setBorder(BorderFactory.createTitledBorder(""));
-    JScrollPane cgraphScroll = new JScrollPane(callGraph.getPanel());
-    cgraphScroll.setBorder(BorderFactory.createTitledBorder(""));
     
     // add the tabbed message panels and a listener to detect when a tab has been selected
     GuiControls.PanelInfo panelInfo = mainFrame.getPanelInfo("PNL_TABBED");
     if (panelInfo != null && panelInfo.panel instanceof JTabbedPane) {
       JTabbedPane tabPanel = (JTabbedPane) panelInfo.panel;
-      addPanelToTab(tabPanel, PanelTabs.COMMAND  , commandLogger.getTextPanel(), commandLogger.getScrollPanel());
-      addPanelToTab(tabPanel, PanelTabs.DATABASE , dbtable.getPanel(), dbScroll);
-      addPanelToTab(tabPanel, PanelTabs.BYTECODE , splitMain, null);
-      addPanelToTab(tabPanel, PanelTabs.BYTEFLOW , bytecodeGraph.getPanel(), bgraphScroll);
-      addPanelToTab(tabPanel, PanelTabs.LOG      , debugLogger.getTextPanel(), debugLogger.getScrollPanel());
-      addPanelToTab(tabPanel, PanelTabs.CALLGRAPH, callGraph.getPanel(), cgraphScroll);
+      addPanelToTab(tabPanel, PanelTabs.COMMAND  , commandLogger.getScrollPanel());
+      addPanelToTab(tabPanel, PanelTabs.DATABASE , dbtable.getScrollPanel());
+      addPanelToTab(tabPanel, PanelTabs.BYTECODE , splitMain);
+      addPanelToTab(tabPanel, PanelTabs.BYTEFLOW , bytecodeGraph.getScrollPanel());
+      addPanelToTab(tabPanel, PanelTabs.LOG      , debugLogger.getScrollPanel());
+      addPanelToTab(tabPanel, PanelTabs.CALLGRAPH, callGraph.getScrollPanel());
       tabPanel.addChangeListener(new Change_TabPanelSelect());
     }
 
     // init the local variable and symbolic list tables
-    localVarTbl = new ParamTable(mainFrame.getTable("TBL_PARAMLIST"));
+    localVarTbl = new ParamTable(localParams);
     symbolTbl   = new SymbolTable(mainFrame.getTable("TBL_SYMBOLICS"));
 
     // update divider locations in split frame now that it has been placed (and the dimensions are set)
@@ -1319,31 +1314,18 @@ public final class LauncherMain {
     return menuCheckboxes.get(name);
   }
   
-  private void addPanelToTab(JTabbedPane tabpane, PanelTabs tabname, Component panel, JScrollPane scrollPanel) {
+  private void addPanelToTab(JTabbedPane tabpane, PanelTabs tabname, Component panel) {
     // make sure we don't already have the entry
-    if (tabbedPanels.containsKey(tabname)) {
+    if (tabSelect.containsKey(tabname.toString())) {
       System.err.println("ERROR: '" + tabname + "' panel already defined in tabs");
       System.exit(1);
     }
     
     // now add the scroll pane to the tabbed pane
-    if (scrollPanel != null) {
-      tabpane.addTab(tabname.toString(), scrollPanel);
-    } else {
-      tabpane.addTab(tabname.toString(), panel);
-    }
+    tabpane.addTab(tabname.toString(), panel);
     
     // save access to text panel by name
     tabSelect.put(tabname.toString(), tabIndex++);
-    tabbedPanels.put(tabname, panel);
-  }
-
-  private static Component getTabPanel(PanelTabs tabname) {
-    if (!tabbedPanels.containsKey(tabname)) {
-      System.err.println("ERROR: '" + tabname + "' panel not found in tabs");
-      System.exit(1);
-    }
-    return tabbedPanels.get(tabname);
   }
 
   private static String getTabSelect() {

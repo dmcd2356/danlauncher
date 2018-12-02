@@ -57,7 +57,7 @@ public class Logger {
     switch (type) {
       case TEXTPANE:
         if (scrollable) {
-          scrollPanel= gui.makeRawScrollTextPane(name, "");
+          scrollPanel= gui.makeRawScrollTextPane(name);
           textPane = gui.getTextPane(name);
         } else {
           scrollPanel = null;
@@ -66,7 +66,7 @@ public class Logger {
         break;
       case TEXTAREA:
         if (scrollable) {
-          scrollPanel= gui.makeRawScrollTextArea(name, "");
+          scrollPanel= gui.makeRawScrollTextArea(name);
           textArea = gui.getTextArea(name);
         } else {
           scrollPanel = null;

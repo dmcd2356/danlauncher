@@ -39,6 +39,7 @@ import javax.swing.JCheckBox;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import javax.swing.JTextPane;
 
 /**
@@ -51,6 +52,8 @@ public class CallGraph {
 
   private static String  tabName;
   private static JPanel  graphPanel;
+  private static JScrollPane scrollPanel;
+  private static GuiControls gui;
   private static mxGraphComponent graphComponent;
   private static BaseGraph<MethodInfo> callGraph = new BaseGraph<>();
   private static List<MethodInfo> graphMethList = new ArrayList<>(); // list of all methods found
@@ -69,12 +72,18 @@ public class CallGraph {
   public CallGraph(String name) {
     tabName = name;
     graphPanel = new JPanel();
-
+    gui = new GuiControls();
+    scrollPanel = gui.makeRawScrollPanel(name, graphPanel);
+    
     clearGraph();
     graphMethList = new ArrayList<>();
     curGraphMode = LauncherMain.GraphHighlight.NONE;
     rangeStepsize = 20;
     tabSelected = false;
+  }
+  
+  public JScrollPane getScrollPanel() {
+    return scrollPanel;
   }
   
   public void setTabSelection(String selected) {
@@ -459,7 +468,7 @@ public class CallGraph {
       nextButton.setEnabled(false);
     }
     JTextPane textPanel =
-        methInfoPanel.makeScrollTextPane(panel, "TXT_METHINFO", "");
+        methInfoPanel.makeScrollTextPane(panel, "TXT_METHINFO");
     JButton bcodeButton =
         methInfoPanel.makeButton(panel, "BTN_BYTECODE", "Show bytecode", CENTER, true);
     
@@ -482,12 +491,16 @@ public class CallGraph {
   private class Action_RunBytecode implements ActionListener{
     @Override
     public void actionPerformed(java.awt.event.ActionEvent evt) {
+      // show selected method in bytecode viewer
       MethodInfo selected = callGraph.getSelectedNode();
       String cls = selected.getFullName();
       int offset = cls.lastIndexOf(".");
       String meth = cls.substring(offset + 1);
       cls = cls.substring(0, offset);
       LauncherMain.runBytecodeViewer(cls, meth);
+      
+      // close this menu
+      methInfoPanel.close();
     }
   }
   

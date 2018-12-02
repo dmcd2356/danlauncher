@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import javax.swing.AbstractAction;
 import javax.swing.JLabel;
+import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.KeyStroke;
 import javax.swing.SwingConstants;
@@ -50,11 +51,13 @@ public class DatabaseTable {
   private static String   tabName;
   private static boolean  tabSelected;
   private static JTable   dbTable;
+  private static JScrollPane scrollPanel;
+  private static GuiControls gui;
   private static Timer    databaseTimer;
-  private static ArrayList<DatabaseInfo> dbList = new ArrayList<>();
   private static boolean  bSortOrder;
   private static int      colSortSelection;
   private static int      rowSelection;
+  private static ArrayList<DatabaseInfo> dbList = new ArrayList<>();
 
   private static MongoClient                 mongoClient;
   private static MongoDatabase               database;
@@ -97,7 +100,9 @@ public class DatabaseTable {
   
   public DatabaseTable (String name) {
     tabName = name;
-    dbTable = new JTable();
+    gui = new GuiControls();
+    scrollPanel = gui.makeRawScrollTable(name);
+    dbTable = gui.getTable(name);
     
     // init the access to mongo
     mongoClient = MongoClients.create();
@@ -170,6 +175,10 @@ public class DatabaseTable {
     
   public JTable getPanel() {
     return dbTable;
+  }
+  
+  public JScrollPane getScrollPanel() {
+    return scrollPanel;
   }
   
   public void setTabSelection(String selected) {
