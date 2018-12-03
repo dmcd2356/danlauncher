@@ -2355,7 +2355,7 @@ public final class LauncherMain {
       } else if (!threadInfo.signal.isEmpty()) {
         printStatusMessage(threadInfo.jobname + " command terminated with " + threadInfo.signal);
       } else {
-        printStatusMessage("Failure executing command: " + threadInfo.jobname);
+        printStatusError("Failure executing command: " + threadInfo.jobname);
       }
       
       // disable stop key abd re-enable the Run and Get Bytecode buttons

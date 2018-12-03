@@ -418,11 +418,16 @@ public class CallGraph {
       if (selected.getParents(tid).size() == 1) {
         message += Utils.NEWLINE + "Caller: " + selected.getParents(tid).get(0) + Utils.NEWLINE;
       } else {
+        String selfname = selected.getFullName();
         message += Utils.NEWLINE + "Calling Methods: " + Utils.NEWLINE;
         for(String name : selected.getParents(tid)) {
-          if (name != null && !name.isEmpty() && !name.equals("null")) {
-            message += "   " + name + Utils.NEWLINE;
+          if (name == null || name.isEmpty() || name.equals("null")) {
+            continue;
           }
+          if (name.equals(selfname)) {
+            name = "<call to self>";
+          }
+          message += "    " + name + Utils.NEWLINE;
         }
       }
     }
