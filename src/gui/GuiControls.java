@@ -652,64 +652,6 @@ public class GuiControls {
   }
 
   /**
-   * This sets up the gridbag constraints for an element on a line and places a label to the left
-   * 
-   * @param panel     - the panel to place the element in (null if place in frame)
-   * @param gridbag   - the gridbag layout
-   * @param pos       - the orientation on the line
-   * @param end       - true if this is the last (or only) entry on the line
-   * @param fullline  - true if take up entire line with item
-   * @param title     - name of label to add
-   * @return the constraints
-   */
-  private GridBagConstraints setGbagInsertLabel(JPanel panel, GridBagLayout gridbag,
-                             Orient pos, boolean end, boolean fullline, String name, String title) {
-    GridBagConstraints c = new GridBagConstraints();
-    c.insets = new Insets(GAPSIZE, GAPSIZE, GAPSIZE, GAPSIZE);
-    
-    switch(pos) {
-      case LEFT:
-        c.anchor = GridBagConstraints.BASELINE_LEADING;
-        break;
-      case RIGHT:
-        c.anchor = GridBagConstraints.BASELINE_TRAILING;
-        break;
-      case CENTER:
-        c.anchor = GridBagConstraints.CENTER;
-        break;
-      case NONE:
-        break;
-    }
-    c.fill = GridBagConstraints.NONE;
-
-    // create a label, set its constraints and add it to the container
-    JLabel label = new JLabel(title);
-    gridbag.setConstraints(label, c);
-    if (panel != null) {
-      panel.add(label);
-    } else {
-      mainFrame.add(label);
-    }
-
-    // if a component name was defined, save the label with this name so we can access it
-    if (name != null && !name.isEmpty()) {
-      saveComponent(name, label);
-    }
-    
-    // now modify the constraint layout for the component it will be attached to
-    if (fullline) {
-      c.weightx = 1.0;
-      c.fill = GridBagConstraints.HORIZONTAL;
-    } else {
-      c.weightx = 50.0;
-    }
-    if (end) {
-      c.gridwidth = GridBagConstraints.REMAINDER; //end row
-    }
-    return c;
-  }
-
-  /**
    * This is used for placing a plane in a container (either JFrame or another panel)
    * 
    * @param panelname - name of the container the panel is being placed in (null for the JFrame)
@@ -893,7 +835,7 @@ public class GuiControls {
    * @param end     - true if this is last widget in the line
    * @return 
    */
-  public JLabel makeLabel(String panelname, String name, String title, Orient pos, boolean end) {
+  public JLabel makeLabel(String panelname, String name, Orient pos, boolean end, String title) {
     if (mainFrame == null || mainLayout == null) {
       return null;
     }
@@ -944,9 +886,9 @@ public class GuiControls {
    * @param color   - text color
    * @return 
    */
-  public JLabel makeLabel(String panelname, String name, String title, Orient pos, boolean end, 
+  public JLabel makeLabel(String panelname, String name, Orient pos, boolean end, String title, 
                           Font font, FontInfo.TextColor color) {
-    JLabel label = makeLabel(panelname, name, title, pos, end);
+    JLabel label = makeLabel(panelname, name, pos, end, title);
     label.setForeground(FontInfo.getFontColor(color));
     if (font != null) {
       label.setFont(font);
@@ -962,7 +904,7 @@ public class GuiControls {
    * @param end     - true if this is last widget in the line
    */
   public void makePlaceholder(String panelname, Orient pos, boolean end) {
-    makeLabel(panelname, "", "    ", pos, end);
+    makeLabel(panelname, "", pos, end, "    ");
   }
   
   /**
@@ -975,7 +917,7 @@ public class GuiControls {
    * @param end     - true if this is last widget in the line
    * @return the button widget
    */
-  public JButton makeButton(String panelname, String name, String title, Orient pos, boolean end) {
+  public JButton makeButton(String panelname, String name, Orient pos, boolean end, String title) {
     if (mainFrame == null || mainLayout == null) {
       return null;
     }
@@ -1022,8 +964,8 @@ public class GuiControls {
    * @param value   - 0 to have checkbox initially unselected, any other value for selected
    * @return the checkbox widget
    */
-  public JCheckBox makeCheckbox(String panelname, String name, String title, Orient pos,
-              boolean end, int value) {
+  public JCheckBox makeCheckbox(String panelname, String name, Orient pos, boolean end, String title,
+         int value) {
     if (mainFrame == null || mainLayout == null) {
       return null;
     }
@@ -1071,8 +1013,8 @@ public class GuiControls {
    * @param value   - 0 to have checkbox initially unselected, any other value for selected
    * @return the checkbox widget
    */
-  public JRadioButton makeRadiobutton(String panelname, String name, String title, Orient pos,
-              boolean end, int value) {
+  public JRadioButton makeRadiobutton(String panelname, String name, Orient pos, boolean end,
+        String title, int value) {
     if (mainFrame == null || mainLayout == null) {
       return null;
     }
@@ -1115,7 +1057,6 @@ public class GuiControls {
    * 
    * @param panelname - the name of the jPanel container to place the component in (null if use main frame)
    * @param name    - the name id of the component
-   * @param title   - the name to display as a label preceeding the widget
    * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
    * @param end     - true if this is last widget in the line
    * @param value   - 0 to have checkbox initially unselected, any other value for selected
@@ -1123,8 +1064,8 @@ public class GuiControls {
    * @param writable - true if field is writable by user, false if display only
    * @return the checkbox widget
    */
-  public JTextField makeTextField(String panelname, String name, String title, Orient pos,
-                boolean end, String value, int length, boolean writable) {
+  public JTextField makeTextField(String panelname, String name, Orient pos, boolean end,
+                String value, int length, boolean writable) {
     
     if (mainFrame == null || mainLayout == null) {
       return null;
@@ -1158,15 +1099,8 @@ public class GuiControls {
       return null;
     }
 
-    // if specified, insert a label before the component
-    GridBagConstraints c;
-    if (title.isEmpty()) {
-      c = setGbagConstraints(pos, end, Expand.NONE);
-    } else {
-      c = setGbagInsertLabel(panel, gridbag, pos, end, true, name, title);
-    }
-    
     // set the layout of the component in the container
+    GridBagConstraints c = setGbagConstraints(pos, end, Expand.NONE);
     gridbag.setConstraints(widget, c);
 
     // add entry to components list
@@ -1179,12 +1113,11 @@ public class GuiControls {
    * 
    * @param panelname - the name of the jPanel container to place the component in (null if use main frame)
    * @param name    - the name id of the component
-   * @param title   - the name to display as a label preceeding the widget
    * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
    * @param end     - true if this is last widget in the line
    * @return the combo widget
    */
-  public JComboBox makeCombobox(String panelname, String name, String title, Orient pos, boolean end) {
+  public JComboBox makeCombobox(String panelname, String name, Orient pos, boolean end) {
     if (mainFrame == null || mainLayout == null) {
       return null;
     }
@@ -1212,15 +1145,8 @@ public class GuiControls {
       return null;
     }
 
-    // if specified, insert a label before the component
-    GridBagConstraints c;
-    if (title.isEmpty()) {
-      c = setGbagConstraints(pos, end, Expand.NONE);
-    } else {
-      c = setGbagInsertLabel(panel, gridbag, pos, end, true, name, title);
-    }
-    
     // set the layout of the component in the container
+    GridBagConstraints c = setGbagConstraints(pos, end, Expand.NONE);
     gridbag.setConstraints(widget, c);
     
     // add entry to components list
@@ -1234,7 +1160,6 @@ public class GuiControls {
    * 
    * @param panelname - the name of the jPanel container to place the component in (null if use main frame)
    * @param name    - the name id of the component
-   * @param title   - the name to display as a label preceeding the widget
    * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
    * @param end     - true if this is last widget in the line
    * @param minval  - the min range limit for the spinner
@@ -1243,7 +1168,7 @@ public class GuiControls {
    * @param curval  - the current value for the spinner
    * @return the spinner widget
    */
-  public JSpinner makeSpinner(String panelname, String name, String title, Orient pos, boolean end,
+  public JSpinner makeSpinner(String panelname, String name, Orient pos, boolean end,
           int minval, int maxval, int step, int curval) {
     if (mainFrame == null || mainLayout == null) {
       return null;
@@ -1273,15 +1198,8 @@ public class GuiControls {
       return null;
     }
 
-    // if specified, insert a label before the component
-    GridBagConstraints c;
-    if (title.isEmpty()) {
-      c = setGbagConstraints(pos, end, Expand.NONE);
-    } else {
-      c = setGbagInsertLabel(panel, gridbag, pos, end, true, name, title);
-    }
-    
     // set the layout of the component in the container
+    GridBagConstraints c = setGbagConstraints(pos, end, Expand.NONE);
     gridbag.setConstraints(widget, c);
     
     // add entry to components list
@@ -1408,7 +1326,7 @@ public class GuiControls {
     return panel;
   }
 
-  public JTabbedPane makeRawTabbedPanel(String name, String title) {
+  public JTabbedPane makeRawTabbedPanel(String name) {
     if (gPanel.containsKey(name)) {
       System.err.println("ERROR: '" + name + "' panel already added to container!");
       System.exit(1);
@@ -1416,9 +1334,6 @@ public class GuiControls {
 
     // create the panel and apply constraints
     JTabbedPane panel = new JTabbedPane();
-    if (title != null) {
-      panel.setBorder(BorderFactory.createTitledBorder(title));
-    }
 
     // add new panel info to list
     savePanel(name, panel);
@@ -1548,7 +1463,7 @@ public class GuiControls {
    * @param fillStyle - NONE, HORIZONTAL, VERTICAL, BOTH
    * @return the panel
    */
-  public JPanel makePanel(String panelname, String name, String title, Orient pos, boolean end, Expand fillStyle) {
+  public JPanel makePanel(String panelname, String name, Orient pos, boolean end, String title, Expand fillStyle) {
     // create the panel
     JPanel panel = makeRawPanel(name, title);
 
@@ -1570,7 +1485,7 @@ public class GuiControls {
    * @param end     - true if this is last widget in the line
    * @return the panel
    */
-  public JPanel makePanel(String panelname, String name, String title, Orient pos, boolean end) {
+  public JPanel makePanel(String panelname, String name, Orient pos, boolean end, String title) {
     // create the panel
     JPanel panel = makeRawPanel(name, title);
 
@@ -1594,7 +1509,7 @@ public class GuiControls {
    * @param height  - desired height of panel
    * @return the panel
    */
-  public JPanel makePanel(String panelname, String name, String title, Orient pos, boolean end,
+  public JPanel makePanel(String panelname, String name, Orient pos, boolean end, String title,
                           int width, int height) {
     // create the panel
     JPanel panel = makeRawPanel(name, title);
@@ -1655,12 +1570,11 @@ public class GuiControls {
    * 
    * @param panelname - the name of the container to place the component in (null if use main frame)
    * @param name    - the name id of the component
-   * @param title   - the name to display as a label preceeding the widget (null if no border)
    * @return the panel
    */
-  public JTabbedPane makeTabbedPanel(String panelname, String name, String title) {
+  public JTabbedPane makeTabbedPanel(String panelname, String name) {
     // create the panel
-    JTabbedPane panel = makeRawTabbedPanel(name, title);
+    JTabbedPane panel = makeRawTabbedPanel(name);
 
     // setup layout for panel in the container
     setGridBagLayout(panelname, panel, Orient.NONE, true, Expand.BOTH);

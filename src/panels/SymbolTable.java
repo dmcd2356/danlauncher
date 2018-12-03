@@ -497,47 +497,49 @@ public class SymbolTable {
     GuiControls.Orient LEFT = GuiControls.Orient.LEFT;
    
     String panel = null;
-    optionsPanel.makePanel (panel, "PNL_INFO"       , "", LEFT, true);
-    optionsPanel.makePanel (panel, "PNL_EDIT_SYMB"  , "Edit Symbolic"   , LEFT, true);
-    optionsPanel.makePanel (panel, "PNL_REMOVE_SYMB", "Remove Symbolic" , LEFT, true);
-    optionsPanel.makePanel (panel, "PNL_CONSTRAINTS", "Setup Constraint", LEFT, true);
+    optionsPanel.makePanel (panel, "PNL_INFO"       , LEFT, true, "");
+    optionsPanel.makePanel (panel, "PNL_EDIT_SYMB"  , LEFT, true, "Edit Symbolic");
+    optionsPanel.makePanel (panel, "PNL_REMOVE_SYMB", LEFT, true, "Remove Symbolic");
+    optionsPanel.makePanel (panel, "PNL_CONSTRAINTS", LEFT, true, "Setup Constraint");
 
     panel = "PNL_INFO";
-    optionsPanel.makeLabel (panel, "", "Class:"  , LEFT, false);
-    optionsPanel.makeLabel (panel, "", clz       , LEFT, true, labelFont, FontInfo.TextColor.Blue);
-    optionsPanel.makeLabel (panel, "", "Method:" , LEFT, false);
-    optionsPanel.makeLabel (panel, "", method    , LEFT, true, labelFont, FontInfo.TextColor.Blue);
-    optionsPanel.makeLabel (panel, "", "Slot:"   , LEFT, false);
-    optionsPanel.makeLabel (panel, "", pinfo.slot, LEFT, true, labelFont, FontInfo.TextColor.Blue);
+    optionsPanel.makeLabel (panel, "", LEFT, false, "Class:");
+    optionsPanel.makeLabel (panel, "", LEFT, true , clz       , labelFont, FontInfo.TextColor.Blue);
+    optionsPanel.makeLabel (panel, "", LEFT, false, "Method:");
+    optionsPanel.makeLabel (panel, "", LEFT, true , method    , labelFont, FontInfo.TextColor.Blue);
+    optionsPanel.makeLabel (panel, "", LEFT, false, "Slot:");
+    optionsPanel.makeLabel (panel, "", LEFT, true , pinfo.slot, labelFont, FontInfo.TextColor.Blue);
 
     panel = "PNL_EDIT_SYMB";
-    optionsPanel.makeButton   (panel, "BTN_EDIT_NAME" , "Name"      , LEFT, false);
-    optionsPanel.makeTextField(panel, "TXT_EDIT_NAME" , ""          , LEFT, true, pinfo.name , 20, false);
-    optionsPanel.makeButton   (panel, "BTN_EDIT_TYPE" , "Type"      , LEFT, false);
-    optionsPanel.makeTextField(panel, "TXT_EDIT_TYPE" , ""          , LEFT, true, pinfo.type , 20, false);
-    optionsPanel.makeButton   (panel, "BTN_EDIT_START", "Start"     , LEFT, false);
-    optionsPanel.makeTextField(panel, "TXT_EDIT_START", ""          , LEFT, false, pinfo.opStart, 5 , false);
-    optionsPanel.makeLabel    (panel, "LBL_EDIT_NOTE" , "(line number, not byte offset)", LEFT, true,
+    optionsPanel.makeButton   (panel, "BTN_EDIT_NAME" , LEFT, false, "Name");
+    optionsPanel.makeTextField(panel, "TXT_EDIT_NAME" , LEFT, true , pinfo.name , 20, false);
+    optionsPanel.makeButton   (panel, "BTN_EDIT_TYPE" , LEFT, false, "Type");
+    optionsPanel.makeTextField(panel, "TXT_EDIT_TYPE" , LEFT, true , pinfo.type , 20, false);
+    optionsPanel.makeButton   (panel, "BTN_EDIT_START", LEFT, false, "Start");
+    optionsPanel.makeTextField(panel, "TXT_EDIT_START", LEFT, false, pinfo.opStart, 5 , false);
+    optionsPanel.makeLabel    (panel, "LBL_EDIT_NOTE" , LEFT, true , "(line number, not byte offset)",
                               labelFont, FontInfo.TextColor.Blue);
-    optionsPanel.makeButton   (panel, "BTN_EDIT_END"  , "End"       , LEFT, false);
-    optionsPanel.makeTextField(panel, "TXT_EDIT_END"  , ""          , LEFT, true, pinfo.opEnd  , 5 , false);
+    optionsPanel.makeButton   (panel, "BTN_EDIT_END"  , LEFT, false, "End");
+    optionsPanel.makeTextField(panel, "TXT_EDIT_END"  , LEFT, true , pinfo.opEnd  , 5 , false);
 
     panel = "PNL_REMOVE_SYMB";
-    optionsPanel.makeButton(panel, "BTN_REMOVE_ONE" , "Remove"       , LEFT, false);
-    optionsPanel.makeLabel (panel, ""             , "Removes this symbolic", LEFT, true, labelFont, FontInfo.TextColor.Black);
-    optionsPanel.makeButton(panel, "BTN_REMOVE_ALL" , "Remove all"   , LEFT, false);
-    optionsPanel.makeLabel (panel, ""             , "Removes all symbolics", LEFT, true, labelFont, FontInfo.TextColor.Black);
+    optionsPanel.makeButton(panel, "BTN_REMOVE_ONE"   , LEFT, false, "Remove");
+    optionsPanel.makeLabel (panel, ""                 , LEFT, true , "Removes this symbolic",
+                            labelFont, FontInfo.TextColor.Black);
+    optionsPanel.makeButton(panel, "BTN_REMOVE_ALL"   , LEFT, false, "Remove all");
+    optionsPanel.makeLabel (panel, ""                 , LEFT, true , "Removes all symbolics",
+                            labelFont, FontInfo.TextColor.Black);
 
     panel = "PNL_CONSTRAINTS";
-    optionsPanel.makeLabel (panel, "LBL_CON_NONE" , ""           , LEFT, true, labelFont, FontInfo.TextColor.Red);
-    optionsPanel.makeButton(panel, "BTN_CON_SHOW" , "Show"       , LEFT, false);
-    optionsPanel.makeLabel (panel, "LBL_CON_SHOW" , "Show added constraints for selection", LEFT, true,
+    optionsPanel.makeLabel (panel, "LBL_CON_NONE" , LEFT, true , "", labelFont, FontInfo.TextColor.Red);
+    optionsPanel.makeButton(panel, "BTN_CON_SHOW" , LEFT, false, "Show");
+    optionsPanel.makeLabel (panel, "LBL_CON_SHOW" , LEFT, true , "Show added constraints for selection",
                             labelFont, FontInfo.TextColor.Black);
-    optionsPanel.makeButton(panel, "BTN_CON_REM"  , "Remove"     , LEFT, false);
-    optionsPanel.makeLabel (panel, "LBL_CON_REM"  , "Remove all constraints for this selection", LEFT, true,
+    optionsPanel.makeButton(panel, "BTN_CON_REM"  , LEFT, false, "Remove");
+    optionsPanel.makeLabel (panel, "LBL_CON_REM"  , LEFT, true , "Remove all constraints for this selection",
                             labelFont, FontInfo.TextColor.Black);
-    optionsPanel.makeButton(panel, "BTN_CON_ADD"  , "Add"       , LEFT, false);
-    optionsPanel.makeLabel (panel, "LBL_CON_ADD"  , "Add constraint to selection", LEFT, true,
+    optionsPanel.makeButton(panel, "BTN_CON_ADD"  , LEFT, false, "Add");
+    optionsPanel.makeLabel (panel, "LBL_CON_ADD"  , LEFT, true , "Add constraint to selection",
                             labelFont, FontInfo.TextColor.Black);
 
     // set these buttons to the same width

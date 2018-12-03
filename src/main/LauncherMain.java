@@ -464,39 +464,42 @@ public final class LauncherMain {
     frame.addWindowListener(new Window_MainListener());
 
     String panel = null; // this creates the entries in the main frame
-    mainFrame.makePanel      (panel, "PNL_MESSAGES" , "Status"    , LEFT, true);
-    mainFrame.makePanel      (panel, "PNL_CONTAINER", ""          , LEFT, true, GuiControls.Expand.HORIZONTAL);
-    mainFrame.makeTabbedPanel(panel, "PNL_TABBED"   , "");
+    mainFrame.makePanel      (panel, "PNL_MESSAGES" , LEFT, true, "Status");
+    mainFrame.makePanel      (panel, "PNL_CONTAINER", LEFT, true, "", GuiControls.Expand.HORIZONTAL);
+    mainFrame.makeTabbedPanel(panel, "PNL_TABBED");
 
     panel = "PNL_MESSAGES";
-    mainFrame.makeTextField  (panel, "TXT_MESSAGES" , ""          , LEFT, true, "", 138, false);
+    mainFrame.makeTextField  (panel, "TXT_MESSAGES" , LEFT, true, "", 138, false);
 
     panel = "PNL_CONTAINER";
     mainFrame.makeSplitPanel (panel, "SPLIT_IFC"    , NONE, true, GuiControls.Expand.HORIZONTAL, true, 0.5);
-    mainFrame.makePanel      (panel, "PNL_BYTECODE" , "Bytecode"  , NONE, true);
+    mainFrame.makePanel      (panel, "PNL_BYTECODE" , NONE, true , "Bytecode");
 
     panel = "SPLIT_IFC";
-    mainFrame.makePanel      (panel, "PNL_CONTROLS" , "Controls"  , NONE, true);
-    mainFrame.makePanel      (panel, "PNL_SYMBOLICS", "Symbolic Parameters", NONE, true);
+    mainFrame.makePanel      (panel, "PNL_CONTROLS" , NONE, true , "Controls");
+    mainFrame.makePanel      (panel, "PNL_SYMBOLICS", NONE, true, "Symbolic Parameters");
     
     panel = "PNL_SYMBOLICS";
     mainFrame.makeScrollTable(panel, "TBL_SYMBOLICS");
 
     panel = "PNL_CONTROLS";
-    mainFrame.makeCombobox  (panel, "COMBO_MAINCLS", "Main Class"  , LEFT, true);
-    mainFrame.makeButton    (panel, "BTN_RUNTEST"  , "RUN"         , LEFT, false);
-    mainFrame.makeButton    (panel, "BTN_STOPTEST" , "STOP"        , LEFT, false);
-    mainFrame.makeTextField (panel, "TXT_ARGLIST"  , ""            , LEFT, true, "", 30, true);
-    mainFrame.makeButton    (panel, "BTN_SEND"     , "Post"        , LEFT, false);
-    mainFrame.makeTextField (panel, "TXT_PORT"     , ""            , LEFT, false, "8080", 8, true);
-    mainFrame.makeTextField (panel, "TXT_INPUT"    , ""            , LEFT, true, "", 30, true);
-    mainFrame.makeButton    (panel, "BTN_SOLVER"   , "Solve"       , LEFT, false);
+    mainFrame.makeLabel     (panel, "LBL_MAINCLS"  , LEFT, false, "Main Class");
+    mainFrame.makeCombobox  (panel, "COMBO_MAINCLS", LEFT, true);
+    mainFrame.makeButton    (panel, "BTN_RUNTEST"  , LEFT, false, "RUN");
+    mainFrame.makeButton    (panel, "BTN_STOPTEST" , LEFT, false, "STOP");
+    mainFrame.makeTextField (panel, "TXT_ARGLIST"  , LEFT, true, "", 30, true);
+    mainFrame.makeButton    (panel, "BTN_SEND"     , LEFT, false, "Post");
+    mainFrame.makeTextField (panel, "TXT_PORT"     , LEFT, false, "8080", 6, true);
+    mainFrame.makeTextField (panel, "TXT_INPUT"    , LEFT, true, "", 30, true);
+    mainFrame.makeButton    (panel, "BTN_SOLVER"   , LEFT, false, "Solve");
 
     panel = "PNL_BYTECODE";
-    mainFrame.makeCombobox  (panel, "COMBO_CLASS"  , "Class"       , LEFT, true);
-    mainFrame.makeCombobox  (panel, "COMBO_METHOD" , "Method"      , LEFT, true);
-    mainFrame.makeButton    (panel, "BTN_BYTECODE" , "Get Bytecode", LEFT, false);
-    mainFrame.makeButton    (panel, "BTN_BACK"     , "Back"        , LEFT, true);
+    mainFrame.makeLabel     (panel, "LBL_CLASS"    , LEFT, false, "Class");
+    mainFrame.makeCombobox  (panel, "COMBO_CLASS"  , LEFT, true);
+    mainFrame.makeLabel     (panel, "LBL_METHOD"   , LEFT, false, "Method");
+    mainFrame.makeCombobox  (panel, "COMBO_METHOD" , LEFT, true);
+    mainFrame.makeButton    (panel, "BTN_BYTECODE" , LEFT, false, "Get Bytecode");
+    mainFrame.makeButton    (panel, "BTN_BACK"     , LEFT, true , "Back");
 
     // set these buttons to the same width
     mainFrame.makeGroup("GRP_CTL_BUTTONS");
@@ -948,33 +951,33 @@ public final class LauncherMain {
     frame.addWindowListener(new Window_GraphSetupListener());
   
     String panel = null;
-    graphSetupFrame.makePanel (panel, "PNL_HIGHLIGHT", "Graph Highlight"   , LEFT, false);
-    graphSetupFrame.makePanel (panel, "PNL_ADJUST"   , ""                  , LEFT, true);
+    graphSetupFrame.makePanel  (panel, "PNL_HIGHLIGHT", LEFT, false, "Graph Highlight");
+    graphSetupFrame.makePanel  (panel, "PNL_ADJUST"   , LEFT, true , "");
 
     panel = "PNL_ADJUST";
-    graphSetupFrame.makeLabel (panel, "LBL_THREADS"  , "Threads: 0"        , CENTER, true);
+    graphSetupFrame.makeLabel  (panel, "LBL_THREADS"  , CENTER, true, "Threads: 0");
     graphSetupFrame.makeLineGap(panel);
-    graphSetupFrame.makePanel (panel, "PNL_THREAD"   , "Thread Select"     , LEFT, true);
+    graphSetupFrame.makePanel  (panel, "PNL_THREAD"   , LEFT, true , "Thread Select");
     graphSetupFrame.makeLineGap(panel);
-    graphSetupFrame.makePanel (panel, "PNL_RANGE"    , "Highlight Range"   , LEFT, true);
+    graphSetupFrame.makePanel  (panel, "PNL_RANGE"    , LEFT, true , "Highlight Range");
     
     panel = "PNL_HIGHLIGHT";
-    graphSetupFrame.makeRadiobutton(panel, "RB_THREAD"    , "Thread"          , LEFT, true, 0);
-    graphSetupFrame.makeRadiobutton(panel, "RB_ELAPSED"   , "Elapsed Time"    , LEFT, true, 0);
-    graphSetupFrame.makeRadiobutton(panel, "RB_INSTRUCT"  , "Instructions"    , LEFT, true, 0);
-    graphSetupFrame.makeRadiobutton(panel, "RB_ITER"      , "Iterations Used" , LEFT, true, 0);
-    graphSetupFrame.makeRadiobutton(panel, "RB_STATUS"    , "Status"          , LEFT, true, 0);
-    graphSetupFrame.makeRadiobutton(panel, "RB_NONE"      , "Off"             , LEFT, true, 1);
+    graphSetupFrame.makeRadiobutton(panel, "RB_THREAD"  , LEFT, true, "Thread"         , 0);
+    graphSetupFrame.makeRadiobutton(panel, "RB_ELAPSED" , LEFT, true, "Elapsed Time"   , 0);
+    graphSetupFrame.makeRadiobutton(panel, "RB_INSTRUCT", LEFT, true, "Instructions"   , 0);
+    graphSetupFrame.makeRadiobutton(panel, "RB_ITER"    , LEFT, true, "Iterations Used", 0);
+    graphSetupFrame.makeRadiobutton(panel, "RB_STATUS"  , LEFT, true, "Status"         , 0);
+    graphSetupFrame.makeRadiobutton(panel, "RB_NONE"    , LEFT, true, "Off"            , 1);
 
     panel = "PNL_THREAD";
-    graphSetupFrame.makeLabel      (panel, "TXT_TH_SEL" , "0"  , LEFT, false);
-    graphSetupFrame.makeButton     (panel, "BTN_TH_UP"  , "UP" , LEFT, false);
-    graphSetupFrame.makeButton     (panel, "BTN_TH_DN"  , "DN" , LEFT, true);
+    graphSetupFrame.makeLabel      (panel, "TXT_TH_SEL" , LEFT, false, "0");
+    graphSetupFrame.makeButton     (panel, "BTN_TH_UP"  , LEFT, false, "UP");
+    graphSetupFrame.makeButton     (panel, "BTN_TH_DN"  , LEFT, true , "DN");
     
     panel = "PNL_RANGE";
-    graphSetupFrame.makeLabel      (panel, "TXT_RANGE"  , "20" , LEFT, false);
-    graphSetupFrame.makeButton     (panel, "BTN_RG_UP"  , "UP" , LEFT, false);
-    graphSetupFrame.makeButton     (panel, "BTN_RG_DN"  , "DN" , LEFT, true);
+    graphSetupFrame.makeLabel      (panel, "TXT_RANGE"  , LEFT, false, "20");
+    graphSetupFrame.makeButton     (panel, "BTN_RG_UP"  , LEFT, false, "UP");
+    graphSetupFrame.makeButton     (panel, "BTN_RG_DN"  , LEFT, true , "DN");
 
     // init thread selection in highlighting to OFF
     graphSetupFrame.getRadiobutton("RB_THREAD").setEnabled(false);
@@ -1135,20 +1138,20 @@ public final class LauncherMain {
   
     // create the entries in the main frame
     String panel = null;
-    debugSetupFrame.makePanel (panel, "PNL_DBGFLAGS", "Debug Flags" , LEFT  , false);
+    debugSetupFrame.makePanel (panel, "PNL_DBGFLAGS", LEFT  , false, "Debug Flags");
     
     // now add controls to the sub-panels
     panel = "PNL_DBGFLAGS";
-    debugSetupFrame.makeCheckbox(panel, "DBG_WARNING" , "Warnings"      , LEFT, false , 0);
-    debugSetupFrame.makeCheckbox(panel, "DBG_CALL"    , "Call/Return"   , LEFT, true  , 0);
-    debugSetupFrame.makeCheckbox(panel, "DBG_INFO"    , "Info"          , LEFT, false , 0);
-    debugSetupFrame.makeCheckbox(panel, "DBG_THREAD"  , "Thread"        , LEFT, true  , 0);
-    debugSetupFrame.makeCheckbox(panel, "DBG_COMMAND" , "Commands"      , LEFT, false , 0);
-    debugSetupFrame.makeCheckbox(panel, "DBG_STACK"   , "Stack"         , LEFT, true  , 0);
-    debugSetupFrame.makeCheckbox(panel, "DBG_AGENT"   , "Agent"         , LEFT, false , 0);
-    debugSetupFrame.makeCheckbox(panel, "DBG_LOCALS"  , "Locals"        , LEFT, true  , 0);
-    debugSetupFrame.makeCheckbox(panel, "DBG_BRANCH"  , "Branch"        , LEFT, false , 0);
-    debugSetupFrame.makeCheckbox(panel, "DBG_SOLVER"  , "Solver"        , LEFT, true  , 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_WARNING" , LEFT, false, "Warnings"   , 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_CALL"    , LEFT, true , "Call/Return", 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_INFO"    , LEFT, false, "Info"       , 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_THREAD"  , LEFT, true , "Thread"     , 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_COMMAND" , LEFT, false, "Commands"   , 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_STACK"   , LEFT, true , "Stack"      , 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_AGENT"   , LEFT, false, "Agent"      , 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_LOCALS"  , LEFT, true , "Locals"     , 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_BRANCH"  , LEFT, false, "Branch"     , 0);
+    debugSetupFrame.makeCheckbox(panel, "DBG_SOLVER"  , LEFT, true , "Solver"     , 0);
   }
   
   private class Window_DebugSetupListener extends java.awt.event.WindowAdapter {
@@ -1202,15 +1205,17 @@ public final class LauncherMain {
     
     // create the entries in the main frame
     String panel = null;
-    systemSetupFrame.makePanel (panel, "PNL_MAIN", "" , LEFT  , true);
+    systemSetupFrame.makePanel (panel, "PNL_MAIN" , LEFT  , true, "");
 
     // now add controls to the sub-panels
     panel = "PNL_MAIN";
-    systemSetupFrame.makeButton   (panel, "BTN_JAVAHOME" , "JAVA_HOME" , LEFT, false);
-    systemSetupFrame.makeLabel    (panel, "LBL_JAVAHOME" , javaHome    , LEFT, true);
-    systemSetupFrame.makeTextField(panel, "TXT_MAXLEN"   , "Debug Max Len", LEFT, true, maxLogLength, 8, true);
-    systemSetupFrame.makeTextField(panel, "TXT_MYPORT"   , "Debug Port", LEFT, true, debugPort + "", 8, true);
-    systemSetupFrame.makeLabel    (panel, "LBL_PORT"     , "* Note that a port change will require a restart", LEFT, true);
+    systemSetupFrame.makeButton   (panel, "BTN_JAVAHOME" , LEFT, false, "JAVA_HOME");
+    systemSetupFrame.makeLabel    (panel, "LBL_JAVAHOME" , LEFT, true , javaHome);
+    systemSetupFrame.makeLabel    (panel, "TXT_MAXLEN"   , LEFT, false, "Debug Max Len");
+    systemSetupFrame.makeTextField(panel, "TXT_MAXLEN"   , LEFT, true , maxLogLength, 8, true);
+    systemSetupFrame.makeLabel    (panel, "TXT_MYPORT"   , LEFT, false, "Debug Port");
+    systemSetupFrame.makeTextField(panel, "TXT_MYPORT"   , LEFT, true , debugPort + "", 8, true);
+    systemSetupFrame.makeLabel    (panel, "LBL_PORT"     , LEFT, true , "* Note that a port change will require a restart");
 
     // setup actions for controls
     systemSetupFrame.getButton("BTN_JAVAHOME").addActionListener(new Action_SetJavaHome());
@@ -1370,9 +1375,9 @@ public final class LauncherMain {
   }
   
   private void enableControlSelections(boolean enable) {
-    mainFrame.getLabel("COMBO_MAINCLS").setEnabled(enable);
-    mainFrame.getLabel("COMBO_CLASS").setEnabled(enable);
-    mainFrame.getLabel("COMBO_METHOD").setEnabled(enable);
+    mainFrame.getLabel("LBL_MAINCLS").setEnabled(enable);
+    mainFrame.getLabel("LBL_CLASS").setEnabled(enable);
+    mainFrame.getLabel("LBL_METHOD").setEnabled(enable);
     mainFrame.getButton("BTN_BYTECODE").setEnabled(enable);
     mainFrame.getButton("BTN_RUNTEST").setEnabled(enable);
     mainFrame.getButton("BTN_SOLVER").setEnabled(enable);

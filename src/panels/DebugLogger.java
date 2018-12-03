@@ -209,10 +209,11 @@ public class DebugLogger {
       case "RETURN":
         callGraph.methodExit(msgInfo.tid, msgInfo.tstamp, content);
         break;
-      case "ENTRY":
-        if (content.startsWith("catchException")) {
+      case "WARN":
+        if (content.startsWith("Exception: ")) {
           if (mthNode != null) {
-            mthNode.setExecption(msgInfo.tid, msgInfo.linenum);
+            String exception = content.substring("Exception: ".length());
+            mthNode.setExecption(msgInfo.tid, msgInfo.linenum, exception);
           }
         }
         break;
@@ -220,7 +221,7 @@ public class DebugLogger {
         // increment the error count
         errorCount++;
         if (mthNode != null) {
-          mthNode.setError(msgInfo.tid, msgInfo.linenum);
+          mthNode.setError(msgInfo.tid, msgInfo.linenum, content);
         }
         break;
       default:

@@ -17,9 +17,9 @@ public class ThreadInfo {
   public int     callCount;      // number of times method called
   public int     instrCount;     // the number of instructions executed by the method
   public long    duration_ms;    // total duration in method
-  public int     lineExcept;     // line number of last exception that occurred in this method
-  public int     lineError;      // line number of last error that occurred in this method
-  public ArrayList<String> parents; // list of caller methods
+  public ArrayList<String> parents;    // list of caller methods
+  public ArrayList<String> exceptions; // list of exception occurrances
+  public ArrayList<String> errors;     // list of error occurrances
 
   // these are intermediate values
   public long    start_ref;      // timestamp when method last called
@@ -44,8 +44,8 @@ public class ThreadInfo {
     this.instrEntry = insCount;
     this.instrCount = -1;
     this.exit = false;
-    this.lineExcept = -1;
-    this.lineError = -1;
+    this.exceptions = new ArrayList<>();
+    this.errors = new ArrayList<>();
     this.tid = tid;
     //LauncherMain.printCommandMessage("start time: " + start_ref + " (init) - " + fullName);
   }
@@ -60,6 +60,22 @@ public class ThreadInfo {
     // if caller entry not already in list, add it
     if (parents.indexOf(parent) < 0) {
       parents.add(parent);
+    }
+  }
+  
+  public void addException(int line, String except) {
+    // if caller entry not already in list, add it
+    except = line + ", " + except;
+    if (exceptions.indexOf(except) < 0) {
+      exceptions.add(except);
+    }
+  }
+  
+  public void addError(int line, String error) {
+    // if caller entry not already in list, add it
+    error = line + ", " + error;
+    if (errors.indexOf(error) < 0) {
+      errors.add(error);
     }
   }
   

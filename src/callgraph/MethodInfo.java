@@ -105,20 +105,20 @@ public class MethodInfo {
     }
   }
   
-  public void setExecption(int tid, int line) {
+  public void setExecption(int tid, int line, String exception) {
     ThreadInfo tinfo = getThreadInfo(tid);
     if (tinfo != null) {
-      tinfo.lineExcept = line;
+      tinfo.addException(line, exception);
     }
-    total.lineExcept = line;
+    total.addException(line, exception);
   }
   
-  public void setError(int tid, int line) {
+  public void setError(int tid, int line, String error) {
     ThreadInfo tinfo = getThreadInfo(tid);
     if (tinfo != null) {
-      tinfo.lineError = line;
+      tinfo.addError(line, error);
     }
-    total.lineError = line;
+    total.addError(line, error);
   }
   
   public String getFullName() {
@@ -197,26 +197,26 @@ public class MethodInfo {
     return tinfo.callCount;
   }
   
-  public int getExecption(int tid) {
+  public ArrayList<String> getExecption(int tid) {
     if (tid < 0) {
-      return total.lineExcept;
+      return total.exceptions;
     }
     ThreadInfo tinfo = getThreadInfo(tid);
     if (tinfo == null) {
-      return -1;
+      return null;
     }
-    return tinfo.lineExcept;
+    return tinfo.exceptions;
   }
   
-  public int getError(int tid) {
+  public ArrayList<String> getError(int tid) {
     if (tid < 0) {
-      return total.lineError;
+      return total.errors;
     }
     ThreadInfo tinfo = getThreadInfo(tid);
     if (tinfo == null) {
-      return -1;
+      return null;
     }
-    return tinfo.lineError;
+    return tinfo.errors;
   }
   
   public int getFirstLine(int tid) {

@@ -5,11 +5,14 @@
  */
 package panels;
 
+import gui.GuiControls;
 import callgraph.BaseGraph;
+import main.LauncherMain;
+import util.Utils;
+
 import com.mxgraph.model.mxCell;
 import com.mxgraph.swing.handler.mxGraphHandler;
 import com.mxgraph.swing.mxGraphComponent;
-import gui.GuiControls;
 import java.awt.Graphics;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -20,8 +23,6 @@ import java.util.HashMap;
 import javax.imageio.ImageIO;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
-import main.LauncherMain;
-import util.Utils;
 
 /**
  *

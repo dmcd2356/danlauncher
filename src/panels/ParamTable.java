@@ -5,6 +5,8 @@
  */
 package panels;
 
+import main.LauncherMain;
+
 import java.awt.Component;
 import java.awt.Rectangle;
 import java.awt.event.ActionEvent;
@@ -25,7 +27,6 @@ import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
 import javax.swing.table.TableCellRenderer;
 import javax.swing.table.TableColumnModel;
-import main.LauncherMain;
 
 /**
  *

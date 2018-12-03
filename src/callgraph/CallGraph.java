@@ -192,10 +192,12 @@ public class CallGraph {
             if (mthNode.getInstructionCount(tid) < 0 || mthNode.getDuration(tid) < 0) {
               color = "CCFFFF"; // cyan
             }
-            if (mthNode.getExecption(tid) >= 0) {
+            ArrayList<String> list = mthNode.getExecption(tid);
+            if (list != null && !list.isEmpty()) {
               color = "FF6666"; // orange
             }
-            if (mthNode.getError(tid) >= 0) {
+            list = mthNode.getError(tid);
+            if (list != null && !list.isEmpty()) {
               color = "FFCCCC"; // pink
             }
             break;
@@ -407,11 +409,19 @@ public class CallGraph {
                "(no info)" : selected.getInstructionCount(tid)) + Utils.NEWLINE;
     message += Utils.NEWLINE;
     message += "1st called @ line: " + selected.getFirstLine(tid) + Utils.NEWLINE;
-    if (selected.getExecption(tid) > 1) {
-      message += "exception @ line: " + selected.getExecption(tid) + Utils.NEWLINE;
+    ArrayList<String> list = selected.getExecption(tid);
+    if (list != null && !list.isEmpty()) {
+      message += "Exceptions: " + Utils.NEWLINE;
+      for (String entry : list) {
+        message += "    line " + entry + Utils.NEWLINE;
+      }
     }
-    if (selected.getError(tid) > 1) {
-      message += "error @ line: " + selected.getError(tid) + Utils.NEWLINE;
+    list = selected.getError(tid);
+    if (list != null && !list.isEmpty()) {
+      message += "Errors: " + Utils.NEWLINE;
+      for (String entry : list) {
+        message += "    line " + entry + Utils.NEWLINE;
+      }
     }
       
     if (!selected.getParents(tid).isEmpty()) {
@@ -454,17 +464,17 @@ public class CallGraph {
     GuiControls.Orient CENTER = GuiControls.Orient.CENTER;
     
     String panel = null;
-    methInfoPanel.makePanel (panel, "PNL_INFO"  , "", LEFT, true, 600, 400);
+    methInfoPanel.makePanel (panel, "PNL_INFO", LEFT, true , "", 600, 400);
     
     panel = "PNL_INFO";
     // if we have more than 1 thread, add in the controls for selecting which to view
     if (threadCount > 1) {
       JCheckBox cboxAll = 
-          methInfoPanel.makeCheckbox(panel, "CBOX_ALLTHREADS", "All threads", LEFT, false, 1);
+          methInfoPanel.makeCheckbox(panel, "CBOX_ALLTHREADS", LEFT, false, "All threads", 1);
       JButton nextButton =
-          methInfoPanel.makeButton  (panel, "BTN_TH_NEXT" , "Next" , LEFT, false);
+          methInfoPanel.makeButton  (panel, "BTN_TH_NEXT", LEFT, false, "Next");
       JLabel threadVal =
-          methInfoPanel.makeLabel   (panel, "TXT_TH_SEL", "" + threadInit, LEFT, true);
+          methInfoPanel.makeLabel   (panel, "TXT_TH_SEL" , LEFT, true , "" + threadInit);
 
       cboxAll.addActionListener(new Action_AllThreadSelect());
       nextButton.addActionListener(new Action_ThreadNext());
@@ -475,7 +485,7 @@ public class CallGraph {
     JTextPane textPanel =
         methInfoPanel.makeScrollTextPane(panel, "TXT_METHINFO");
     JButton bcodeButton =
-        methInfoPanel.makeButton(panel, "BTN_BYTECODE", "Show bytecode", CENTER, true);
+        methInfoPanel.makeButton(panel, "BTN_BYTECODE", CENTER, true, "Show bytecode");
     
     bcodeButton.addActionListener(new Action_RunBytecode());
     

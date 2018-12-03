@@ -5,8 +5,14 @@
  */
 package panels;
 
+import logging.FontInfo;
+import logging.FontInfo.FontType;
+import logging.FontInfo.TextColor;
+import logging.Logger;
+import main.LauncherMain;
+import util.Utils;
+
 import java.awt.Color;
-import java.awt.Component;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.awt.event.MouseAdapter;
@@ -19,12 +25,6 @@ import javax.swing.JTextPane;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.DefaultHighlighter;
 import javax.swing.text.Highlighter;
-import logging.FontInfo;
-import logging.FontInfo.FontType;
-import logging.FontInfo.TextColor;
-import logging.Logger;
-import main.LauncherMain;
-import util.Utils;
 
 /**
  *
@@ -992,7 +992,7 @@ public final class BytecodeViewer {
             // not found - use default values (user can change them in SymbolTbl)
             entry = new ParamTable.LocalParamInfo();
             entry.name = "";
-            entry.type = dtype;
+            entry.type = dtype.equals("A") ? "Ljava/lang/Object;" : dtype;
             entry.start = 0;
             entry.end = 0;
             entry.slot = paramNum;
