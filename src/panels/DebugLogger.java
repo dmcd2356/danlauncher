@@ -12,12 +12,14 @@ import logging.Logger;
 import main.LauncherMain;
 import util.Utils;
 
-import java.awt.Component;
+import java.awt.event.AdjustmentEvent;
+import java.awt.event.AdjustmentListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.concurrent.LinkedBlockingQueue;
+import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
 import javax.swing.JTextPane;
 
@@ -31,7 +33,10 @@ public class DebugLogger {
   private enum MsgType { TSTAMP, NORMAL, INFO, WARN, ERROR, DUMP, START, ENTRY, AGENT, THREAD,
         CALL, RETURN, UNINST, STATS, STACK, STACKS, STACKI, LOCAL, LOCALS, SOLVE, BRANCH }
 
+  private enum ScrollPosition { START, END }
+  
   private static JTextPane       panel;
+  private static JScrollPane     scrollPanel;
   private static Logger          logger;
   private static String          tabName;
   private static int             curLine;
@@ -41,6 +46,7 @@ public class DebugLogger {
   private static int             errorCount;
   private static boolean         paused;
   private static boolean         tabSelected;
+  private static ScrollPosition  scrollPosition;
   private static final ArrayList<Integer> threadList = new ArrayList<>();
   private static HashMap<String, FontInfo> fontmap = new HashMap<>();
   private static LinkedBlockingQueue<String> pauseQueue;
@@ -54,6 +60,7 @@ public class DebugLogger {
     paused = false;
     tabSelected = false;
     tabName = name;
+    scrollPosition = ScrollPosition.START;
 
     pauseQueue = new LinkedBlockingQueue<>();
     
@@ -83,6 +90,11 @@ public class DebugLogger {
     // create the text panel and assign it to the logger
     logger = new Logger(name, Logger.PanelType.TEXTPANE, true, fontmap);
     panel = (JTextPane) logger.getTextPanel();
+    scrollPanel = logger.getScrollPanel();
+    if (scrollPanel != null) {
+      // add a listener to the scroll bar
+      scrollPanel.getVerticalScrollBar().addAdjustmentListener(new DebugScrollListener());
+    }
 
     // add key listener for the debug viewer
     panel.addKeyListener(new DebugKeyListener());
@@ -93,7 +105,7 @@ public class DebugLogger {
   }
   
   public JScrollPane getScrollPanel() {
-    return logger.getScrollPanel();
+    return scrollPanel;
   }
   
   public void setTabSelection(String selected) {
@@ -320,6 +332,42 @@ public class DebugLogger {
   }
   
   
+  private class DebugScrollListener implements AdjustmentListener {
+
+    @Override
+    public void adjustmentValueChanged(AdjustmentEvent evt) {
+      // ignore if this tab is not active
+      if (!tabSelected) {
+        return;
+      }
+      
+      if (evt.getValueIsAdjusting()) {
+        // user is dragging scroll bar make sure we pause
+        paused = true;
+        // we prpbably also need to determine if he scrolls to begining or end, but I'm guessing
+        // we will get another notification after he stops dragging the bar that can handle this.
+        return;
+      }
+      
+      JScrollBar scrollBar = scrollPanel.getVerticalScrollBar();
+      // check if end or start of buffer reached
+      if ((scrollBar.getValue() + scrollBar.getVisibleAmount() >= scrollBar.getMaximum()) &&
+                  scrollPosition != ScrollPosition.END) {
+        //System.out.println("* Reached end of buffer - unpause *");
+        scrollPosition = ScrollPosition.END;
+        paused = false;
+      } else if (scrollBar.getValue() == 0 && scrollPosition != ScrollPosition.START) {
+        scrollPosition = ScrollPosition.START;
+        //if (logger.isBufferTruncated()) {
+        //  System.out.println("* Reached start of data - nothing to do *");
+        //} else {
+        //  System.out.println("* Reached start of buffer - need to pull from file *");
+        //}
+      }
+    }
+    
+  }
+
   private class DebugKeyListener implements KeyListener {
 
     @Override

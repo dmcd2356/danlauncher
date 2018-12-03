@@ -42,6 +42,7 @@ public class Logger {
   private static String   pnlname;
   private PanelType       pnltype;
   private boolean         scroll;
+  private boolean         bufferTruncated;
   private JTextPane       textPane = null;
   private JTextArea       textArea = null;
   private JScrollPane     scrollPanel = null;
@@ -53,6 +54,7 @@ public class Logger {
     pnltype = type;
     scroll = scrollable;
     gui = new GuiControls();
+    bufferTruncated = false;
     
     switch (type) {
       case TEXTPANE:
@@ -116,6 +118,10 @@ public class Logger {
     }
 
     maxBufferSize = bufSize;
+  }
+  
+  public boolean isBufferTruncated() {
+    return bufferTruncated;
   }
   
   /**
@@ -239,6 +245,7 @@ public class Logger {
           textPane.getDocument().remove(0, start);
           len = textPane.getDocument().getLength();
           System.out.println("Reduced text from " + oldlen + " to " + len);
+          bufferTruncated = true;
         } catch (BadLocationException ex) {
           System.out.println(ex.getMessage());
         }
