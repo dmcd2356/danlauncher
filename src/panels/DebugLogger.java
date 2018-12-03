@@ -168,11 +168,13 @@ public class DebugLogger {
     if (paused) {
       addToQueue(message);
     } else if (msgInfo.valid) {
+      // valid messages
       printDebug(msgInfo.linenum, msgInfo.timestr, msgInfo.threadid, msgInfo.type, msgInfo.content);
       curLine++;
     } else {
-      printDebug(message);
-      curLine++;
+      // invalid messages
+      //printDebug(message);
+      //curLine++;
       return callGraph.getMethodCount();
     }
           
