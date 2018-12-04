@@ -473,20 +473,21 @@ public final class LauncherMain {
     frame.addWindowListener(new Window_MainListener());
 
     String panel = null; // this creates the entries in the main frame
-    mainFrame.makePanel      (panel, "PNL_MESSAGES" , LEFT, true, "Status");
-    mainFrame.makePanel      (panel, "PNL_CONTAINER", LEFT, true, "", GuiControls.Expand.HORIZONTAL);
+    mainFrame.makePanel      (panel, "PNL_MESSAGES" , LEFT, true , "Status");
+    mainFrame.makePanel      (panel, "PNL_CONTAINER", LEFT, true , "", GuiControls.Expand.HORIZONTAL);
+    mainFrame.makePanel      (panel, "PNL_BYTECODE" , LEFT, true , "Bytecode");
     mainFrame.makeTabbedPanel(panel, "PNL_TABBED");
 
     panel = "PNL_MESSAGES";
-    mainFrame.makeTextField  (panel, "TXT_MESSAGES" , LEFT, true, "", 138, false);
+    mainFrame.makeTextField  (panel, "TXT_MESSAGES" , LEFT, true , "", 138, false);
 
+    // the split panel is encapsulated in a JPanel to prevent limit the height
     panel = "PNL_CONTAINER";
     mainFrame.makeSplitPanel (panel, "SPLIT_IFC"    , NONE, true, GuiControls.Expand.HORIZONTAL, true, 0.5);
-    mainFrame.makePanel      (panel, "PNL_BYTECODE" , NONE, true , "Bytecode");
 
     panel = "SPLIT_IFC";
-    mainFrame.makePanel      (panel, "PNL_CONTROLS" , NONE, true , "Controls");
-    mainFrame.makePanel      (panel, "PNL_SYMBOLICS", NONE, true, "Symbolic Parameters");
+    mainFrame.makePanel      (panel, "PNL_CONTROLS" , LEFT, true , "Controls");
+    mainFrame.makePanel      (panel, "PNL_SYMBOLICS", LEFT, true , "Symbolic Parameters");
     
     panel = "PNL_SYMBOLICS";
     mainFrame.makeScrollTable(panel, "TBL_SYMBOLICS");
