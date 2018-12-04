@@ -306,6 +306,19 @@ public class CallGraph {
     return graphMethList.size();
   }
 
+  public MethodInfo getMethodInfo(String fullname) {
+    if (graphMethList == null || graphMethList.size() < 1) {
+      return null;
+    }
+    
+    for (MethodInfo entry : graphMethList) {
+      if (entry.getFullName().equals(fullname)) {
+        return entry;
+      }
+    }
+    return null;
+  }
+  
   public MethodInfo getLastMethod(int tid) {
     Stack<Integer> stack = getStack(tid);
     if (graphMethList == null || graphMethList.size() < 1 || stack == null || stack.empty()) {

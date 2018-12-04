@@ -213,7 +213,24 @@ public class DebugLogger {
         if (content.startsWith("Exception: ")) {
           if (mthNode != null) {
             String exception = content.substring("Exception: ".length());
-            mthNode.setExecption(msgInfo.tid, msgInfo.linenum, exception);
+            int start = exception.indexOf("(");
+            int end = exception.lastIndexOf(")"); // because the method will also contain a () pair
+            if (start >= 0 && end >= 0) {
+              String methname = exception.substring(start + 1, end);
+              exception = exception.substring(end + 1).trim();
+              try {
+                start = methname.indexOf(",");
+                int linenum = Integer.parseUnsignedInt(methname.substring(0, start));
+                methname = methname.substring(start + 1).trim();
+                // find mthNode for this method
+                mthNode = callGraph.getMethodInfo(methname);
+                if (mthNode != null) {
+                  mthNode.setExecption(msgInfo.tid, linenum, exception);
+                }
+              } catch (NumberFormatException ex) {
+                break;
+              }
+            }
           }
         }
         break;
