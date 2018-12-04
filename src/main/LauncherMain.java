@@ -99,7 +99,7 @@ public final class LauncherMain {
     JAVA_HOME,        // location of jvm path used for running instrumented jar
     PROJECT_PATH,     // last project path location (to start location to look for jar file to load)
     MAX_LOG_LENGTH,   // max log file length to maintain in debugLogger
-    DEBUG_PORT,       // the port to receive debug info from the application
+    DEBUG_PORT,       // the TCP port to receive debug info from the application
   }
   
   // Properties that are project-specific
@@ -126,8 +126,8 @@ public final class LauncherMain {
   private static DatabaseTable   dbtable;
   private static ParamTable      localVarTbl;
   private static SymbolTable     symbolTbl;
-  private static NetworkServer   udpThread = null;
-  private static NetworkListener networkListener = null;
+  private static NetworkServer   udpThread;
+  private static NetworkListener networkListener;
   private static Visitor         makeConnection;
   private static Logger          commandLogger;
   private static JFileChooser    fileSelector;
@@ -247,14 +247,7 @@ public final class LauncherMain {
     javaHome = systemProps.getPropertiesItem(SystemProperties.JAVA_HOME.toString(), JAVA_HOME);
     maxLogLength = systemProps.getPropertiesItem(SystemProperties.MAX_LOG_LENGTH.toString(), "500000");
     String projectPath = systemProps.getPropertiesItem(SystemProperties.PROJECT_PATH.toString(), HOMEPATH);
-    String myport = systemProps.getPropertiesItem(SystemProperties.DEBUG_PORT.toString(), "5000");
-    try {
-      debugPort = Integer.parseUnsignedInt(myport);
-    } catch (NumberFormatException ex) {
-      printCommandError("ERROR: invalid value for Systemproperties DEBUG_PORT: " + myport);
-      debugPort = 5000;
-      systemProps.setPropertiesItem(SystemProperties.DEBUG_PORT.toString(), debugPort + "");
-    }
+    debugPort = getIntegerProperties(systemProps, SystemProperties.DEBUG_PORT.toString(), 5000, 100, 65535);
     
     // we need a filechooser and initialize it to the project path
     fileSelector = new JFileChooser();
@@ -281,6 +274,21 @@ public final class LauncherMain {
     killTimer = new Timer(2000, new KillTimerListener());  // issues kill to instrumented code
 }
 
+  private static int getIntegerProperties(PropertiesFile props, String tag, int dflt, int min, int max) {
+    int retval;
+    String value = props.getPropertiesItem(tag, "" + dflt);
+    try {
+      retval = Integer.parseUnsignedInt(value);
+      if (retval >= min && retval <= max) {
+        return retval;
+      }
+    } catch (NumberFormatException ex) { }
+
+    printCommandError("ERROR: invalid value for SystemProperties " + tag + ": " + value);
+    props.setPropertiesItem(tag, "" + dflt);
+    return dflt;
+  }
+  
   public static boolean isInstrumentedMethod(String methName) {
     return fullMethList.contains(methName);
   }
@@ -1239,16 +1247,16 @@ public final class LauncherMain {
     panel = "PNL_MAIN";
     systemSetupFrame.makeButton   (panel, "BTN_JAVAHOME" , LEFT, false, "JAVA_HOME");
     systemSetupFrame.makeLabel    (panel, "LBL_JAVAHOME" , LEFT, true , javaHome);
-    systemSetupFrame.makeLabel    (panel, "TXT_MAXLEN"   , LEFT, false, "Debug Max Len");
+    systemSetupFrame.makeLabel    (panel, "LBL_MAXLEN"   , LEFT, false, "Debug Max Len");
     systemSetupFrame.makeTextField(panel, "TXT_MAXLEN"   , LEFT, true , maxLogLength, 8, true);
-    systemSetupFrame.makeLabel    (panel, "TXT_MYPORT"   , LEFT, false, "Debug Port");
+    systemSetupFrame.makeLabel    (panel, "LBL_MYPORT"   , LEFT, false, "Debug Port");
     systemSetupFrame.makeTextField(panel, "TXT_MYPORT"   , LEFT, true , debugPort + "", 8, true);
     systemSetupFrame.makeLabel    (panel, "LBL_PORT"     , LEFT, true , "* Note that a port change will require a restart");
 
     // setup actions for controls
     systemSetupFrame.getButton("BTN_JAVAHOME").addActionListener(new Action_SetJavaHome());
-    systemSetupFrame.getTextField("TXT_MYPORT").addActionListener(new Action_SetDebugPort());
     systemSetupFrame.getTextField("TXT_MAXLEN").addActionListener(new Action_SetDebugMaxLength());
+    systemSetupFrame.getTextField("TXT_MYPORT").addActionListener(new Action_SetDebugPort());
   }
 
   private class Window_SystemSetupListener extends java.awt.event.WindowAdapter {
@@ -1287,7 +1295,9 @@ public final class LauncherMain {
       try {
         int intval = Integer.parseUnsignedInt(value);
         if (intval >= 100 && intval <= 65535) {
-//          debugPort = intval;
+          // don't change the port selection yet, since we haven't sent this to the
+          // instrumented file yet. Just update the properties file info so we can use it
+          // the next time we run.
           systemProps.setPropertiesItem(SystemProperties.DEBUG_PORT.toString(), value);
           return;
         }
