@@ -49,7 +49,6 @@ import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
-import javax.swing.BorderFactory;
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JComboBox;
 import javax.swing.JFileChooser;
@@ -58,15 +57,14 @@ import javax.swing.JLabel;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
-import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
-import javax.swing.JTextPane;
 import javax.swing.Timer;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
@@ -113,7 +111,7 @@ public final class LauncherMain {
     DEBUG_FLAGS,      // the debug flags enabled
   }
   
-  private enum RunMode { IDLE, RUNNING, TERMINATING, KILLING }
+  private enum RunMode { IDLE, RUNNING, TERMINATING, KILLING, EXITING }
 
   // tab panel selections
   private enum PanelTabs { COMMAND, DATABASE, BYTECODE, BYTEFLOW, LOG, CALLGRAPH }
@@ -414,6 +412,17 @@ public final class LauncherMain {
       bytecodeViewer.highlightClear();
       printStatusMessage("Bytecode already loaded");
     } else {
+      // can't allow running javap while instrumented code is running - the stdout of the
+      // run command will merge with the javap output and corrupt the bytecode source file.
+      if (runMode == RunMode.RUNNING) {
+        JOptionPane.showConfirmDialog(null,
+                "Cannot run javap to generate bytecode data" + Utils.NEWLINE
+                    + "while running instrumented code.",
+                "Instrumented code running",
+                JOptionPane.DEFAULT_OPTION);
+        return;
+      }
+      
       String content;
       String fname = projectPathName + JAVAPFILE_STORAGE + "/" + classSelect + ".txt";
       File file = new File(fname);
@@ -647,13 +656,31 @@ public final class LauncherMain {
   private class Window_MainListener extends java.awt.event.WindowAdapter {
     @Override
     public void windowClosing(java.awt.event.WindowEvent evt) {
+      // close up services
       enableUpdateTimers(false);
       if (networkListener != null) {
         networkListener.exit();
       }
       dbtable.exit();
-      mainFrame.close();
-      System.exit(0);
+
+      // if instrumented code is running, abort it before closing
+      if (runMode == RunMode.RUNNING) {
+        ThreadLauncher.ThreadInfo threadInfo = threadLauncher.stopAll();
+        if (threadInfo != null && threadInfo.pid >= 0 && runMode == RunMode.RUNNING) {
+          printCommandMessage("Killing job " + threadInfo.jobid + ": pid " + threadInfo.pid);
+          String[] command = { "kill", "-9", threadInfo.pid.toString() }; // SIGKILL
+          CommandLauncher commandLauncher = new CommandLauncher(commandLogger);
+          commandLauncher.start(command, null);
+          runMode = RunMode.EXITING;
+
+          // check on progress and take further action if necessary
+          killTimer.start();
+        }
+      } else {
+        // else we can close the frame and exit
+        mainFrame.close();
+        System.exit(0);
+      }
     }
   }
 
@@ -2400,6 +2427,12 @@ public final class LauncherMain {
           // didn't work - let's give up
           runMode = RunMode.IDLE;
           killTimer.stop();
+          break;
+          
+        case EXITING:
+          // complete the exit process by closing the frame and exiting
+          mainFrame.close();
+          System.exit(0);
           break;
       }
     }
