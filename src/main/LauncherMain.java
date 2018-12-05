@@ -145,6 +145,7 @@ public final class LauncherMain {
   private static GraphHighlight  graphMode;
   private static String          projectPathName;
   private static String          projectName;
+  private static long            startTime;
   private static int             debugPort;
   private static int             tabIndex = 0;
   private static String          inputAttempt = "";
@@ -414,6 +415,8 @@ public final class LauncherMain {
   }
 
   public static int runBytecodeViewer(String classSelect, String methodSelect) {
+    printCommandMessage("Running Bytecode Viewer for class: " + classSelect + " method: " + methodSelect);
+    
     // check if bytecode for this method already displayed
     if (bytecodeViewer.isMethodDisplayed(classSelect, methodSelect)) {
       // just clear any highlighting
@@ -425,6 +428,7 @@ public final class LauncherMain {
       File file = new File(fname);
       if (file.isFile()) {
         // use the javap file already generated
+        printCommandMessage("Using existing javap file: " + fname);
         content = Utils.readTextFile(fname);
       } else {
         // else, we need to generate bytecode source from jar using javap...
@@ -440,6 +444,7 @@ public final class LauncherMain {
         }
       
         // need to run javap to generate the bytecode source
+        printCommandMessage("Running javap to generate file: " + fname);
         content = generateBytecode(classSelect, methodSelect);
         if (content == null) {
           return -1;
@@ -507,11 +512,14 @@ public final class LauncherMain {
     mainFrame.makeCombobox  (panel, "COMBO_MAINCLS", LEFT, true);
     mainFrame.makeButton    (panel, "BTN_RUNTEST"  , LEFT, false, "RUN");
     mainFrame.makeButton    (panel, "BTN_STOPTEST" , LEFT, false, "STOP");
-    mainFrame.makeTextField (panel, "TXT_ARGLIST"  , LEFT, true, "", 30, true);
+    mainFrame.makeTextField (panel, "TXT_ARGLIST"  , LEFT, true , "", 30, true);
     mainFrame.makeButton    (panel, "BTN_SEND"     , LEFT, false, "Post");
     mainFrame.makeTextField (panel, "TXT_PORT"     , LEFT, false, "8080", 6, true);
-    mainFrame.makeTextField (panel, "TXT_INPUT"    , LEFT, true, "", 30, true);
+    mainFrame.makeTextField (panel, "TXT_INPUT"    , LEFT, true , "", 30, true);
     mainFrame.makeButton    (panel, "BTN_SOLVER"   , LEFT, false, "Solve");
+    mainFrame.makeGap       (panel, 50);
+    mainFrame.makeTextField (panel, "TXT_ELAPSED"  , LEFT, false, "00:00", 6, false);
+    mainFrame.makeLabel     (panel, "LBL_ELAPSED"  , LEFT, true , "Running Time");
 
     panel = "PNL_BYTECODE";
     mainFrame.makeLabel     (panel, "LBL_CLASS"    , LEFT, false, "Class");
@@ -926,6 +934,8 @@ public final class LauncherMain {
   private class Action_RunSolver implements ActionListener {
     @Override
     public void actionPerformed(java.awt.event.ActionEvent evt) {
+      // NOTE: we are running the solver directly on this thread, which can hang up
+      // this program if the solver takes a long time to run.
       dansolver.Dansolver.main(null);
     }
   }
@@ -2095,6 +2105,8 @@ public final class LauncherMain {
     fullcmd = cmdlist.toArray(fullcmd);
 
     runMode = RunMode.RUNNING;
+    startTime = System.currentTimeMillis();
+    
     threadLauncher.init(new ThreadTermination());
     threadLauncher.launch(fullcmd, projectPathName, "run_" + projectName, null);
 
@@ -2483,6 +2495,16 @@ public final class LauncherMain {
   private class DebugInputListener implements ActionListener {
     @Override
     public void actionPerformed(ActionEvent e) {
+      // update elapsed time display
+      if (runMode == RunMode.RUNNING) {
+        long elapsed = (System.currentTimeMillis() - startTime) / 1000;
+        String secs = "" + (elapsed % 60);
+        String mins = "" + (elapsed / 60);
+        secs = (secs.length() > 1) ? secs : "0" + secs;
+        mins = (mins.length() > 1) ? mins : "0" + mins;
+        mainFrame.getTextField("TXT_ELAPSED").setText(mins + ":" + secs);
+      }
+      
       // read & process next message
       if (udpThread != null) {
         String message = udpThread.getNextMessage();
