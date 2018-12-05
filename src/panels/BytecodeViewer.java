@@ -247,6 +247,8 @@ public final class BytecodeViewer {
       if (!validLine) {
         if (entry.startsWith("Compiled from ")) {
           validLine = true;
+        } else if (entry.startsWith("class ") && entry.endsWith("{")) {
+          validLine = true;
         }
         continue;
       }

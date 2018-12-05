@@ -413,7 +413,7 @@ public final class LauncherMain {
     }
   }
 
-  public static void runBytecodeViewer(String classSelect, String methodSelect) {
+  public static int runBytecodeViewer(String classSelect, String methodSelect) {
     // check if bytecode for this method already displayed
     if (bytecodeViewer.isMethodDisplayed(classSelect, methodSelect)) {
       // just clear any highlighting
@@ -428,7 +428,7 @@ public final class LauncherMain {
                     + "while running instrumented code.",
                 "Instrumented code running",
                 JOptionPane.DEFAULT_OPTION);
-        return;
+        return -1;
       }
       
       String content;
@@ -441,7 +441,7 @@ public final class LauncherMain {
         // need to run javap to generate the bytecode source
         content = generateBytecode(classSelect, methodSelect);
         if (content == null) {
-          return;
+          return -1;
         }
       }
 
@@ -462,6 +462,7 @@ public final class LauncherMain {
 
     // make sure the sizing is correct on split screens
     mainFrame.setSplitDivider("SPLIT_MAIN", 0.6);
+    return 0;
   }
 
   public void createMainPanel() {
@@ -533,6 +534,10 @@ public final class LauncherMain {
     // disable the back button initially
     mainFrame.getButton("BTN_BACK").setVisible(false);
 
+    // initially disable the bytecode control selections
+    boolean bcPanelEnable = false;
+    mainFrame.getPanelInfo("PNL_BYTECODE").panel.setVisible(bcPanelEnable);
+        
     // setup the handlers for the controls
     mainFrame.getCombobox("COMBO_CLASS").addActionListener(new Action_BytecodeClassSelect());
     mainFrame.getCombobox("COMBO_METHOD").addActionListener(new Action_BytecodeMethodSelect());
@@ -565,7 +570,7 @@ public final class LauncherMain {
     menu.addSeparator();
     addMenuCheckbox (menu, "MENU_SHOW_UPPER" , "Show Upper Panel", true, 
                       new ItemListener_ShowUpperPanel());
-    addMenuCheckbox (menu, "MENU_SHOW_BCODE" , "Show Bytecode Panel", true, 
+    addMenuCheckbox (menu, "MENU_SHOW_BCODE" , "Show Bytecode Panel", bcPanelEnable, 
                       new ItemListener_ShowBytecodePanel());
 
     menu = menuConfig; // selections for the Config Menu
@@ -575,8 +580,8 @@ public final class LauncherMain {
 
     menu = menuClear; // selections for the Clear Menu
     addMenuItem     (menu, "MENU_CLR_DBASE"  , "Clear DATABASE", new Action_ClearDatabase());
+    addMenuItem     (menu, "MENU_CLR_UNSOLVE", "Clear DATABASE (Unsolvables only)", new Action_ClearDatabaseUnsolvables());
     addMenuItem     (menu, "MENU_CLR_LOG"    , "Clear LOG", new Action_ClearLog());
-//    addMenuItem     (menu, "MENU_CLR_SOL"    , "Clear SOLUTIONS", new Action_ClearSolutions());
 
     menu = menuSave; // selections for the Save Menu
     addMenuItem     (menu, "MENU_SAVE_DANFIG", "Update danfig file", new Action_UpdateDanfigFile());
@@ -629,17 +634,12 @@ public final class LauncherMain {
 
     // create a scrollable table and encapsulate it in a panel to add a title
     JTable localParams = mainFrame.makeRawTable("TBL_PARAMLIST");
-//    JScrollPane scrollPanel = new JScrollPane(localParams);
-//    JPanel wrapPane = new JPanel();
-//    wrapPane.add(scrollPanel);
-//    wrapPane.setBorder(BorderFactory.createTitledBorder("Local Parameters"));
 
     // create a split panel for the BYTECODE panel and the table of local parameters
     String splitName = "SPLIT_MAIN";
     JSplitPane splitMain = mainFrame.makeRawSplitPanel(splitName, true, 0.5);
     mainFrame.addSplitComponent(splitName, 0, "BYTECODE"     , noWrapBytecodePanel, true);
     mainFrame.addSplitComponent(splitName, 1, "TBL_PARAMLIST", localParams, true);
-//    mainFrame.addSplitComponent(splitName, 1, "TBL_PARAMLIST", wrapPane, false);
     
     // add the tabbed message panels and a listener to detect when a tab has been selected
     GuiControls.PanelInfo panelInfo = mainFrame.getPanelInfo("PNL_TABBED");
@@ -710,6 +710,7 @@ public final class LauncherMain {
         debugLogger.setTabSelection(currentTab);
         callGraph.setTabSelection(currentTab);
         dbtable.setTabSelection(currentTab);
+System.out.println("Tab selection: " + currentTab);
 
         // special actions
         if (currentTab.equals("CALLGRAPH")) {
@@ -750,6 +751,13 @@ public final class LauncherMain {
     @Override
     public void actionPerformed(java.awt.event.ActionEvent evt) {
       dbtable.clearDB();
+    }
+  }
+  
+  private class Action_ClearDatabaseUnsolvables implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      dbtable.clearDBUnsolvables();
     }
   }
   

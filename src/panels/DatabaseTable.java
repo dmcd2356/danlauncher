@@ -38,6 +38,7 @@ import javax.swing.table.TableCellRenderer;
 import javax.swing.table.TableColumnModel;
 import org.bson.Document;
 import org.bson.conversions.Bson;
+import org.bson.types.ObjectId;
 
 /**
  *
@@ -190,6 +191,19 @@ public class DatabaseTable {
     collection.deleteMany(new Document());
   }
   
+  public void clearDBUnsolvables() {
+    FindIterable<Document> iterdocs = collection.find() //(Bson) new BasicDBObject("solvable", true))
+        .sort((Bson) new BasicDBObject("_id", -1)); // sort in descending order (most recent first)
+    for (DatabaseInfo entry : new ArrayList<>(dbList)) {
+      if (entry.solvable.equals("false")) {
+        System.out.println("Deleting entry: " + entry.id);
+        ObjectId id = new ObjectId(entry.id);
+        collection.deleteOne(new BasicDBObject("_id", id));
+        dbList.remove(entry);
+      }
+    }
+  }
+  
   public void exit() {
     databaseTimer.stop();
   }
@@ -197,7 +211,7 @@ public class DatabaseTable {
   public static void readDatabase() {
     // read data base for solutions to specified parameter that are solvable
     FindIterable<Document> iterdocs = collection.find() //(Bson) new BasicDBObject("solvable", true))
-        .sort((Bson) new BasicDBObject("_id", -1)); // sort in descending order (most recent first)
+        .sort((Bson) new BasicDBObject("_id", -1)); // sort in descending order (oldest first)
 
     dbList.clear();
     for (Document doc : iterdocs) {
@@ -365,9 +379,11 @@ public class DatabaseTable {
         int offset = meth.lastIndexOf("/");
         String cls = meth.substring(0, offset);
         meth = meth.substring(offset + 1);
-        LauncherMain.runBytecodeViewer(cls, meth);
-        LauncherMain.setBytecodeSelections(cls, meth);
-        LauncherMain.highlightBranch(Integer.parseInt(line), branch.equals("true"));
+        int ret = LauncherMain.runBytecodeViewer(cls, meth);
+        if (ret == 0) {
+          LauncherMain.setBytecodeSelections(cls, meth);
+          LauncherMain.highlightBranch(Integer.parseInt(line), branch.equals("true"));
+        }
         break;
       case "Solution":
         String solution = (String)dbTable.getValueAt(row, col);
@@ -404,18 +420,15 @@ public class DatabaseTable {
 
   @Override
     public void actionPerformed(ActionEvent e) {
-      // exit if database panel is not selected
-      if (tabSelected) {
-        // request the database list and save as list entries
-        readDatabase();
+      // request the database list and save as list entries
+      readDatabase();
                 
-        // sort the table entries based on current selections
-        tableSortAndDisplay();
+      // sort the table entries based on current selections
+      tableSortAndDisplay();
                 
-        // re-mark the selected row (if any)
-        if (rowSelection >= 0) {
-          dbTable.setRowSelectionInterval(rowSelection, rowSelection);
-        }
+      // re-mark the selected row (if any)
+      if (rowSelection >= 0) {
+        dbTable.setRowSelectionInterval(rowSelection, rowSelection);
       }
     }
   }    
