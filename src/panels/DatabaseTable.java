@@ -267,8 +267,6 @@ public class DatabaseTable {
         return dbinfo.solvable;
       case "Solution":
         return dbinfo.solution;
-//      case "Constraint":
-//        return dbinfo.constraint;
     }
   }
   
@@ -380,12 +378,22 @@ public class DatabaseTable {
         String meth   = (String)dbTable.getValueAt(row, getColumnIndex("Method"));
         String line   = (String)dbTable.getValueAt(row, getColumnIndex("Offset"));
         String branch = (String)dbTable.getValueAt(row, getColumnIndex("Path"));
-        int offset = meth.lastIndexOf("/");
-        String cls = meth.substring(0, offset);
-        meth = meth.substring(offset + 1);
-        int ret = LauncherMain.runBytecodeViewer(cls, meth);
+        // need to seperate the signature from the name, since it may also contain '/' char
+        String sig = "";
+        String cls = "";
+        int offset = meth.indexOf("(");
+        if (offset > 0) {
+          sig = meth.substring(offset);
+          meth = meth.substring(0, offset);
+        }
+        offset = meth.lastIndexOf("/");
+        if (offset > 0) {
+          cls = meth.substring(0, offset);
+          meth = meth.substring(offset + 1);
+        }
+        int ret = LauncherMain.runBytecodeViewer(cls, meth + sig);
         if (ret == 0) {
-          LauncherMain.setBytecodeSelections(cls, meth);
+          LauncherMain.setBytecodeSelections(cls, meth + sig);
           LauncherMain.highlightBranch(Integer.parseInt(line), branch.equals("true"));
         }
         break;
