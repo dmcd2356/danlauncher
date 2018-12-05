@@ -47,7 +47,8 @@ import org.bson.types.ObjectId;
 public class DatabaseTable {
   
   private static final String[] TABLE_COLUMNS = new String [] {
-    "ID", "Method", "Offset", "Path", "Cost", "Solvable", "Solution" //, "Constraint"
+    "Time", "Method", "Offset", "Path", "Cost", "Solvable", "Solution"
+//     "ID", "Method", "Offset", "Path", "Cost", "Solvable", "Solution"
   };
 
   private static String   tabName;
@@ -75,19 +76,21 @@ public class DatabaseTable {
     String  solvable;
     String  solution;
     String  constraint;
+    String  time;
     boolean updated;
     
     public DatabaseInfo(String idn, String meth, Integer off,
-                        Boolean path, Integer cst, Boolean solve, String sol, String con) {
-      id         = idn   == null ? "" : idn;
-      method     = meth  == null ? "" : meth;
-      offset     = off   == null ? "" : off.toString();
-      lastpath   = path  == null ? "" : path.toString();
-      cost       = cst   == null ? "" : cst.toString();
-      solvable   = solve == null ? "" : solve.toString();
-      solution   = sol   == null ? "" : sol;
-      constraint = con   == null ? "" : con;
-      updated = false;
+                        Boolean path, Integer cst, Boolean solve, String sol, String con, String time) {
+      this.id         = idn   == null ? "" : idn;
+      this.method     = meth  == null ? "" : meth;
+      this.offset     = off   == null ? "" : off.toString();
+      this.lastpath   = path  == null ? "" : path.toString();
+      this.cost       = cst   == null ? "" : cst.toString();
+      this.solvable   = solve == null ? "" : solve.toString();
+      this.solution   = sol   == null ? "" : sol;
+      this.constraint = con   == null ? "" : con;
+      this.time       = time  == null ? "" : time;
+      this.updated = false;
       tabSelected = false;
     }
     
@@ -232,7 +235,8 @@ public class DatabaseTable {
                                             doc.getInteger("cost"),
                                             doc.getBoolean("solvable"),
                                             solution,
-                                            doc.getString("constraint") );
+                                            doc.getString("constraint"),
+                                            doc.getString("time") );
       dbList.add(entry);
     }
   }
@@ -247,8 +251,10 @@ public class DatabaseTable {
   private String getColumnParam(int col, DatabaseInfo dbinfo) {
     switch(getColumnName(col)) {
       default: // fall through...
-      case "ID":
-        return dbinfo.id;
+      case "Time":
+        return dbinfo.time;
+//      case "ID":
+//        return dbinfo.id;
       case "Method":
         return dbinfo.method;
       case "Offset":
@@ -259,26 +265,24 @@ public class DatabaseTable {
         return dbinfo.cost;
       case "Solvable":
         return dbinfo.solvable;
-//      case "Param":
-//        return dbinfo.param;
       case "Solution":
         return dbinfo.solution;
-      case "Constraint":
-        return dbinfo.constraint;
+//      case "Constraint":
+//        return dbinfo.constraint;
     }
   }
   
   // NOTE: the order of the entries should match the order of the columns
   private Object[] makeRow(DatabaseInfo tableEntry) {
     return new Object[]{
-        tableEntry.id,
+        tableEntry.time,
+//        tableEntry.id,
         tableEntry.method,
         tableEntry.offset,
         tableEntry.lastpath,
         tableEntry.cost,
         tableEntry.solvable,
         tableEntry.solution,
-//        tableEntry.constraint
     };
   }
   
@@ -385,17 +389,11 @@ public class DatabaseTable {
           LauncherMain.highlightBranch(Integer.parseInt(line), branch.equals("true"));
         }
         break;
-      case "Solution":
-        String solution = (String)dbTable.getValueAt(row, col);
-        // TODO: copy the solution value to the input field
-        break;
-      case "ID":
-        //String constraint = (String)dbTable.getValueAt(row, getColumnIndex("Constraint"));
-        String constraint = dbList.get(row).constraint;
-        // pop up a panel that contains the full context string
-        GuiControls.makeFrameWithText("Constraint value", constraint, 500, 300);
-        break;
       default:
+        // all other columns...
+        // pop up a panel that contains the full context string
+        String constraint = dbList.get(row).constraint;
+        GuiControls.makeFrameWithText("Constraint value", constraint, 500, 300);
         break;
     }
   }                                           

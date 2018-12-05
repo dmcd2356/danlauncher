@@ -306,48 +306,48 @@ public class DebugLogger {
     public String content = "";
     
     public MessageInfo(String message) {
-      if (message != null && message.length() >= 30) {
-        String[] array = message.split("\\s+", 3);
-        if (array.length < 3) {
-          return;
-        }
-
-        lineval = array[0];
-        timestr = array[1];
-        message = array[2];
-        // check if we have thread id value embedded in message contents
-        if (message.startsWith("<") && message.contains(">")) {
-          array = message.split("\\s+", 2);
-          threadid = array[0];
-          message = array[1];
-          threadid = threadid.substring(1, threadid.indexOf(">"));
-        }
-
-        // make sure we have a valid time stamp & the message length is valid
-        // timestamp = [00:00.000] (followed by a space)
-        if (timestr.charAt(0) != '[' || timestr.charAt(10) != ']') {
-          return;
-        }
-        String timeMin = timestr.substring(1, 3);
-        String timeSec = timestr.substring(4, 6);
-        String timeMs  = timestr.substring(7, 10);
-
-        // verify numeric entries
-        try {
-          linenum = Integer.parseInt(lineval);
-          tstamp = ((Integer.parseInt(timeMin) * 60) + Integer.parseInt(timeSec)) * 1000;
-          tstamp += Integer.parseInt(timeMs);
-          if (!threadid.isEmpty()) {
-            tid = Integer.parseInt(threadid);
-          }
-        } catch (NumberFormatException ex) {
-          return;
-        }
-
-        type = message.substring(0, 6).toUpperCase(); // 6-char message type (may contain space)
-        content = message.substring(8);     // message content to display
-        valid = true;
+      if (message == null || message.length() < 30) {
+        return;
       }
+      String[] array = message.split("\\s+", 3);
+      if (array.length < 3) {
+        return;
+      }
+
+      lineval = array[0].trim();
+      timestr = array[1].trim();
+      message = array[2];
+      // check if we have thread id value embedded in message contents
+      if (message.startsWith("<") && message.contains(">")) {
+        array = message.split("\\s+", 2);
+        threadid = array[0];
+        message = array[1];
+        threadid = threadid.substring(1, threadid.indexOf(">"));
+      }
+
+      // make sure we have a valid time stamp is valid: [00:00.000]
+      if (timestr.length() < 11 || !timestr.startsWith("[") || !timestr.endsWith("]")) {
+        return;
+      }
+      String timeMin = timestr.substring(1, 3);
+      String timeSec = timestr.substring(4, 6);
+      String timeMs  = timestr.substring(7, 10);
+
+      // verify numeric entries
+      try {
+        linenum = Integer.parseInt(lineval);
+        tstamp = ((Integer.parseInt(timeMin) * 60) + Integer.parseInt(timeSec)) * 1000;
+        tstamp += Integer.parseInt(timeMs);
+        if (!threadid.isEmpty()) {
+          tid = Integer.parseInt(threadid);
+        }
+      } catch (NumberFormatException ex) {
+        return;
+      }
+
+      type = message.substring(0, 6).toUpperCase(); // 6-char message type (may contain space)
+      content = message.substring(8);     // message content to display
+      valid = true;
     }
   }
   

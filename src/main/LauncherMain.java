@@ -420,17 +420,6 @@ public final class LauncherMain {
       bytecodeViewer.highlightClear();
       printStatusMessage("Bytecode already loaded");
     } else {
-      // can't allow running javap while instrumented code is running - the stdout of the
-      // run command will merge with the javap output and corrupt the bytecode source file.
-      if (runMode == RunMode.RUNNING) {
-        JOptionPane.showConfirmDialog(null,
-                "Cannot run javap to generate bytecode data" + Utils.NEWLINE
-                    + "while running instrumented code.",
-                "Instrumented code running",
-                JOptionPane.DEFAULT_OPTION);
-        return -1;
-      }
-      
       String content;
       String fname = projectPathName + JAVAPFILE_STORAGE + "/" + classSelect + ".txt";
       File file = new File(fname);
@@ -438,6 +427,18 @@ public final class LauncherMain {
         // use the javap file already generated
         content = Utils.readTextFile(fname);
       } else {
+        // else, we need to generate bytecode source from jar using javap...
+        // can't allow running javap while instrumented code is running - the stdout of the
+        // run command will merge with the javap output and corrupt the bytecode source file.
+        if (runMode == RunMode.RUNNING) {
+          JOptionPane.showConfirmDialog(null,
+                  "Cannot run javap to generate bytecode data" + Utils.NEWLINE
+                      + "while running instrumented code.",
+                  "Instrumented code running",
+                  JOptionPane.DEFAULT_OPTION);
+          return -1;
+        }
+      
         // need to run javap to generate the bytecode source
         content = generateBytecode(classSelect, methodSelect);
         if (content == null) {
@@ -710,7 +711,6 @@ public final class LauncherMain {
         debugLogger.setTabSelection(currentTab);
         callGraph.setTabSelection(currentTab);
         dbtable.setTabSelection(currentTab);
-System.out.println("Tab selection: " + currentTab);
 
         // special actions
         if (currentTab.equals("CALLGRAPH")) {
@@ -1876,6 +1876,12 @@ System.out.println("Tab selection: " + currentTab);
   private static int loadJarFile() {
     printStatusClear();
 
+    // if application is running, tell user to stop before loading a new one
+    if (runMode == RunMode.RUNNING) {
+      printStatusError("Application is currently running - STOP it beefore loading new jar file");
+      return -1;
+    }
+      
     FileNameExtensionFilter filter = new FileNameExtensionFilter("Jar Files", "jar");
     fileSelector.setFileFilter(filter);
     //fileSelector.setSelectedFile(new File("TestMain.jar"));
@@ -2012,6 +2018,13 @@ System.out.println("Tab selection: " + currentTab);
 
   private void runTest(String arglist) {
     printStatusClear();
+    
+    // if application is running, tell user to stop before running a new one
+    if (runMode == RunMode.RUNNING) {
+      printStatusError("Application is currently running - STOP it beefore running again");
+      return;
+    }
+      
     
     // clear out the debugger so we don't add onto existing call graph
     clearDebugLogger();
