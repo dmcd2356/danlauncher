@@ -116,7 +116,7 @@ public final class LauncherMain {
   private enum RunMode { IDLE, RUNNING, TERMINATING, KILLING, EXITING }
 
   // tab panel selections
-  private enum PanelTabs { COMMAND, DATABASE, BYTECODE, BYTEFLOW, LOG, CALLGRAPH, JSONGRAPH }
+  private enum PanelTabs { COMMAND, SOLUTIONS, BYTECODE, BYTEFLOW, LOG, CALLGRAPH, JSONGRAPH }
   
   public enum GraphHighlight { NONE, STATUS, TIME, INSTRUCTION, ITERATION, THREAD }
 
@@ -592,9 +592,9 @@ public final class LauncherMain {
     addMenuItem     (menu, "MENU_SETUP_GRAF" , "Callgraph Setup", new Action_CallgraphSetup());
 
     menu = menuClear; // selections for the Clear Menu
-    addMenuItem     (menu, "MENU_CLR_DBASE"  , "Clear DATABASE", new Action_ClearDatabase());
-    addMenuItem     (menu, "MENU_CLR_UNSOLVE", "Clear DATABASE (Unsolvables only)", new Action_ClearDatabaseUnsolvables());
-    addMenuItem     (menu, "MENU_CLR_LOG"    , "Clear LOG", new Action_ClearLog());
+    addMenuItem     (menu, "MENU_CLR_DBASE"  , "Clear SOLUTIONS", new Action_ClearDatabase());
+    addMenuItem     (menu, "MENU_CLR_UNSOLVE", "Clear SOLUTIONS (Unsolvables only)", new Action_ClearDatabaseUnsolvables());
+    addMenuItem     (menu, "MENU_CLR_LOG"    , "Clear LOG / GRAPH", new Action_ClearLog());
 
     menu = menuSave; // selections for the Save Menu
     addMenuItem     (menu, "MENU_SAVE_DANFIG", "Update danfig file", new Action_UpdateDanfigFile());
@@ -640,7 +640,7 @@ public final class LauncherMain {
     bytecodeGraph = new BytecodeGraph(PanelTabs.BYTEFLOW.toString(), bytecodeViewer);
     callGraph = new CallGraph(PanelTabs.CALLGRAPH.toString());
     importGraph = new ImportGraph(PanelTabs.JSONGRAPH.toString());
-    dbtable = new DatabaseTable(PanelTabs.DATABASE.toString());
+    dbtable = new DatabaseTable(PanelTabs.SOLUTIONS.toString());
     
     // wrap the bytecode logger in another pane to prevent line wrapping on a JTextPane
     JPanel noWrapBytecodePanel = new JPanel(new BorderLayout());
@@ -660,7 +660,7 @@ public final class LauncherMain {
     if (panelInfo != null && panelInfo.panel instanceof JTabbedPane) {
       JTabbedPane tabPanel = (JTabbedPane) panelInfo.panel;
       addPanelToTab(tabPanel, PanelTabs.COMMAND  , commandLogger.getScrollPanel());
-      addPanelToTab(tabPanel, PanelTabs.DATABASE , dbtable.getScrollPanel());
+      addPanelToTab(tabPanel, PanelTabs.SOLUTIONS, dbtable.getScrollPanel());
       addPanelToTab(tabPanel, PanelTabs.BYTECODE , splitMain);
       addPanelToTab(tabPanel, PanelTabs.BYTEFLOW , bytecodeGraph.getScrollPanel());
       addPanelToTab(tabPanel, PanelTabs.LOG      , debugLogger.getScrollPanel());
