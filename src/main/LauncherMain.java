@@ -15,6 +15,7 @@ import panels.DebugLogger;
 import panels.ParamTable;
 import panels.SymbolTable;
 import callgraph.CallGraph;
+import callgraph.ImportGraph;
 import util.CommandLauncher;
 import util.ThreadLauncher;
 import util.Utils;
@@ -60,6 +61,7 @@ import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
+import javax.swing.JSpinner;
 import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTable;
@@ -114,11 +116,12 @@ public final class LauncherMain {
   private enum RunMode { IDLE, RUNNING, TERMINATING, KILLING, EXITING }
 
   // tab panel selections
-  private enum PanelTabs { COMMAND, DATABASE, BYTECODE, BYTEFLOW, LOG, CALLGRAPH }
+  private enum PanelTabs { COMMAND, DATABASE, BYTECODE, BYTEFLOW, LOG, CALLGRAPH, JSONGRAPH }
   
   public enum GraphHighlight { NONE, STATUS, TIME, INSTRUCTION, ITERATION, THREAD }
 
   private static CallGraph       callGraph;
+  private static ImportGraph     importGraph;
   private static BytecodeViewer  bytecodeViewer;
   private static BytecodeGraph   bytecodeGraph;
   private static DebugLogger     debugLogger;
@@ -571,7 +574,8 @@ public final class LauncherMain {
     JMenu menuSave    = launcherMenuBar.add(new JMenu("Save"));
 
     JMenu menu = menuProject; // selections for the Project Menu
-    addMenuItem     (menu, "MENU_SEL_JAR"    , "Select Jar file", new Action_SelectJarFile());
+    addMenuItem     (menu, "MENU_SEL_JAR"    , "Load Jar file", new Action_SelectJarFile());
+    addMenuItem     (menu, "MENU_SEL_JSON"   , "Load JSON Graph", new Action_SelectImportGraphFile());
     menu.addSeparator();
     addMenuCheckbox (menu, "MENU_SERVER_TYPE", "Input using Post (server app)", true,
                       new ItemListener_EnablePost());
@@ -635,6 +639,7 @@ public final class LauncherMain {
     bytecodeViewer = new BytecodeViewer(PanelTabs.BYTECODE.toString());
     bytecodeGraph = new BytecodeGraph(PanelTabs.BYTEFLOW.toString(), bytecodeViewer);
     callGraph = new CallGraph(PanelTabs.CALLGRAPH.toString());
+    importGraph = new ImportGraph(PanelTabs.JSONGRAPH.toString());
     dbtable = new DatabaseTable(PanelTabs.DATABASE.toString());
     
     // wrap the bytecode logger in another pane to prevent line wrapping on a JTextPane
@@ -660,6 +665,7 @@ public final class LauncherMain {
       addPanelToTab(tabPanel, PanelTabs.BYTEFLOW , bytecodeGraph.getScrollPanel());
       addPanelToTab(tabPanel, PanelTabs.LOG      , debugLogger.getScrollPanel());
       addPanelToTab(tabPanel, PanelTabs.CALLGRAPH, callGraph.getScrollPanel());
+      addPanelToTab(tabPanel, PanelTabs.JSONGRAPH, importGraph.getScrollPanel());
       tabPanel.addChangeListener(new Change_TabPanelSelect());
     }
 
@@ -718,11 +724,14 @@ public final class LauncherMain {
         // now inform panels of the selection
         debugLogger.setTabSelection(currentTab);
         callGraph.setTabSelection(currentTab);
+        importGraph.setTabSelection(currentTab);
         dbtable.setTabSelection(currentTab);
 
         // special actions
         if (currentTab.equals("CALLGRAPH")) {
           callGraph.updateCallGraph(graphMode, false);
+        } else if (currentTab.equals(PanelTabs.JSONGRAPH.toString())) {
+          importGraph.updateCallGraph();
         }
       }
     }
@@ -748,6 +757,21 @@ public final class LauncherMain {
     }
   }
 
+  private class Action_SelectImportGraphFile implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      File file = loadJSONFile();
+      if (file != null) {
+        int count = importGraph.loadFromJSONFile(file);
+        if (count > 0) {
+          // switch tab to JSONGRAPH
+          setTabSelect(PanelTabs.JSONGRAPH.toString());
+          importGraph.updateCallGraph();
+        }
+      }
+    }
+  }
+  
   private class Action_UpdateDanfigFile implements ActionListener {
     @Override
     public void actionPerformed(java.awt.event.ActionEvent evt) {
@@ -1007,6 +1031,7 @@ public final class LauncherMain {
     String panel = null;
     graphSetupFrame.makePanel  (panel, "PNL_HIGHLIGHT", LEFT, false, "Graph Highlight");
     graphSetupFrame.makePanel  (panel, "PNL_ADJUST"   , LEFT, true , "");
+    graphSetupFrame.makePanel  (panel, "PNL_JSONGRF"  , LEFT, true , "JSON Controls");
 
     panel = "PNL_ADJUST";
     graphSetupFrame.makeLabel  (panel, "LBL_THREADS"  , CENTER, true, "Threads: 0");
@@ -1033,6 +1058,10 @@ public final class LauncherMain {
     graphSetupFrame.makeButton     (panel, "BTN_RG_UP"  , LEFT, false, "UP");
     graphSetupFrame.makeButton     (panel, "BTN_RG_DN"  , LEFT, true , "DN");
 
+    panel = "PNL_JSONGRF";
+    graphSetupFrame.makeLabel      (panel, "LBL_ZOOM"   , LEFT, false, "Zoom Factor");
+    graphSetupFrame.makeSpinner    (panel, "SPIN_ZOOM"  , LEFT, true , 40, 200, 10, 100);
+
     // init thread selection in highlighting to OFF
     graphSetupFrame.getRadiobutton("RB_THREAD").setEnabled(false);
     setThreadControls(false);
@@ -1048,6 +1077,7 @@ public final class LauncherMain {
     graphSetupFrame.getButton("BTN_TH_DN").addActionListener(new Action_ThreadDown());
     graphSetupFrame.getButton("BTN_RG_UP").addActionListener(new Action_RangeUp());
     graphSetupFrame.getButton("BTN_RG_DN").addActionListener(new Action_RangeDown());
+    graphSetupFrame.getSpinner("SPIN_ZOOM").addChangeListener(new Action_ZoomRangeSelected());
 }
 
   private class Window_GraphSetupListener extends java.awt.event.WindowAdapter {
@@ -1179,6 +1209,21 @@ public final class LauncherMain {
     }
   }
 
+  private class Action_ZoomRangeSelected implements ChangeListener {
+    @Override
+    public void stateChanged(ChangeEvent ce) {
+      JSpinner mySpinner = (JSpinner)(ce.getSource());
+      Integer value = (Integer) mySpinner.getModel().getValue();
+      if (value != null) {
+        Double scaleFactor = value * 0.01;
+        importGraph.setZoomFactor(scaleFactor);
+        if (currentTab.equals(PanelTabs.JSONGRAPH.toString())) {
+          importGraph.updateCallGraph();
+        }
+      }
+    }
+  }
+  
   private void createDebugSelectPanel() {
     if (debugSetupFrame.isValidFrame()) {
       return;
@@ -1545,9 +1590,12 @@ public final class LauncherMain {
     }
 
     // clear the graphics panel
+    importGraph.clearPath();
     callGraph.clearGraphAndMethodList();
     if (currentTab.equals(PanelTabs.CALLGRAPH.toString())) {
       callGraph.updateCallGraph(GraphHighlight.NONE, false);
+    } else if (currentTab.equals(PanelTabs.JSONGRAPH.toString())) {
+      importGraph.updateCallGraph();
     }
 
     // force the highlight selection back to NONE
@@ -1881,6 +1929,21 @@ public final class LauncherMain {
 
     printStatusError("Missing file: " + fname);
     return false;
+  }
+  
+  private static File loadJSONFile() {
+    FileNameExtensionFilter filter = new FileNameExtensionFilter("JSON Files", "json");
+    fileSelector.setFileFilter(filter);
+    //fileSelector.setSelectedFile(new File("TestMain.jar"));
+    fileSelector.setMultiSelectionEnabled(false);
+    fileSelector.setApproveButtonText("Load");
+    int retVal = fileSelector.showOpenDialog(mainFrame.getFrame());
+    if (retVal != JFileChooser.APPROVE_OPTION) {
+      return null;
+    }
+
+    // read the file
+    return fileSelector.getSelectedFile();
   }
   
   private static int loadJarFile() {
@@ -2509,8 +2572,15 @@ public final class LauncherMain {
       if (udpThread != null) {
         String message = udpThread.getNextMessage();
         if (message != null) {
-          int methodCount = debugLogger.processMessage(message, callGraph);
+          String methCall = debugLogger.processMessage(message, callGraph);
+          if (methCall != null) {
+            boolean newEntry = importGraph.addPathEntry(methCall);
+            if (newEntry && currentTab.equals(PanelTabs.JSONGRAPH.toString())) {
+              importGraph.updateCallGraph();
+            }
+          }
           // enable/disable Call Graph save buttons based on whether there is anything to save
+          int methodCount = callGraph.getMethodCount();
           getMenuItem("MENU_SAVE_PNG").setEnabled(methodCount > 0);
           getMenuItem("MENU_SAVE_JSON").setEnabled(methodCount > 0);
           

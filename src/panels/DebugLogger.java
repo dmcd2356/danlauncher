@@ -157,9 +157,9 @@ public class DebugLogger {
       } catch (InterruptedException ex) { /* ignore */ }
     }
   }
-  public int processMessage(String message, CallGraph callGraph) {
+  public String processMessage(String message, CallGraph callGraph) {
     if (message == null) {
-      return callGraph.getMethodCount();
+      return null;
     }
 
     // seperate message into the message type and the message content
@@ -175,7 +175,7 @@ public class DebugLogger {
       // invalid messages
       //printDebug(message);
       //curLine++;
-      return callGraph.getMethodCount();
+      return null;
     }
           
     // check if we have thread id value embedded in message contents
@@ -199,13 +199,13 @@ public class DebugLogger {
         if (splited.length < 2) {
           printDebug("invalid syntax for CALL command");
           LauncherMain.printCommandError("ERROR: invalid CALL message on line " + msgInfo.linenum);
-          return callGraph.getMethodCount(); // invalid syntax - ignore
+          return null; // invalid syntax - ignore
         }
 
         String icount = splited[0].trim();
         String method = splited[1].trim();
         callGraph.methodEnter(msgInfo.tid, msgInfo.tstamp, icount, method, msgInfo.linenum);
-        break;
+        return method;
       case "RETURN":
         callGraph.methodExit(msgInfo.tid, msgInfo.tstamp, content);
         break;
@@ -245,7 +245,7 @@ public class DebugLogger {
         break;
     }
     
-    return callGraph.getMethodCount();
+    return null;
   }
   
   private static void printDebug(String content) {
@@ -345,9 +345,11 @@ public class DebugLogger {
         return;
       }
 
-      type = message.substring(0, 6).toUpperCase(); // 6-char message type (may contain space)
-      content = message.substring(8);     // message content to display
-      valid = true;
+      if (message.length() > 10) {
+        type = message.substring(0, 6).toUpperCase(); // 6-char message type (may contain space)
+        content = message.substring(8);        // (skip the ': ' chars) message content to display
+        valid = true;
+      }
     }
   }
   

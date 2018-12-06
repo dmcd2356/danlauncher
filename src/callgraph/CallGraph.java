@@ -53,11 +53,12 @@ public class CallGraph {
   private static String  tabName;
   private static JPanel  graphPanel;
   private static JScrollPane scrollPanel;
+  private static boolean     tabSelected;
   private static GuiControls gui;
   private static mxGraphComponent graphComponent;
   private static BaseGraph<MethodInfo> callGraph = new BaseGraph<>();
-  private static List<MethodInfo> graphMethList = new ArrayList<>(); // list of all methods found
-  private static List<MethodInfo> threadMethList = new ArrayList<>(); // list of all methods for selected thread
+  private static ArrayList<MethodInfo> graphMethList = new ArrayList<>(); // list of all methods found
+  private static ArrayList<MethodInfo> threadMethList = new ArrayList<>(); // list of all methods for selected thread
   private static HashMap<Integer, MethodInfo> clinitMethods = new HashMap<>(); // last clinit method for selected thread
   private static final HashMap<Integer, Stack<Integer>> callStack = new HashMap<>(); // stack for each thread
   private static long rangeStepsize;  // the stepsize to use for highlighting
@@ -67,7 +68,6 @@ public class CallGraph {
   private static LauncherMain.GraphHighlight curGraphMode;
   private static GuiControls methInfoPanel;
   private static MethodInfo  selectedMethod;
-  private static boolean     tabSelected;
   
   public CallGraph(String name) {
     tabName = name;
@@ -422,15 +422,19 @@ public class CallGraph {
                "(no info)" : selected.getInstructionCount(tid)) + Utils.NEWLINE;
     message += Utils.NEWLINE;
     message += "1st called @ line: " + selected.getFirstLine(tid) + Utils.NEWLINE;
+
     ArrayList<String> list = selected.getExecption(tid);
     if (list != null && !list.isEmpty()) {
+      message += Utils.NEWLINE;
       message += "Exceptions: " + Utils.NEWLINE;
       for (String entry : list) {
         message += "    line " + entry + Utils.NEWLINE;
       }
     }
+
     list = selected.getError(tid);
     if (list != null && !list.isEmpty()) {
+      message += Utils.NEWLINE;
       message += "Errors: " + Utils.NEWLINE;
       for (String entry : list) {
         message += "    line " + entry + Utils.NEWLINE;
@@ -438,11 +442,12 @@ public class CallGraph {
     }
       
     if (!selected.getParents(tid).isEmpty()) {
+      message += Utils.NEWLINE;
       if (selected.getParents(tid).size() == 1) {
-        message += Utils.NEWLINE + "Caller: " + selected.getParents(tid).get(0) + Utils.NEWLINE;
+        message += "Caller: " + selected.getParents(tid).get(0) + Utils.NEWLINE;
       } else {
         String selfname = selected.getFullName();
-        message += Utils.NEWLINE + "Calling Methods: " + Utils.NEWLINE;
+        message += "Calling Methods: " + Utils.NEWLINE;
         for(String name : selected.getParents(tid)) {
           if (name == null || name.isEmpty() || name.equals("null")) {
             continue;
