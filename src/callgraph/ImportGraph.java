@@ -17,6 +17,7 @@ import com.mxgraph.swing.handler.mxGraphHandler;
 import com.mxgraph.swing.mxGraphComponent;
 import com.mxgraph.view.mxGraph;
 import java.awt.Graphics;
+import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.BufferedReader;
@@ -26,8 +27,11 @@ import java.io.FileReader;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.List;
+import javax.swing.JButton;
+import javax.swing.JFrame;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JTextPane;
 
 /**
  *
@@ -111,11 +115,15 @@ public class ImportGraph {
       // Janalyzer keeps the "L" entry in the method name, but the received method name does not
       ImportMethod node = findMethodEntry("L" + methcall);
       if (node != null) {
-        callGraph.colorVertex(node, "FF6666"); // set color to orange
+        callGraph.colorVertex(node, "6666FF"); // set color to blue
         return true;
       }
 
-      System.err.println("Method not found: " + methcall);
+      // ignore the <clinit>methods - they are not included in the methods provided by Janalyzer.
+      // Also some <init> methods are excluded if they are only initializing parameters.
+      if (!methcall.contains("<clinit>") && !methcall.contains("<init>")) {
+        System.err.println("Method not found: " + methcall);
+      }
     }
     return false;
   }
@@ -140,16 +148,22 @@ public class ImportGraph {
           mxCell cell = (mxCell) handler.getGraphComponent().getCellAt(e.getX(), e.getY());
           if (cell != null && cell.isVertex()) {
             // show selected method in bytecode viewer
-            ImportMethod selected = callGraph.getSelectedNode();
-            String cls = selected.fullName;
-            int offset = cls.lastIndexOf(".");
-            String meth = cls.substring(offset + 1);
-            cls = cls.substring(0, offset);
             // Janalyzer keeps the "L" entry in the method name, but the Bytecode viewer name does not
-            if (cls.startsWith("L")) {
-              cls = cls.substring(1);
+            ImportMethod selected = callGraph.getSelectedNode();
+            String methname = selected.fullName;
+            if (methname.startsWith("L")) {
+              methname = methname.substring(1);
             }
-            LauncherMain.runBytecodeViewer(cls, meth);
+            MethodInfo methSelect = CallGraph.getMethodInfo(methname);
+            if (methSelect != null) {
+              displayMethodInfoPanel(methSelect);
+            } else {
+              String cls = methname;
+              int offset = cls.lastIndexOf(".");
+              String meth = cls.substring(offset + 1);
+              cls = cls.substring(0, offset);
+              LauncherMain.runBytecodeViewer(cls, meth);
+            }
           }
         }
       });
@@ -166,6 +180,68 @@ public class ImportGraph {
     callGraph.layoutGraph();
   }
 
+  private static GuiControls methInfoPanel;
+  
+  private void displayMethodInfoPanel(MethodInfo selected) {
+    // if panel is currently displayed for another method, close that one before opening the new one
+    if (methInfoPanel != null) {
+      methInfoPanel.close();
+    }
+    
+    // create the panel to display the selected method info on
+    methInfoPanel = new GuiControls();
+    JFrame frame = methInfoPanel.newFrame("Executed Method Information", 600, 400, GuiControls.FrameSize.FIXEDSIZE);
+    frame.addWindowListener(new Window_ExitListener());
+
+    GuiControls.Orient LEFT = GuiControls.Orient.LEFT;
+    GuiControls.Orient CENTER = GuiControls.Orient.CENTER;
+    
+    String panel = null;
+    methInfoPanel.makePanel (panel, "PNL_INFO", LEFT, true , "", 600, 400);
+    
+    panel = "PNL_INFO";
+    JTextPane textPanel = methInfoPanel.makeScrollTextPane(panel, "TXT_METHINFO");
+    JButton bcodeButton = methInfoPanel.makeButton(panel, "BTN_BYTECODE", CENTER, true, "Show bytecode");
+    
+    bcodeButton.addActionListener(new Action_RunBytecode());
+    
+    // setup initial method info text
+    String message = CallGraph.getSelectedMethodInfo(selected, -1);
+    textPanel.setText(message);
+
+    methInfoPanel.display();
+  }
+  
+  private class Window_ExitListener extends java.awt.event.WindowAdapter {
+    @Override
+    public void windowClosing(java.awt.event.WindowEvent evt) {
+      methInfoPanel.close();
+    }
+  }
+
+  private class Action_RunBytecode implements ActionListener{
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      // show selected method in bytecode viewer
+      // Janalyzer keeps the "L" entry in the method name, but the Bytecode viewer name does not
+      ImportMethod selected = callGraph.getSelectedNode();
+      String methname = selected.fullName;
+      if (methname.startsWith("L")) {
+        methname = methname.substring(1);
+      }
+
+      String cls = methname;
+      int offset = cls.lastIndexOf(".");
+      String meth = cls.substring(offset + 1);
+      cls = cls.substring(0, offset);
+
+      LauncherMain.runBytecodeViewer(cls, meth);
+      
+      // close this menu
+      methInfoPanel.close();
+    }
+  }
+  
   private static String getCGName(String fullname) {
     String  className = "";
     String  methName = fullname.replace("/", ".");

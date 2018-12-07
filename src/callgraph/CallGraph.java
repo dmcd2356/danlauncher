@@ -306,7 +306,7 @@ public class CallGraph {
     return graphMethList.size();
   }
 
-  public MethodInfo getMethodInfo(String fullname) {
+  public static MethodInfo getMethodInfo(String fullname) {
     if (graphMethList == null || graphMethList.size() < 1) {
       return null;
     }
@@ -404,7 +404,7 @@ public class CallGraph {
     return updated;
   }
 
-  private String getSelectedMethodInfo(MethodInfo selected, int tid) {
+  public static String getSelectedMethodInfo(MethodInfo selected, int tid) {
     // setup the message contents to display
     String message = "";
     message += "Class: " + selected.getClassName()+ Utils.NEWLINE;
@@ -463,7 +463,7 @@ public class CallGraph {
     return message;
   }
   
-  public void displayMethodInfoPanel(MethodInfo selected) {
+  private void displayMethodInfoPanel(MethodInfo selected) {
     // if panel is currently displayed for another method, close that one before opening the new one
     if (methInfoPanel != null) {
       methInfoPanel.close();

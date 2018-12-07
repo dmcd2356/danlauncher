@@ -447,12 +447,14 @@ public final class LauncherMain {
         }
       
         // need to run javap to generate the bytecode source
-        printCommandMessage("Running javap to generate file: " + fname);
-        content = generateBytecode(classSelect, methodSelect);
+        content = generateJavapFile(classSelect);
         if (content == null) {
           return -1;
         }
       }
+
+      // clear out the local variable list
+      localVarTbl.clear(classSelect + "." + methodSelect);
 
       // if successful, load it in the Bytecode viewer
       runBytecodeParser(classSelect, methodSelect, content);
@@ -2243,7 +2245,7 @@ public final class LauncherMain {
     }
   }
   
-  private static String generateBytecode(String classSelect, String methodSelect) {
+  private static String generateJavapFile(String classSelect) {
     printStatusClear();
 
     // first we have to extract the class file from the jar file
@@ -2263,9 +2265,8 @@ public final class LauncherMain {
       return null;
     }
 
-    // clear out the local variable list
-    localVarTbl.clear(classSelect + "." + methodSelect);
-
+    printCommandMessage("Generating javap file for: " + classSelect);
+    
     // decompile the selected class file
     String[] command = { "javap", "-p", "-c", "-s", "-l", CLASSFILE_STORAGE + "/" + classSelect + ".class" };
     // this creates a command launcher that runs on the current thread
@@ -2283,6 +2284,8 @@ public final class LauncherMain {
   }
 
   private static int extractClassFile(File jarfile, String className) throws IOException {
+    printCommandMessage("Extracting class file: " + className);
+    
     // get the path relative to the application directory
     int offset;
     String relpathname = "";
