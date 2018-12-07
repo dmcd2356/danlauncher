@@ -72,6 +72,7 @@ import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import org.apache.commons.io.FileUtils;
+import panels.HelpLogger;
 
 /**
  *
@@ -116,7 +117,7 @@ public final class LauncherMain {
   private enum RunMode { IDLE, RUNNING, TERMINATING, KILLING, EXITING }
 
   // tab panel selections
-  private enum PanelTabs { COMMAND, SOLUTIONS, BYTECODE, BYTEFLOW, LOG, CALLGRAPH, JSONGRAPH }
+  private enum PanelTabs { COMMAND, SOLUTIONS, BYTECODE, BYTEFLOW, LOG, CALLGRAPH, JANAGRAPH }
   
   public enum GraphHighlight { NONE, STATUS, TIME, INSTRUCTION, ITERATION, THREAD }
 
@@ -125,6 +126,7 @@ public final class LauncherMain {
   private static BytecodeViewer  bytecodeViewer;
   private static BytecodeGraph   bytecodeGraph;
   private static DebugLogger     debugLogger;
+  private static HelpLogger      helpLogger;
   private static ThreadLauncher  threadLauncher;
   private static DatabaseTable   dbtable;
   private static ParamTable      localVarTbl;
@@ -177,6 +179,7 @@ public final class LauncherMain {
   private static final GuiControls graphSetupFrame = new GuiControls();
   private static final GuiControls debugSetupFrame = new GuiControls();
   private static final GuiControls systemSetupFrame = new GuiControls();
+  private static final GuiControls helpFrame = new GuiControls();
 
   // configuration file settings
   private static PropertiesFile  systemProps;   // this is for the generic properties for the user
@@ -574,6 +577,7 @@ public final class LauncherMain {
     JMenu menuConfig  = launcherMenuBar.add(new JMenu("Config"));
     JMenu menuClear   = launcherMenuBar.add(new JMenu("Clear"));
     JMenu menuSave    = launcherMenuBar.add(new JMenu("Save"));
+    JMenu menuHelp    = launcherMenuBar.add(new JMenu("Help"));
 
     JMenu menu = menuProject; // selections for the Project Menu
     addMenuItem     (menu, "MENU_SEL_JAR"    , "Load Jar file", new Action_SelectJarFile());
@@ -604,6 +608,18 @@ public final class LauncherMain {
     addMenuItem     (menu, "MENU_SAVE_JSON"  , "Save Callgraph (JSON)", new Action_SaveGraphJSON());
     addMenuItem     (menu, "MENU_SAVE_BCODE" , "Save Bytecode Graph", new Action_SaveByteFlowGraph());
 
+    menu = menuHelp; // selections for the Help Menu
+    addMenuItem     (menu, "MENU_HELP_GENERAL"  , "General Operation", new Action_ShowHelp_General());
+    addMenuItem     (menu, "MENU_HELP_CONFIG"   , "Configuration", new Action_ShowHelp_Config());
+    addMenuItem     (menu, "MENU_HELP_CONTROL"  , "Control Panel", new Action_ShowHelp_Controls());
+    addMenuItem     (menu, "MENU_HELP_SYMBOLIC" , "Symbolic Parameters", new Action_ShowHelp_Symbolics());
+    addMenuItem     (menu, "MENU_HELP_SOLUTION" , "SOLUTIONS Panel", new Action_ShowHelp_SOLUTIONS());
+    addMenuItem     (menu, "MENU_HELP_BYTECODE" , "BYTECODE Panel", new Action_ShowHelp_BYTECODE());
+    addMenuItem     (menu, "MENU_HELP_BYTEFLOW" , "BYTEFLOW Panel", new Action_ShowHelp_BYTEFLOW());
+    addMenuItem     (menu, "MENU_HELP_LOG"      , "LOG Panel", new Action_ShowHelp_LOG());
+    addMenuItem     (menu, "MENU_HELP_CALLGRAPH", "CALLGRAPH Panel", new Action_ShowHelp_CALLGRAPH());
+    addMenuItem     (menu, "MENU_HELP_JANAGRAPH", "JANAGRAPH Panel", new Action_ShowHelp_JANAGRAPH());
+    
     // setup access to menu controls
     isServerTypeMenuItem = getMenuCheckbox ("MENU_SERVER_TYPE");
     loadDanfigMenuItem = getMenuCheckbox ("MENU_LOAD_DANFIG");
@@ -641,8 +657,11 @@ public final class LauncherMain {
     bytecodeViewer = new BytecodeViewer(PanelTabs.BYTECODE.toString());
     bytecodeGraph = new BytecodeGraph(PanelTabs.BYTEFLOW.toString(), bytecodeViewer);
     callGraph = new CallGraph(PanelTabs.CALLGRAPH.toString());
-    importGraph = new ImportGraph(PanelTabs.JSONGRAPH.toString());
+    importGraph = new ImportGraph(PanelTabs.JANAGRAPH.toString());
     dbtable = new DatabaseTable(PanelTabs.SOLUTIONS.toString());
+
+    // create the help panels
+    helpLogger = new HelpLogger("HELP", helpFrame);
     
     // wrap the bytecode logger in another pane to prevent line wrapping on a JTextPane
     JPanel noWrapBytecodePanel = new JPanel(new BorderLayout());
@@ -667,7 +686,7 @@ public final class LauncherMain {
       addPanelToTab(tabPanel, PanelTabs.BYTEFLOW , bytecodeGraph.getScrollPanel());
       addPanelToTab(tabPanel, PanelTabs.LOG      , debugLogger.getScrollPanel());
       addPanelToTab(tabPanel, PanelTabs.CALLGRAPH, callGraph.getScrollPanel());
-      addPanelToTab(tabPanel, PanelTabs.JSONGRAPH, importGraph.getScrollPanel());
+      addPanelToTab(tabPanel, PanelTabs.JANAGRAPH, importGraph.getScrollPanel());
       tabPanel.addChangeListener(new Change_TabPanelSelect());
     }
 
@@ -732,7 +751,7 @@ public final class LauncherMain {
         // special actions
         if (currentTab.equals("CALLGRAPH")) {
           callGraph.updateCallGraph(graphMode, false);
-        } else if (currentTab.equals(PanelTabs.JSONGRAPH.toString())) {
+        } else if (currentTab.equals(PanelTabs.JANAGRAPH.toString())) {
           importGraph.updateCallGraph();
         }
       }
@@ -766,8 +785,8 @@ public final class LauncherMain {
       if (file != null) {
         int count = importGraph.loadFromJSONFile(file);
         if (count > 0) {
-          // switch tab to JSONGRAPH
-          setTabSelect(PanelTabs.JSONGRAPH.toString());
+          // switch tab to JANAGRAPH
+          setTabSelect(PanelTabs.JANAGRAPH.toString());
           importGraph.updateCallGraph();
         }
       }
@@ -912,6 +931,76 @@ public final class LauncherMain {
     }
   }
   
+  private class Action_ShowHelp_General implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      helpLogger.printHelpPanel("GENERAL");
+    }
+  }
+
+  private class Action_ShowHelp_Config implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      helpLogger.printHelpPanel("CONFIG");
+    }
+  }
+
+  private class Action_ShowHelp_Controls implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      helpLogger.printHelpPanel("CONTROLS");
+    }
+  }
+
+  private class Action_ShowHelp_Symbolics implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      helpLogger.printHelpPanel("SYMBOLICS");
+    }
+  }
+
+  private class Action_ShowHelp_SOLUTIONS implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      helpLogger.printHelpPanel("SOLUTIONS");
+    }
+  }
+
+  private class Action_ShowHelp_BYTECODE implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      helpLogger.printHelpPanel("BYTECODE");
+    }
+  }
+
+  private class Action_ShowHelp_BYTEFLOW implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      helpLogger.printHelpPanel("BYTEFLOW");
+    }
+  }
+
+  private class Action_ShowHelp_LOG implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      helpLogger.printHelpPanel("LOG");
+    }
+  }
+
+  private class Action_ShowHelp_CALLGRAPH implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      helpLogger.printHelpPanel("CALLGRAPH");
+    }
+  }
+
+  private class Action_ShowHelp_JANAGRAPH implements ActionListener {
+    @Override
+    public void actionPerformed(java.awt.event.ActionEvent evt) {
+      helpLogger.printHelpPanel("JANAGRAPH");
+    }
+  }
+
   private class Action_SendHttpMessage implements ActionListener {
     @Override
     public void actionPerformed(java.awt.event.ActionEvent evt) {
@@ -1219,7 +1308,7 @@ public final class LauncherMain {
       if (value != null) {
         Double scaleFactor = value * 0.01;
         importGraph.setZoomFactor(scaleFactor);
-        if (currentTab.equals(PanelTabs.JSONGRAPH.toString())) {
+        if (currentTab.equals(PanelTabs.JANAGRAPH.toString())) {
           importGraph.updateCallGraph();
         }
       }
@@ -1596,7 +1685,7 @@ public final class LauncherMain {
     callGraph.clearGraphAndMethodList();
     if (currentTab.equals(PanelTabs.CALLGRAPH.toString())) {
       callGraph.updateCallGraph(GraphHighlight.NONE, false);
-    } else if (currentTab.equals(PanelTabs.JSONGRAPH.toString())) {
+    } else if (currentTab.equals(PanelTabs.JANAGRAPH.toString())) {
       importGraph.updateCallGraph();
     }
 
@@ -2578,7 +2667,7 @@ public final class LauncherMain {
           String methCall = debugLogger.processMessage(message, callGraph);
           if (methCall != null) {
             boolean newEntry = importGraph.addPathEntry(methCall);
-            if (newEntry && currentTab.equals(PanelTabs.JSONGRAPH.toString())) {
+            if (newEntry && currentTab.equals(PanelTabs.JANAGRAPH.toString())) {
               importGraph.updateCallGraph();
             }
           }
