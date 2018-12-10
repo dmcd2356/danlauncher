@@ -318,18 +318,25 @@ public class ImportGraph {
 
     // add vertexes to graph
     for(ImportMethod mthNode : methList) {
-      callGraph.addVertex(mthNode, getCGName(mthNode.fullName));
+      if (mthNode != null) {
+        callGraph.addVertex(mthNode, getCGName(mthNode.fullName));
+      }
     }
     
     // now connect the methods to their parents
     for (ImportMethod mthNode : methList) {
+      if (mthNode == null) {
+        break;
+      }
       // for each parent entry for a method...
       for (String parent : mthNode.parent) {
-        ImportMethod parNode = findMethodEntry(parent);
-        // only add connection if parent was found and there isn't already a connection
-        if (parNode != null && callGraph.getEdge(parNode, mthNode) == null) {
-          // now add the connection from the method to the parent
-          callGraph.addEdge(parNode, mthNode, null);
+        if (parent != null && !parent.isEmpty()) {
+          ImportMethod parNode = findMethodEntry(parent);
+          // only add connection if parent was found and there isn't already a connection
+          if (parNode != null && callGraph.getEdge(parNode, mthNode) == null) {
+            // now add the connection from the method to the parent
+            callGraph.addEdge(parNode, mthNode, null);
+          }
         }
       }
     }

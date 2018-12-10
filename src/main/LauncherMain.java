@@ -2339,6 +2339,9 @@ public final class LauncherMain {
   private static String generateJavapFile(String classSelect) {
     printStatusClear();
 
+    // add the suffix
+    classSelect = classSelect  + ".class";
+    
     // first we have to extract the class file from the jar file
     File jarfile = new File(projectPathName + projectName);
     if (!jarfile.isFile()) {
@@ -2359,12 +2362,12 @@ public final class LauncherMain {
     printCommandMessage("Generating javap file for: " + classSelect);
     
     // decompile the selected class file
-    String[] command = { "javap", "-p", "-c", "-s", "-l", CLASSFILE_STORAGE + "/" + classSelect + ".class" };
+    String[] command = { "javap", "-p", "-c", "-s", "-l", CLASSFILE_STORAGE + "/" + classSelect };
     // this creates a command launcher that runs on the current thread
     CommandLauncher commandLauncher = new CommandLauncher(commandLogger);
     int retcode = commandLauncher.start(command, projectPathName);
     if (retcode != 0) {
-      printStatusError("running javap on file: " + classSelect + ".class");
+      printStatusError("running javap on file: " + classSelect);
       return null;
     }
 
@@ -2375,17 +2378,16 @@ public final class LauncherMain {
   }
 
   private static int extractClassFile(File jarfile, String className) throws IOException {
-    printCommandMessage("Extracting class file: " + className);
-    
     // get the path relative to the application directory
     int offset;
     String relpathname = "";
-    className = className + ".class";
     offset = className.lastIndexOf('/');
     if (offset > 0)  {
       relpathname = className.substring(0, offset + 1);
       className = className.substring(offset + 1);
     }
+    
+    printCommandMessage("Extracting '" + className + "' from " + relpathname);
     
     // get the location of the jar file (where we will extract the class files to)
     String jarpathname = jarfile.getAbsolutePath();

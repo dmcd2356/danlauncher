@@ -192,6 +192,7 @@ public class HelpLogger {
     }
     
     // now keep user from editing the text and display the panel
+    panel.setCaretPosition(0);
     panel.setEditable(false);
     helpFrame.setVisible(true);
   }

@@ -218,14 +218,16 @@ public final class BytecodeViewer {
     int lastoffset = -1;
     int curLine = 0;
     
-    // check if method is already loaded
-    if (methodLoaded.equals(classSelect + "." + methodSelect) && !bytecode.isEmpty()) {
-      // make sure highlighting is desabled for the text, and we're good to exit
-      LauncherMain.printCommandMessage(classSelect + "." + methodSelect + " is already loaded");
-      highlightClear();
-      valid = true;
-      return;
-    }
+    // THIS CAUSES THE LOCAL PARAMS FROM BEING DISPLAYED BECAUSE WE HAVE ALREADY CLEARED THAT
+    // PANEL OUT PRIOR TO THIS CALL. FOR NOW - ALWAYS RUN THE PARSER WHEN CALLED.
+//    // check if method is already loaded
+//    if (methodLoaded.equals(classSelect + "." + methodSelect) && !bytecode.isEmpty()) {
+//      // make sure highlighting is desabled for the text, and we're good to exit
+//      LauncherMain.printCommandMessage(classSelect + "." + methodSelect + " is already loaded");
+//      highlightClear();
+//      valid = true;
+//      return;
+//    }
 
     // else we need to start with a clean slate
     clear();

@@ -783,7 +783,7 @@ public class SymbolTable {
         pname = "The selected parameter";
       }
 
-      String message = pname + " has the following uesr-defined constraints:" + Utils.NEWLINE + Utils.NEWLINE;
+      String message = pname + " has the following user-defined constraints:" + Utils.NEWLINE + Utils.NEWLINE;
       for (int ix = 0; ix < tbl.constraints.size(); ix++) {
         ConstraintInfo con = tbl.constraints.get(ix);
         message += con.comptype + " " + con.compvalue + Utils.NEWLINE;
