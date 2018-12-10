@@ -611,14 +611,16 @@ public final class LauncherMain {
     menu = menuHelp; // selections for the Help Menu
     addMenuItem     (menu, "MENU_HELP_GENERAL"  , "General Operation", new Action_ShowHelp_General());
     addMenuItem     (menu, "MENU_HELP_CONFIG"   , "Configuration", new Action_ShowHelp_Config());
-    addMenuItem     (menu, "MENU_HELP_CONTROL"  , "Control Panel", new Action_ShowHelp_Controls());
-    addMenuItem     (menu, "MENU_HELP_SYMBOLIC" , "Symbolic Parameters", new Action_ShowHelp_Symbolics());
-    addMenuItem     (menu, "MENU_HELP_SOLUTION" , "SOLUTIONS Panel", new Action_ShowHelp_SOLUTIONS());
-    addMenuItem     (menu, "MENU_HELP_BYTECODE" , "BYTECODE Panel", new Action_ShowHelp_BYTECODE());
-    addMenuItem     (menu, "MENU_HELP_BYTEFLOW" , "BYTEFLOW Panel", new Action_ShowHelp_BYTEFLOW());
-    addMenuItem     (menu, "MENU_HELP_LOG"      , "LOG Panel", new Action_ShowHelp_LOG());
-    addMenuItem     (menu, "MENU_HELP_CALLGRAPH", "CALLGRAPH Panel", new Action_ShowHelp_CALLGRAPH());
-    addMenuItem     (menu, "MENU_HELP_JANAGRAPH", "JANAGRAPH Panel", new Action_ShowHelp_JANAGRAPH());
+    menu.addSeparator();
+    addMenuItem     (menu, "MENU_HELP_CONTROL"  , "Controls / Bytecode Panel", new Action_ShowHelp_Controls());
+    addMenuItem     (menu, "MENU_HELP_SYMBOLIC" , "Symbolic Parameters Panel", new Action_ShowHelp_Symbolics());
+    menu.addSeparator();
+    addMenuItem     (menu, "MENU_HELP_SOLUTION" , "Tab: SOLUTIONS", new Action_ShowHelp_SOLUTIONS());
+    addMenuItem     (menu, "MENU_HELP_BYTECODE" , "Tab: BYTECODE", new Action_ShowHelp_BYTECODE());
+    addMenuItem     (menu, "MENU_HELP_BYTEFLOW" , "Tab: BYTEFLOW", new Action_ShowHelp_BYTEFLOW());
+    addMenuItem     (menu, "MENU_HELP_LOG"      , "Tab: LOG", new Action_ShowHelp_LOG());
+    addMenuItem     (menu, "MENU_HELP_CALLGRAPH", "Tab: CALLGRAPH", new Action_ShowHelp_CALLGRAPH());
+    addMenuItem     (menu, "MENU_HELP_JANAGRAPH", "Tab: JANAGRAPH", new Action_ShowHelp_JANAGRAPH());
     
     // setup access to menu controls
     isServerTypeMenuItem = getMenuCheckbox ("MENU_SERVER_TYPE");

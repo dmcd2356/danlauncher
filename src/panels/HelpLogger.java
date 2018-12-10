@@ -13,7 +13,9 @@ import java.awt.event.AdjustmentEvent;
 import java.awt.event.AdjustmentListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import javax.swing.JFrame;
 import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
@@ -28,7 +30,7 @@ import util.Utils;
 public class HelpLogger {
 
   // types of messages
-  private enum MsgType { HEADER1, HEADER2, HEADER3, NORMAL, EMPHASIS, HYPERTEXT }
+  private enum MsgType { TITLE, HEADER1, HEADER2, HEADER3, NORMAL, EMPHASIS, HYPERTEXT }
 
   private static JTextPane       panel;
   private static JScrollPane     scrollPanel;
@@ -50,9 +52,10 @@ public class HelpLogger {
     helpFrame.addWindowListener(new Window_MainListener());
 
     String fonttype = "Courier";
-    FontInfo.setTypeColor (fontmap, MsgType.HEADER1.toString(),   FontInfo.TextColor.Black, FontInfo.FontType.Bold, 20, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.HEADER2.toString(),   FontInfo.TextColor.Black, FontInfo.FontType.Bold, 18, fonttype);
-    FontInfo.setTypeColor (fontmap, MsgType.HEADER3.toString(),   FontInfo.TextColor.Black, FontInfo.FontType.BoldItalic, 16, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.TITLE.toString(),     FontInfo.TextColor.Black, FontInfo.FontType.Bold, 20, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.HEADER1.toString(),   FontInfo.TextColor.Black, FontInfo.FontType.Bold, 18, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.HEADER2.toString(),   FontInfo.TextColor.Black, FontInfo.FontType.Bold, 16, fonttype);
+    FontInfo.setTypeColor (fontmap, MsgType.HEADER3.toString(),   FontInfo.TextColor.Black, FontInfo.FontType.BoldItalic, 15, fonttype);
     FontInfo.setTypeColor (fontmap, MsgType.NORMAL.toString(),    FontInfo.TextColor.Black, FontInfo.FontType.Normal, 14, fonttype);
     FontInfo.setTypeColor (fontmap, MsgType.EMPHASIS.toString(),  FontInfo.TextColor.Black, FontInfo.FontType.Bold, 14, fonttype);
     FontInfo.setTypeColor (fontmap, MsgType.HYPERTEXT.toString(), FontInfo.TextColor.Blue,  FontInfo.FontType.Bold, 14, fonttype);
@@ -87,11 +90,19 @@ public class HelpLogger {
     // make panel writable, erase current data, then write the selected header
     panel.setEditable(true);
     logger.clear();
-    logger.printField(MsgType.HEADER1.toString(), select + Utils.NEWLINE);
+    printTitle(select);
     
     // write the context-specific help messages
     switch(select) {
       case "GENERAL":
+        printParagraph("This line just goes on and on and on and on and on and on and on" +
+                       " and on and on and on and on and on and on and on and on and there" +
+                       " are some ^^highlighted^^ words and some ^^cute little phrases^^ that are" +
+                       " included in this paragraph.");
+        printParagraph("This line just goes on and on and on and on and on and on and on" +
+                       " and on and <<on and on and on>> and on and on and on and on and there" +
+                       " are some ^^highlighted^^ words and some *^cute little phrases^^ that are" +
+                       " <<included>> in this paragraph.");
         printNormalText("No help for this item yet!");
         break;
       case "CONFIG":
@@ -128,8 +139,123 @@ public class HelpLogger {
     helpFrame.setVisible(true);
   }
   
+  private void printTitle(String message) {
+    logger.printField(MsgType.HEADER1.toString(), message + Utils.NEWLINE);
+  }
+  
+  private void printMainHeader(String message) {
+    logger.printField(MsgType.HEADER1.toString(), message + Utils.NEWLINE);
+  }
+  
+  private void printSubHeader(String message) {
+    logger.printField(MsgType.HEADER2.toString(), message + Utils.NEWLINE);
+  }
+  
+  private void printSubSubHeader(String message) {
+    logger.printField(MsgType.HEADER3.toString(), message + Utils.NEWLINE);
+  }
+  
+  private class MetaData {
+    public MsgType type;
+    public String  entry;
+    public String  exit;
+    public boolean valid;
+    public int     start;
+    public int     end;
+    
+    public MetaData(MsgType msgtype, String begin, String term) {
+      type  = msgtype;
+      entry = begin;
+      exit  = term;
+      valid = true;
+      start = 0;
+      end   = 0;
+    }
+    
+    public void checkForMeta(String message) {
+      if (valid) {
+        start = message.indexOf(entry);
+        if (start >= 0) {
+          end = message.substring(start + entry.length()).indexOf(exit);
+          if (end > 0) {
+            valid = true;
+            return;
+          }
+        }
+        valid = false;
+      }
+    }
+  }
+  
+  private void printParagraph(String message) {
+    // setup the metas to find
+    List<MetaData> metalist = new ArrayList<>();
+    metalist.add(new MetaData(MsgType.EMPHASIS, "^^", "^^"));
+    metalist.add(new MetaData(MsgType.HYPERTEXT, "<<", ">>"));
+
+    while (!message.isEmpty()) {
+      // search for any next meta, exit if none
+      boolean valid = false;
+      MetaData selected = null;
+      for (MetaData entry : metalist) {
+        entry.checkForMeta(message);
+        valid = entry.valid ? true : valid;
+        // select the entry that we encounter first in the string
+        if (selected == null || (entry.valid && (entry.start < selected.start))) {
+          selected = entry;
+        }
+      }
+      if (!valid || selected == null || !selected.valid) {
+        break;
+      }
+      
+      // if there is non-meta text first, output it now
+      if (selected.start > 0) {
+        printNormalText(message.substring(0, selected.start));
+        message = message.substring(selected.start + selected.entry.length());
+      }
+
+      // convert and output the meta text
+      String metastr = message.substring(0, selected.end);
+      logger.printField(selected.type.toString(), metastr);
+      message = message.substring(selected.end + selected.exit.length());
+    }
+      
+//      String pattern1 = "^^";
+//      String pattern2 = "^^";
+//
+//      offset = message.indexOf(pattern1);
+//      if (offset < 0) {
+//        break;
+//      }
+//      printNormalText(message.substring(0, offset));
+//      message = message.substring(offset + pattern1.length());
+//      offset = message.indexOf(pattern2);
+//      if (offset < 0) {
+//        message = pattern2 + message;
+//        break;
+//      }
+//      
+//      printHighlightedText(message.substring(0, offset));
+//      message = message.substring(offset + pattern2.length());
+//    }
+    
+    // output any remaining non-meta text
+    if (!message.isEmpty()) {
+      printNormalText(message + Utils.NEWLINE);
+    }
+  }
+  
   private void printNormalText(String message) {
-    logger.printField(MsgType.NORMAL.toString(), message + Utils.NEWLINE);
+    logger.printField(MsgType.NORMAL.toString(), message);
+  }
+  
+  private void printHighlightedText(String message) {
+    logger.printField(MsgType.EMPHASIS.toString(), message);
+  }
+  
+  private void printHyperText(String message) {
+    logger.printField(MsgType.HYPERTEXT.toString(), message);
   }
   
   private class Window_MainListener extends java.awt.event.WindowAdapter {
